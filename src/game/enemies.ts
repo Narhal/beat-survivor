@@ -33,6 +33,7 @@ export interface Enemy {
   phase: number; // pour l'ondulation des méduses
   mesh: THREE.Mesh;
   orbHitCd: number; // anti-spam dégâts de contact des orbes
+  tentHitCd: number; // idem pour le tentacule
 }
 
 const MAX_ENEMIES = 150;
@@ -99,12 +100,14 @@ export class Enemies {
       phase: Math.random() * Math.PI * 2,
       mesh,
       orbHitCd: 0,
+      tentHitCd: 0,
     });
   }
 
   update(dt: number, time: number, player: THREE.Vector2) {
     for (const e of this.list) {
       e.orbHitCd = Math.max(0, e.orbHitCd - dt);
+      e.tentHitCd = Math.max(0, e.tentHitCd - dt);
       switch (e.kind) {
         case "globule": {
           const d = new THREE.Vector2().subVectors(player, e.pos).normalize();

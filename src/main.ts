@@ -9,7 +9,7 @@ import { renderDemoTrack } from "./audio/demo";
 import { World } from "./game/world";
 import { Ship } from "./game/ship";
 import { Enemies, ENEMY_DEFS, Enemy } from "./game/enemies";
-import { Weapons, WEAPON_INFO, WeaponKind } from "./game/weapons";
+import { Weapons, UPGRADE_INFO, UpgradeKind } from "./game/weapons";
 
 // ---------- DOM ----------
 const $ = (id: string) => document.getElementById(id)!;
@@ -98,6 +98,24 @@ interface Burst { mesh: THREE.Mesh; life: number; }
 const bursts: Burst[] = [];
 const burstGeo = new THREE.RingGeometry(0.8, 1, 20);
 
+// Cœurs de la Mitose : à ramasser en conduisant dessus
+interface Heart { pos: THREE.Vector2; mesh: THREE.Mesh; life: number; }
+const hearts: Heart[] = [];
+const heartGeo = new THREE.CircleGeometry(1.1, 16);
+const heartMat = new THREE.MeshBasicMaterial({ color: 0xff7aa8, transparent: true });
+
+function spawnHeart(pos: THREE.Vector2) {
+  const mesh = new THREE.Mesh(heartGeo, heartMat);
+  mesh.position.set(pos.x, pos.y, 1.2);
+  world.scene.add(mesh);
+  hearts.push({ pos: pos.clone(), mesh, life: 14 });
+}
+
+function clearHearts() {
+  for (const h of hearts) world.scene.remove(h.mesh);
+  hearts.length = 0;
+}
+
 function burst(pos: THREE.Vector2, color: number) {
   const mesh = new THREE.Mesh(
     burstGeo,
@@ -119,8 +137,9 @@ let score = 0;
 let gauge = 0;
 let gaugeMax = GAUGE_BASE;
 let gaugeLevel = 0;
-let cards: { kind: WeaponKind; level: number }[] = [];
+let cards: { kind: UpgradeKind; level: number }[] = [];
 let cardIndex = 0;
+let killsSinceHeart = 0;
 let spawnIdx = { bass: 0, mid: 0, high: 0 };
 let dropIdx = 0;
 let counters = { high: 0, mid: 0 };
@@ -168,6 +187,8 @@ function startRun(buf: AudioBuffer) {
   spawnIdx = { bass: 0, mid: 0, high: 0 };
   dropIdx = 0;
   counters = { high: 0, mid: 0 };
+  killsSinceHeart = 0;
+  clearHearts();
 
   musicSource?.stop();
   musicSource = audioCtx.createBufferSource();
@@ -219,12 +240,15 @@ function openLevelUp() {
   audioCtx.suspend();
   cardsEl.innerHTML = "";
   cards.forEach((c, i) => {
+    const info = UPGRADE_INFO[c.kind];
     const div = document.createElement("div");
     div.className = "card" + (i === 0 ? " sel" : "");
+    div.dataset.cat = info.cat;
     div.innerHTML =
-      `<h3>${WEAPON_INFO[c.kind].name}</h3>` +
-      `<p>${WEAPON_INFO[c.kind].desc}</p>` +
-      `<span class="lvl">${c.level === 1 ? "NOUVELLE ARME" : "niveau " + c.level}</span>`;
+      `<span class="cat">${info.cat}</span>` +
+      `<h3>${info.name}</h3>` +
+      `<p>${info.desc}</p>` +
+      `<span class="lvl">${c.level === 1 ? "NOUVEAU" : "niveau " + c.level}</span>`;
     div.addEventListener("click", () => pickCard(i));
     cardsEl.appendChild(div);
   });
@@ -308,6 +332,12 @@ function onKill(e: Enemy) {
   score += def.score;
   gauge += def.xp;
   burst(e.pos, def.color);
+  // Passif Mitose : régulièrement, un pathogène détruit laisse un cœur
+  const threshold = weapons.mitoseThreshold;
+  if (threshold > 0 && ++killsSinceHeart >= threshold) {
+    killsSinceHeart = 0;
+    spawnHeart(e.pos);
+  }
   if (gauge >= gaugeMax) {
     gauge = 0;
     gaugeLevel += 1;
@@ -346,15 +376,37 @@ function tick(now: number) {
       endRun(false, true); // Start / Échap : interrompre la run de test
       return;
     }
+    ship.speedBonus = weapons.speedBonus;
     ship.update(dt, inputVector());
     updateSpawns(t);
     enemies.update(dt, t, ship.pos);
     weapons.update(dt, ship, enemies, (ev) => onKill(ev.enemy));
 
-    // Contact ennemi → dégâts
+    // Cœurs de la Mitose : ramassage à la conduite
+    for (let i = hearts.length - 1; i >= 0; i--) {
+      const h = hearts[i];
+      h.life -= dt;
+      h.mesh.scale.setScalar(1 + Math.sin(t * 5) * 0.15);
+      (h.mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, h.life / 2);
+      if (h.pos.distanceTo(ship.pos) < 3) {
+        ship.heal();
+        burst(h.pos, 0xff7aa8);
+        h.life = 0;
+      }
+      if (h.life <= 0) {
+        world.scene.remove(h.mesh);
+        hearts.splice(i, 1);
+      }
+    }
+
+    // Contact ennemi → membrane d'abord, sinon dégâts
     for (const e of enemies.list) {
       if (e.pos.distanceTo(ship.pos) < e.radius + 1.6) {
-        if (ship.hit()) {
+        if (ship.invuln <= 0 && weapons.absorbHit()) {
+          ship.invuln = 1.2;
+          burst(ship.pos, 0x7df9ff); // la membrane éclate
+          rumble(0.4, 0.3, 120);
+        } else if (ship.hit()) {
           rumble(0.9, 0.6, 220);
           flashEl.classList.add("on");
           setTimeout(() => flashEl.classList.remove("on"), 120);
@@ -449,4 +501,6 @@ addEventListener("drop", (e) => {
 (window as any).__bs = {
   get analysis() { return analysis; },
   get phase() { return phase; },
+  get weapons() { return weapons; },
+  get ship() { return ship; },
 };

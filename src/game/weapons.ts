@@ -1,22 +1,33 @@
-// Armes en tir automatique — le joueur conduit, le build tire. Découplées de
-// la musique par décision de N4 (2026-07-26) : la musique = la menace,
-// le build = le joueur. Choix parmi 3 à chaque jauge pleine (réf. Geometry
-// Survivor).
+// Le build : armes, atouts, passifs — en tir/effet automatique, le joueur
+// conduit. Découplé de la musique par décision de N4 (2026-07-26) : la musique
+// = la menace, le build = le joueur. Choix parmi 3 cartes à chaque jauge
+// pleine (réf. Geometry Survivor). Trois catégories (N4, 2026-07-26) :
+// Arme (attaque), Atout (survie active), Passif (bonus permanents).
 
 import * as THREE from "three";
 import { Enemies, Enemy } from "./enemies";
 import { Ship } from "./ship";
 
-export type WeaponKind = "blaster" | "eventail" | "orbes" | "onde";
+export type UpgradeCategory = "Arme" | "Atout" | "Passif";
+export type UpgradeKind =
+  | "blaster" | "eventail" | "orbes" | "onde" | "tentacule" // armes
+  | "flagelles" | "membrane" // atouts
+  | "mitose" | "enzymes"; // passifs
 
-export const WEAPON_INFO: Record<WeaponKind, { name: string; desc: string }> = {
-  blaster: { name: "Anticorps", desc: "Tire sur le pathogène le plus proche." },
-  eventail: { name: "Éventail", desc: "Gerbe de 5 projectiles vers l'avant." },
-  orbes: { name: "Orbes", desc: "Satellites en orbite, dégâts de contact." },
-  onde: { name: "Onde de choc", desc: "Anneau périodique qui balaie autour de toi." },
+export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat: UpgradeCategory }> = {
+  blaster: { name: "Anticorps", desc: "Tire sur le pathogène le plus proche.", cat: "Arme" },
+  eventail: { name: "Éventail", desc: "Gerbe de projectiles vers l'avant.", cat: "Arme" },
+  orbes: { name: "Orbes", desc: "Satellites en orbite, dégâts de contact.", cat: "Arme" },
+  onde: { name: "Onde de choc", desc: "Anneau périodique qui balaie autour de toi.", cat: "Arme" },
+  tentacule: { name: "Tentacule", desc: "Un flagelle géant ondule autour de toi et tue sur son passage.", cat: "Arme" },
+  flagelles: { name: "Flagelles", desc: "Vitesse de nage augmentée à chaque palier.", cat: "Atout" },
+  membrane: { name: "Membrane", desc: "Absorbe un coup, puis se recharge — de plus en plus vite par palier.", cat: "Atout" },
+  mitose: { name: "Mitose", desc: "Régulièrement, un pathogène détruit laisse un cœur — plus souvent par palier.", cat: "Passif" },
+  enzymes: { name: "Enzymes", desc: "+15 % de dégâts pour toutes les armes par palier.", cat: "Passif" },
 };
 
 const MAX_LEVEL = 5;
+const TENTACLE_SEGMENTS = 8;
 
 interface Projectile {
   pos: THREE.Vector2;
@@ -39,24 +50,40 @@ export interface KillEvent {
 }
 
 export class Weapons {
-  levels = new Map<WeaponKind, number>();
+  levels = new Map<UpgradeKind, number>();
+  /** Bouclier : chargé = le prochain coup est absorbé. */
+  shieldCharged = false;
+  private shieldTimer = 0;
+
   private scene: THREE.Scene;
-  private cooldowns = new Map<WeaponKind, number>();
+  private cooldowns = new Map<UpgradeKind, number>();
   private projectiles: Projectile[] = [];
   private waves: Shockwave[] = [];
   private orbMeshes: THREE.Mesh[] = [];
   private orbAngle = 0;
+  private tentacleMeshes: THREE.Mesh[] = [];
+  private tentacleAngle = 0;
+  private shieldMesh: THREE.Mesh;
+  private time = 0;
 
   private projGeo = new THREE.CircleGeometry(0.55, 8);
   private projMat = new THREE.MeshBasicMaterial({ color: 0xfff3a0 });
   private waveGeo = new THREE.RingGeometry(0.92, 1, 48);
   private orbGeo = new THREE.CircleGeometry(1.15, 12);
   private orbMat = new THREE.MeshBasicMaterial({ color: 0x8effc0 });
+  private tentGeo = new THREE.CircleGeometry(1, 10);
+  private tentMat = new THREE.MeshBasicMaterial({ color: 0x66f0d8 });
   private projPool: THREE.Mesh[] = [];
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
     this.levels.set("blaster", 1);
+    this.shieldMesh = new THREE.Mesh(
+      new THREE.RingGeometry(3.0, 3.35, 32),
+      new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.55 })
+    );
+    this.shieldMesh.visible = false;
+    scene.add(this.shieldMesh);
   }
 
   reset() {
@@ -67,17 +94,46 @@ export class Weapons {
     this.projectiles = [];
     for (const w of this.waves) this.scene.remove(w.mesh);
     this.waves = [];
+    this.shieldCharged = false;
+    this.shieldTimer = 0;
     this.syncOrbs();
+    this.syncTentacle();
   }
 
-  /** Les 3 cartes du level-up : nouvelles armes ou améliorations, jamais de doublon. */
-  drawCards(): { kind: WeaponKind; level: number }[] {
-    const options: { kind: WeaponKind; level: number }[] = [];
-    for (const kind of Object.keys(WEAPON_INFO) as WeaponKind[]) {
+  /** Multiplicateur de dégâts global (passif Enzymes). */
+  get damageMul(): number {
+    return 1 + 0.15 * (this.levels.get("enzymes") ?? 0);
+  }
+
+  /** Bonus de vitesse du vaisseau (atout Flagelles). */
+  get speedBonus(): number {
+    return 1 + 0.06 * (this.levels.get("flagelles") ?? 0);
+  }
+
+  /** Seuil de kills du passif Mitose (0 = inactif). */
+  get mitoseThreshold(): number {
+    const lvl = this.levels.get("mitose") ?? 0;
+    return lvl > 0 ? Math.max(10, 45 - 8 * (lvl - 1)) : 0;
+  }
+
+  /** Tente d'absorber un coup avec la membrane. Retourne true si absorbé. */
+  absorbHit(): boolean {
+    if ((this.levels.get("membrane") ?? 0) > 0 && this.shieldCharged) {
+      this.shieldCharged = false;
+      const lvl = this.levels.get("membrane") ?? 1;
+      this.shieldTimer = 22 * Math.pow(0.75, lvl - 1); // recharge de plus en plus vite
+      return true;
+    }
+    return false;
+  }
+
+  /** Les 3 cartes du level-up : armes, atouts et passifs mélangés. */
+  drawCards(): { kind: UpgradeKind; level: number }[] {
+    const options: { kind: UpgradeKind; level: number }[] = [];
+    for (const kind of Object.keys(UPGRADE_INFO) as UpgradeKind[]) {
       const lvl = this.levels.get(kind) ?? 0;
       if (lvl < MAX_LEVEL) options.push({ kind, level: lvl + 1 });
     }
-    // Mélange de Fisher-Yates
     for (let i = options.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [options[i], options[j]] = [options[j], options[i]];
@@ -85,12 +141,30 @@ export class Weapons {
     return options.slice(0, 3);
   }
 
-  pick(kind: WeaponKind) {
+  pick(kind: UpgradeKind) {
     this.levels.set(kind, (this.levels.get(kind) ?? 0) + 1);
+    if (kind === "membrane" && (this.levels.get("membrane") ?? 0) === 1) {
+      this.shieldCharged = true; // premier palier : bouclier chargé d'office
+    }
     this.syncOrbs();
+    this.syncTentacle();
   }
 
   update(dt: number, ship: Ship, enemies: Enemies, onKill: (e: KillEvent) => void) {
+    this.time += dt;
+    const mul = this.damageMul;
+
+    // Recharge de la membrane
+    if ((this.levels.get("membrane") ?? 0) > 0 && !this.shieldCharged) {
+      this.shieldTimer -= dt;
+      if (this.shieldTimer <= 0) this.shieldCharged = true;
+    }
+    this.shieldMesh.visible = this.shieldCharged;
+    if (this.shieldMesh.visible) {
+      this.shieldMesh.position.set(ship.pos.x, ship.pos.y, 1.9);
+      this.shieldMesh.rotation.z = this.time * 0.8;
+    }
+
     for (const [kind, lvl] of this.levels) {
       const cd = (this.cooldowns.get(kind) ?? 0) - dt;
       if (cd > 0) {
@@ -102,7 +176,7 @@ export class Weapons {
           const target = this.nearest(ship.pos, enemies);
           if (target) {
             const dir = new THREE.Vector2().subVectors(target.pos, ship.pos).normalize();
-            this.fire(ship.pos, dir, 65, 1 + Math.floor(lvl / 2));
+            this.fire(ship.pos, dir, 65, (1 + Math.floor(lvl / 2)) * mul);
             this.cooldowns.set(kind, 0.5 / (1 + (lvl - 1) * 0.35));
           }
           break;
@@ -113,7 +187,7 @@ export class Weapons {
           const spread = Math.PI / 5;
           for (let i = 0; i < n; i++) {
             const a = heading - spread / 2 + (spread * i) / (n - 1);
-            this.fire(ship.pos, new THREE.Vector2(Math.cos(a), Math.sin(a)), 55, 1);
+            this.fire(ship.pos, new THREE.Vector2(Math.cos(a), Math.sin(a)), 55, 1 * mul);
           }
           this.cooldowns.set(kind, 1.15 / (1 + (lvl - 1) * 0.25));
           break;
@@ -122,7 +196,7 @@ export class Weapons {
           const wave: Shockwave = {
             radius: 2,
             maxRadius: 14 + lvl * 4,
-            dmg: 2 + Math.floor(lvl / 2),
+            dmg: (2 + Math.floor(lvl / 2)) * mul,
             hitSet: new Set(),
             mesh: new THREE.Mesh(
               this.waveGeo,
@@ -135,8 +209,8 @@ export class Weapons {
           this.cooldowns.set(kind, 2.4 / (1 + (lvl - 1) * 0.2));
           break;
         }
-        case "orbes":
-          break; // passif, géré plus bas
+        default:
+          break; // orbes, tentacule et les non-armes sont passifs, gérés plus bas
       }
     }
 
@@ -212,7 +286,38 @@ export class Weapons {
           if (e.orbHitCd > 0) continue;
           if (opos.distanceTo(e.pos) < e.radius + 1.15) {
             e.orbHitCd = 0.5;
-            e.hp -= 1 + Math.floor(orbLvl / 2);
+            e.hp -= (1 + Math.floor(orbLvl / 2)) * mul;
+            if (e.hp <= 0) {
+              onKill({ enemy: e });
+              enemies.remove(j);
+            }
+          }
+        }
+      }
+    }
+
+    // Tentacule : un bras organique qui ondule en tournant, léthal sur son passage
+    const tentLvl = this.levels.get("tentacule") ?? 0;
+    if (tentLvl > 0) {
+      this.tentacleAngle += dt * (1.7 + tentLvl * 0.18);
+      const length = 10 + tentLvl * 2.5;
+      for (let k = 0; k < this.tentacleMeshes.length; k++) {
+        const frac = (k + 1) / TENTACLE_SEGMENTS;
+        // Ondulation : chaque segment traîne et serpente derrière le précédent
+        const a = this.tentacleAngle + Math.sin(this.time * 2.6 - k * 0.65) * 0.22 - k * 0.06;
+        const sx = ship.pos.x + Math.cos(a) * length * frac;
+        const sy = ship.pos.y + Math.sin(a) * length * frac;
+        const m = this.tentacleMeshes[k];
+        m.position.set(sx, sy, 1.4);
+        const segR = 1.3 * (1 - frac * 0.55); // s'affine vers le bout
+        m.scale.setScalar(segR);
+        const spos = new THREE.Vector2(sx, sy);
+        for (let j = enemies.list.length - 1; j >= 0; j--) {
+          const e = enemies.list[j];
+          if (e.tentHitCd > 0) continue;
+          if (spos.distanceTo(e.pos) < e.radius + segR) {
+            e.tentHitCd = 0.35;
+            e.hp -= 1.5 * mul;
             if (e.hp <= 0) {
               onKill({ enemy: e });
               enemies.remove(j);
@@ -263,10 +368,22 @@ export class Weapons {
     }
   }
 
+  private syncTentacle() {
+    for (const m of this.tentacleMeshes) this.scene.remove(m);
+    this.tentacleMeshes = [];
+    if ((this.levels.get("tentacule") ?? 0) > 0) {
+      for (let k = 0; k < TENTACLE_SEGMENTS; k++) {
+        const m = new THREE.Mesh(this.tentGeo, this.tentMat);
+        this.scene.add(m);
+        this.tentacleMeshes.push(m);
+      }
+    }
+  }
+
   describe(): string[] {
     const out: string[] = [];
     for (const [kind, lvl] of this.levels) {
-      out.push(`${WEAPON_INFO[kind].name} · niv ${lvl}`);
+      out.push(`${UPGRADE_INFO[kind].name} · niv ${lvl}`);
     }
     return out;
   }

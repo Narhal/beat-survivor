@@ -6,9 +6,10 @@ import * as THREE from "three";
 import { ARENA } from "./world";
 
 const MAX_SPEED = 32;
-// Réglage N4 (2026-07-26) : plus nerveux à l'attaque, plus de glisse au relâché
-const SMOOTH_ACCEL = 5.0; // −10 % de délai quand on pilote
-const SMOOTH_DRIFT = 4.1; // +10 % de dérive quand le stick relâche
+const HP_MAX = 5; // 3 au départ, la Mitose peut soigner au-delà
+// Réglage N4 (2026-07-26, ×2) : plus nerveux à l'attaque, plus de glisse au relâché
+const SMOOTH_ACCEL = 6.0; // survivre exige de répondre tout de suite
+const SMOOTH_DRIFT = 4.1;
 
 export class Ship {
   pos = new THREE.Vector2(0, 0);
@@ -16,6 +17,7 @@ export class Ship {
   lastDir = new THREE.Vector2(1, 0); // dernière direction de déplacement (armes directionnelles)
   hp = 3;
   invuln = 0;
+  speedBonus = 1; // atout Flagelles, piloté depuis main
   group = new THREE.Group();
 
   private t = 0;
@@ -54,7 +56,7 @@ export class Ship {
     const mag = Math.min(1, input.length());
     const want = new THREE.Vector2();
     if (mag > 0.12) {
-      want.copy(input).normalize().multiplyScalar(MAX_SPEED * mag);
+      want.copy(input).normalize().multiplyScalar(MAX_SPEED * this.speedBonus * mag);
       this.lastDir.copy(input).normalize();
     }
     const k = 1 - Math.exp(-dt * (mag > 0.12 ? SMOOTH_ACCEL : SMOOTH_DRIFT));
@@ -84,5 +86,9 @@ export class Ship {
     this.hp -= 1;
     this.invuln = 1.2;
     return true;
+  }
+
+  heal(amount = 1) {
+    this.hp = Math.min(HP_MAX, this.hp + amount);
   }
 }

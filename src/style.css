@@ -105,6 +105,14 @@ button:hover { filter: brightness(1.15); }
   cursor: pointer;
   transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
+.card .cat {
+  display: inline-block; margin-bottom: 8px;
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 8px;
+  background: rgba(45, 200, 230, 0.15); color: #7df9ff;
+}
+.card[data-cat="Atout"] .cat { background: rgba(90, 230, 150, 0.15); color: #8effc0; }
+.card[data-cat="Passif"] .cat { background: rgba(176, 108, 255, 0.18); color: #cfa4ff; }
 .card h3 { font-size: 19px; color: #7df9ff; margin-bottom: 8px; }
 .card p { font-size: 14px; color: #9fb8c6; }
 .card .lvl { display: block; margin-top: 10px; font-size: 13px; color: #b06cff; }
