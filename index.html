@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beat Survivor</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene"></canvas>
+
+    <div id="hud" class="hidden">
+      <div id="hud-top">
+        <div id="hp"></div>
+        <div id="score">0</div>
+        <div id="time">0:00</div>
+      </div>
+      <div id="gauge"><div id="gauge-fill"></div></div>
+      <div id="weapons"></div>
+    </div>
+    <div id="damage-flash"></div>
+
+    <div id="title" class="screen">
+      <h1>BEAT SURVIVOR</h1>
+      <p class="tagline">Ta musique génère l'assaut. Survis-lui.</p>
+      <div id="dropzone">
+        <p>Glisse un fichier audio ici<br /><span class="dim">(mp3, wav, ogg, flac…)</span></p>
+        <p class="or">— ou —</p>
+        <button id="btn-demo">Piste démo intégrée</button>
+      </div>
+      <p class="hint">🎮 Manette recommandée : on conduit au stick gauche. Clavier : ZQSD / flèches.</p>
+      <p id="analyse-status" class="dim"></p>
+    </div>
+
+    <div id="levelup" class="screen hidden">
+      <h2>JAUGE PLEINE</h2>
+      <p class="dim">Choisis ton arme — stick + ✕ ou clic</p>
+      <div id="cards"></div>
+    </div>
+
+    <div id="end" class="screen hidden">
+      <h2 id="end-title">SUBMERGÉ</h2>
+      <p id="end-stats"></p>
+      <button id="btn-restart">Rejouer</button>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

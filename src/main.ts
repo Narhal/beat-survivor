@@ -1,0 +1,376 @@
+// Beat Survivor — prototype zéro.
+// La musique génère les ennemis (onsets par bande), le décor respire avec elle,
+// les armes sont un build aléatoire (choix parmi 3 à chaque jauge pleine).
+// On conduit au stick gauche (clavier en secours).
+
+import * as THREE from "three";
+import { analyseBuffer, envAt, TrackAnalysis } from "./audio/analysis";
+import { renderDemoTrack } from "./audio/demo";
+import { World } from "./game/world";
+import { Ship } from "./game/ship";
+import { Enemies, ENEMY_DEFS, Enemy } from "./game/enemies";
+import { Weapons, WEAPON_INFO, WeaponKind } from "./game/weapons";
+
+// ---------- DOM ----------
+const $ = (id: string) => document.getElementById(id)!;
+const canvas = $("scene") as HTMLCanvasElement;
+const titleEl = $("title"), hudEl = $("hud"), levelupEl = $("levelup"), endEl = $("end");
+const statusEl = $("analyse-status"), cardsEl = $("cards");
+const hpEl = $("hp"), scoreEl = $("score"), timeEl = $("time");
+const gaugeFill = $("gauge-fill"), weaponsEl = $("weapons"), flashEl = $("damage-flash");
+
+// ---------- Entrées : manette d'abord, clavier en secours ----------
+const keys = new Set<string>();
+addEventListener("keydown", (e) => keys.add(e.code));
+addEventListener("keyup", (e) => keys.delete(e.code));
+
+let confirmWasDown = false;
+
+function gamepad(): Gamepad | null {
+  for (const gp of navigator.getGamepads()) if (gp && gp.connected) return gp;
+  return null;
+}
+
+function inputVector(): THREE.Vector2 {
+  const gp = gamepad();
+  if (gp) {
+    const x = gp.axes[0] ?? 0;
+    const y = -(gp.axes[1] ?? 0);
+    const v = new THREE.Vector2(x, y);
+    if (v.length() > 0.15) return v;
+  }
+  const v = new THREE.Vector2(0, 0);
+  if (keys.has("ArrowLeft") || keys.has("KeyA") || keys.has("KeyQ")) v.x -= 1;
+  if (keys.has("ArrowRight") || keys.has("KeyD")) v.x += 1;
+  if (keys.has("ArrowUp") || keys.has("KeyW") || keys.has("KeyZ")) v.y += 1;
+  if (keys.has("ArrowDown") || keys.has("KeyS")) v.y -= 1;
+  return v.normalize();
+}
+
+/** Front montant du bouton de confirmation (✕ manette ou Entrée/Espace). */
+function confirmPressed(): boolean {
+  const gp = gamepad();
+  const down = (gp?.buttons[0]?.pressed ?? false) || keys.has("Enter") || keys.has("Space");
+  const edge = down && !confirmWasDown;
+  confirmWasDown = down;
+  return edge;
+}
+
+function rumble(strong: number, weak: number, ms: number) {
+  const gp = gamepad();
+  const act = (gp as any)?.vibrationActuator;
+  act?.playEffect?.("dual-rumble", {
+    duration: ms,
+    strongMagnitude: strong,
+    weakMagnitude: weak,
+  });
+}
+
+// ---------- Audio ----------
+const audioCtx = new AudioContext();
+let musicSource: AudioBufferSourceNode | null = null;
+let musicGain: GainNode | null = null;
+let songStart = 0; // en temps AudioContext
+
+function songTime(): number {
+  return audioCtx.currentTime - songStart;
+}
+
+// ---------- Monde & entités ----------
+const world = new World(canvas);
+const ship = new Ship(world.scene);
+const enemies = new Enemies(world.scene);
+const weapons = new Weapons(world.scene);
+
+// Éclats de mort : anneaux qui s'évanouissent
+interface Burst { mesh: THREE.Mesh; life: number; }
+const bursts: Burst[] = [];
+const burstGeo = new THREE.RingGeometry(0.8, 1, 20);
+
+function burst(pos: THREE.Vector2, color: number) {
+  const mesh = new THREE.Mesh(
+    burstGeo,
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })
+  );
+  mesh.position.set(pos.x, pos.y, 1.8);
+  world.scene.add(mesh);
+  bursts.push({ mesh, life: 0.45 });
+}
+
+// ---------- État de partie ----------
+type Phase = "title" | "run" | "levelup" | "end";
+let phase: Phase = "title";
+let analysis: TrackAnalysis | null = null;
+let trackName = "";
+let score = 0;
+let gauge = 0;
+let gaugeMax = 10;
+let gaugeLevel = 0;
+let cards: { kind: WeaponKind; level: number }[] = [];
+let cardIndex = 0;
+let spawnIdx = { bass: 0, mid: 0, high: 0 };
+let counters = { high: 0, mid: 0 };
+
+// ---------- Écrans ----------
+function show(el: HTMLElement, on: boolean) {
+  el.classList.toggle("hidden", !on);
+}
+
+async function loadFile(file: File) {
+  statusEl.textContent = `Décodage de « ${file.name} »…`;
+  try {
+    const buf = await audioCtx.decodeAudioData(await file.arrayBuffer());
+    trackName = file.name.replace(/\.[^.]+$/, "");
+    await startFromBuffer(buf);
+  } catch (err) {
+    statusEl.textContent = "Impossible de décoder ce fichier — un autre format ?";
+    console.error(err);
+  }
+}
+
+async function loadDemo() {
+  statusEl.textContent = "Synthèse de la piste démo…";
+  trackName = "Piste démo";
+  const buf = await renderDemoTrack();
+  await startFromBuffer(buf);
+}
+
+async function startFromBuffer(buf: AudioBuffer) {
+  statusEl.textContent = "Analyse du morceau (onsets, énergie)…";
+  await new Promise((r) => setTimeout(r, 30)); // laisse respirer le DOM
+  analysis = await analyseBuffer(buf);
+  statusEl.textContent = "";
+  startRun(buf);
+}
+
+function startRun(buf: AudioBuffer) {
+  ship.reset();
+  enemies.clear();
+  weapons.reset();
+  score = 0;
+  gauge = 0;
+  gaugeLevel = 0;
+  gaugeMax = 10;
+  spawnIdx = { bass: 0, mid: 0, high: 0 };
+  counters = { high: 0, mid: 0 };
+
+  musicSource?.stop();
+  musicSource = audioCtx.createBufferSource();
+  musicSource.buffer = buf;
+  musicGain = audioCtx.createGain();
+  musicGain.gain.value = 1;
+  musicSource.connect(musicGain);
+  musicGain.connect(audioCtx.destination);
+  audioCtx.resume();
+  songStart = audioCtx.currentTime + 0.1;
+  musicSource.start(songStart);
+
+  phase = "run";
+  show(titleEl, false);
+  show(endEl, false);
+  show(hudEl, true);
+  refreshWeaponsHud();
+}
+
+function endRun(victory: boolean) {
+  phase = "end";
+  musicGain?.gain.setTargetAtTime(victory ? 0.6 : 0.15, audioCtx.currentTime, 0.4);
+  $("end-title").textContent = victory ? "MORCEAU SURVÉCU" : "SUBMERGÉ";
+  $("end-stats").textContent =
+    `${trackName} — score ${score} · ${formatTime(songTime())} · niveau ${gaugeLevel + 1}`;
+  show(endEl, true);
+}
+
+// ---------- Level-up ----------
+function openLevelUp() {
+  cards = weapons.drawCards();
+  if (cards.length === 0) return; // tout est au max
+  phase = "levelup";
+  cardIndex = 0;
+  audioCtx.suspend();
+  cardsEl.innerHTML = "";
+  cards.forEach((c, i) => {
+    const div = document.createElement("div");
+    div.className = "card" + (i === 0 ? " sel" : "");
+    div.innerHTML =
+      `<h3>${WEAPON_INFO[c.kind].name}</h3>` +
+      `<p>${WEAPON_INFO[c.kind].desc}</p>` +
+      `<span class="lvl">${c.level === 1 ? "NOUVELLE ARME" : "niveau " + c.level}</span>`;
+    div.addEventListener("click", () => pickCard(i));
+    cardsEl.appendChild(div);
+  });
+  show(levelupEl, true);
+}
+
+function pickCard(i: number) {
+  weapons.pick(cards[i].kind);
+  refreshWeaponsHud();
+  show(levelupEl, false);
+  audioCtx.resume();
+  phase = "run";
+}
+
+let cardStickCooldown = 0;
+
+function updateLevelUp(dt: number) {
+  cardStickCooldown = Math.max(0, cardStickCooldown - dt);
+  const v = inputVector();
+  if (cardStickCooldown <= 0 && Math.abs(v.x) > 0.5) {
+    cardIndex = THREE.MathUtils.euclideanModulo(cardIndex + Math.sign(v.x), cards.length);
+    cardStickCooldown = 0.25;
+    [...cardsEl.children].forEach((c, i) => c.classList.toggle("sel", i === cardIndex));
+  }
+  if (confirmPressed()) pickCard(cardIndex);
+}
+
+// ---------- Spawns pilotés par la musique ----------
+function updateSpawns(t: number) {
+  if (!analysis) return;
+  const difficulty = 1 + (t / 60) * 0.4;
+
+  while (spawnIdx.bass < analysis.bass.onsets.length && analysis.bass.onsets[spawnIdx.bass].t <= t) {
+    const o = analysis.bass.onsets[spawnIdx.bass++];
+    enemies.spawn("globule", ship.pos, o.s, difficulty);
+    if (o.s > 0.75) world.kick(o.s);
+    if (o.s > 0.85 && t > 60) enemies.spawn("globule", ship.pos, o.s * 0.7, difficulty);
+  }
+  while (spawnIdx.mid < analysis.mid.onsets.length && analysis.mid.onsets[spawnIdx.mid].t <= t) {
+    const o = analysis.mid.onsets[spawnIdx.mid++];
+    if (++counters.mid % 3 === 0) enemies.spawn("meduse", ship.pos, o.s, difficulty);
+  }
+  while (spawnIdx.high < analysis.high.onsets.length && analysis.high.onsets[spawnIdx.high].t <= t) {
+    const o = analysis.high.onsets[spawnIdx.high++];
+    if (++counters.high % 2 === 0) enemies.spawn("dard", ship.pos, o.s, difficulty);
+  }
+}
+
+// ---------- HUD ----------
+function refreshWeaponsHud() {
+  weaponsEl.innerHTML = weapons.describe().map((s) => `<div>${s}</div>`).join("");
+}
+
+function formatTime(t: number): string {
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function onKill(e: Enemy) {
+  const def = ENEMY_DEFS[e.kind];
+  score += def.score;
+  gauge += def.xp;
+  burst(e.pos, def.color);
+  if (gauge >= gaugeMax) {
+    gauge = 0;
+    gaugeLevel += 1;
+    gaugeMax = Math.round(10 * Math.pow(1.4, gaugeLevel));
+    openLevelUp();
+  }
+}
+
+// ---------- Boucle ----------
+let lastFrame = performance.now();
+let lastTick = 0;
+
+function tick(now: number) {
+  lastTick = now;
+  const dt = Math.min(0.05, (now - lastFrame) / 1000);
+  lastFrame = now;
+
+  if (phase === "levelup") {
+    updateLevelUp(dt);
+    return; // simulation ET musique en pause
+  }
+
+  const t = phase === "run" ? songTime() : 0;
+  const bassEnv = analysis ? envAt(analysis.bass.env, analysis.fps, t) : 0;
+  const energyEnv = analysis ? envAt(analysis.energy, analysis.fps, t) : 0.15;
+
+  if (phase === "run") {
+    ship.update(dt, inputVector());
+    updateSpawns(t);
+    enemies.update(dt, t, ship.pos);
+    weapons.update(dt, ship, enemies, (ev) => onKill(ev.enemy));
+
+    // Contact ennemi → dégâts
+    for (const e of enemies.list) {
+      if (e.pos.distanceTo(ship.pos) < e.radius + 1.6) {
+        if (ship.hit()) {
+          rumble(0.9, 0.6, 220);
+          flashEl.classList.add("on");
+          setTimeout(() => flashEl.classList.remove("on"), 120);
+          if (ship.hp <= 0) endRun(false);
+        }
+      }
+    }
+
+    if (analysis && t >= analysis.duration - 0.05) endRun(true);
+
+    hpEl.textContent = "♥".repeat(Math.max(0, ship.hp));
+    scoreEl.textContent = String(score);
+    timeEl.textContent = formatTime(t);
+    gaugeFill.style.width = `${Math.min(100, (gauge / gaugeMax) * 100)}%`;
+  }
+
+  // Éclats
+  for (let i = bursts.length - 1; i >= 0; i--) {
+    const b = bursts[i];
+    b.life -= dt;
+    const k = 1 - b.life / 0.45;
+    b.mesh.scale.setScalar(1 + k * 6);
+    (b.mesh.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - k);
+    if (b.life <= 0) {
+      world.scene.remove(b.mesh);
+      (b.mesh.material as THREE.Material).dispose();
+      bursts.splice(i, 1);
+    }
+  }
+
+  world.update(dt, now / 1000, bassEnv, energyEnv, ship.pos);
+}
+
+function rafLoop(now: number) {
+  tick(now);
+  requestAnimationFrame(rafLoop);
+}
+requestAnimationFrame(rafLoop);
+
+// Boucle de secours pour les environnements sans compositing (tests headless) :
+// ne prend le relais que si requestAnimationFrame ne tourne pas.
+if (new URLSearchParams(location.search).has("autotick")) {
+  setInterval(() => {
+    const now = performance.now();
+    if (now - lastTick > 100) tick(now);
+  }, 33);
+}
+
+// ---------- Branchements UI ----------
+$("btn-demo").addEventListener("click", () => {
+  audioCtx.resume();
+  loadDemo();
+});
+$("btn-restart").addEventListener("click", () => {
+  show(endEl, false);
+  show(titleEl, true);
+  show(hudEl, false);
+  statusEl.textContent = "";
+  enemies.clear();
+  phase = "title";
+});
+
+const dropzone = $("dropzone");
+addEventListener("dragover", (e) => {
+  e.preventDefault();
+  dropzone.classList.add("drag");
+});
+addEventListener("dragleave", () => dropzone.classList.remove("drag"));
+addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  if (phase !== "title") return;
+  const file = e.dataTransfer?.files?.[0];
+  if (file) {
+    audioCtx.resume();
+    loadFile(file);
+  }
+});
