@@ -10,9 +10,9 @@ import { Ship } from "./ship";
 
 export type UpgradeCategory = "Arme" | "Atout" | "Passif";
 export type UpgradeKind =
-  | "blaster" | "eventail" | "orbes" | "onde" | "tentacule" // armes
+  | "blaster" | "eventail" | "orbes" | "onde" | "tentacule" | "apoptose" // armes
   | "flagelles" | "membrane" // atouts
-  | "mitose" | "enzymes"; // passifs
+  | "mitose" | "enzymes" | "phagocytose" | "saccade"; // passifs
 
 export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat: UpgradeCategory }> = {
   blaster: { name: "Anticorps", desc: "Tire sur le pathogène le plus proche.", cat: "Arme" },
@@ -20,10 +20,13 @@ export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat
   orbes: { name: "Orbes", desc: "Satellites en orbite, dégâts de contact.", cat: "Arme" },
   onde: { name: "Onde de choc", desc: "Anneau périodique qui balaie autour de toi.", cat: "Arme" },
   tentacule: { name: "Tentacule", desc: "Un flagelle géant ondule autour de toi et tue sur son passage.", cat: "Arme" },
+  apoptose: { name: "Apoptose", desc: "L2 : purge tout l'écran une fois chargée — se charge plus vite par palier.", cat: "Arme" },
   flagelles: { name: "Flagelles", desc: "Vitesse de nage augmentée à chaque palier.", cat: "Atout" },
   membrane: { name: "Membrane", desc: "Absorbe un coup, puis se recharge — de plus en plus vite par palier.", cat: "Atout" },
   mitose: { name: "Mitose", desc: "Régulièrement, un pathogène détruit laisse un cœur — plus souvent par palier.", cat: "Passif" },
   enzymes: { name: "Enzymes", desc: "+15 % de dégâts pour toutes les armes par palier.", cat: "Passif" },
+  phagocytose: { name: "Phagocytose", desc: "Attire les protéines des pathogènes de plus en plus loin.", cat: "Passif" },
+  saccade: { name: "Saccade", desc: "Dash (R1) plus prompt ; palier 3 : invulnérable pendant ; palier 5 : il déchire sur son passage.", cat: "Passif" },
 };
 
 const MAX_LEVEL = 5;
@@ -53,6 +56,8 @@ export class Weapons {
   levels = new Map<UpgradeKind, number>();
   /** Bouclier : chargé = le prochain coup est absorbé. */
   shieldCharged = false;
+  /** Charge de l'Apoptose, 0..1. */
+  nukeCharge = 0;
   private shieldTimer = 0;
 
   private scene: THREE.Scene;
@@ -96,6 +101,7 @@ export class Weapons {
     this.waves = [];
     this.shieldCharged = false;
     this.shieldTimer = 0;
+    this.nukeCharge = 0;
     this.syncOrbs();
     this.syncTentacle();
   }
@@ -114,6 +120,35 @@ export class Weapons {
   get mitoseThreshold(): number {
     const lvl = this.levels.get("mitose") ?? 0;
     return lvl > 0 ? Math.max(10, 45 - 8 * (lvl - 1)) : 0;
+  }
+
+  /** Rayon d'attraction des protéines (passif Phagocytose). */
+  get magnetRadius(): number {
+    return 6 + 4 * (this.levels.get("phagocytose") ?? 0);
+  }
+
+  /** Récupération du dash — la Saccade le rend plus prompt. */
+  get dashCooldown(): number {
+    return 2.4 * (1 - 0.09 * (this.levels.get("saccade") ?? 0));
+  }
+
+  /** Palier 3 de la Saccade : invulnérable pendant le dash. */
+  get dashInvuln(): boolean {
+    return (this.levels.get("saccade") ?? 0) >= 3;
+  }
+
+  /** Palier 5 de la Saccade : le dash blesse sur son passage. */
+  get dashDamage(): number {
+    return (this.levels.get("saccade") ?? 0) >= 5 ? 2 * this.damageMul : 0;
+  }
+
+  /** Déclenche l'Apoptose si elle est chargée. */
+  fireNuke(): boolean {
+    if ((this.levels.get("apoptose") ?? 0) > 0 && this.nukeCharge >= 1) {
+      this.nukeCharge = 0;
+      return true;
+    }
+    return false;
   }
 
   /** Tente d'absorber un coup avec la membrane. Retourne true si absorbé. */
@@ -158,6 +193,13 @@ export class Weapons {
     if ((this.levels.get("membrane") ?? 0) > 0 && !this.shieldCharged) {
       this.shieldTimer -= dt;
       if (this.shieldTimer <= 0) this.shieldCharged = true;
+    }
+
+    // Charge de l'Apoptose : 45 s au palier 1, de plus en plus vite ensuite
+    const nukeLvl = this.levels.get("apoptose") ?? 0;
+    if (nukeLvl > 0 && this.nukeCharge < 1) {
+      const chargeTime = 45 * Math.pow(0.8, nukeLvl - 1);
+      this.nukeCharge = Math.min(1, this.nukeCharge + dt / chargeTime);
     }
     this.shieldMesh.visible = this.shieldCharged;
     if (this.shieldMesh.visible) {
@@ -383,7 +425,12 @@ export class Weapons {
   describe(): string[] {
     const out: string[] = [];
     for (const [kind, lvl] of this.levels) {
-      out.push(`${UPGRADE_INFO[kind].name} · niv ${lvl}`);
+      if (kind === "apoptose") {
+        const state = this.nukeCharge >= 1 ? "PRÊTE — L2 !" : `${Math.floor(this.nukeCharge * 100)} %`;
+        out.push(`Apoptose · niv ${lvl} · ${state}`);
+      } else {
+        out.push(`${UPGRADE_INFO[kind].name} · niv ${lvl}`);
+      }
     }
     return out;
   }

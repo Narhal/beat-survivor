@@ -10,6 +10,8 @@ const HP_MAX = 5; // 3 au départ, la Mitose peut soigner au-delà
 // Réglage N4 (2026-07-26, ×2) : plus nerveux à l'attaque, plus de glisse au relâché
 const SMOOTH_ACCEL = 6.0; // survivre exige de répondre tout de suite
 const SMOOTH_DRIFT = 4.1;
+const DASH_SPEED = 95;
+const DASH_DURATION = 0.16;
 
 export class Ship {
   pos = new THREE.Vector2(0, 0);
@@ -18,9 +20,23 @@ export class Ship {
   hp = 3;
   invuln = 0;
   speedBonus = 1; // atout Flagelles, piloté depuis main
+  dashCd = 0;
   group = new THREE.Group();
 
+  private dashTime = 0;
   private t = 0;
+
+  get dashing(): boolean {
+    return this.dashTime > 0;
+  }
+
+  /** Dash dans la direction de déplacement. Retourne true s'il part. */
+  tryDash(cooldown: number): boolean {
+    if (this.dashCd > 0 || this.dashTime > 0) return false;
+    this.dashTime = DASH_DURATION;
+    this.dashCd = cooldown;
+    return true;
+  }
 
   constructor(scene: THREE.Scene) {
     // Cellule symétrique bleutée : membrane, liseré, noyau
@@ -49,18 +65,28 @@ export class Ship {
     this.lastDir.set(1, 0);
     this.hp = 3;
     this.invuln = 0;
+    this.dashCd = 0;
+    this.dashTime = 0;
   }
 
   update(dt: number, input: THREE.Vector2) {
     this.t += dt;
+    this.dashCd = Math.max(0, this.dashCd - dt);
     const mag = Math.min(1, input.length());
-    const want = new THREE.Vector2();
-    if (mag > 0.12) {
-      want.copy(input).normalize().multiplyScalar(MAX_SPEED * this.speedBonus * mag);
-      this.lastDir.copy(input).normalize();
+    if (mag > 0.12) this.lastDir.copy(input).normalize();
+
+    if (this.dashTime > 0) {
+      // Dash : la cellule fuse dans sa direction, le pilotage reprend après
+      this.dashTime -= dt;
+      this.vel.copy(this.lastDir).multiplyScalar(DASH_SPEED);
+    } else {
+      const want = new THREE.Vector2();
+      if (mag > 0.12) {
+        want.copy(input).normalize().multiplyScalar(MAX_SPEED * this.speedBonus * mag);
+      }
+      const k = 1 - Math.exp(-dt * (mag > 0.12 ? SMOOTH_ACCEL : SMOOTH_DRIFT));
+      this.vel.lerp(want, k);
     }
-    const k = 1 - Math.exp(-dt * (mag > 0.12 ? SMOOTH_ACCEL : SMOOTH_DRIFT));
-    this.vel.lerp(want, k);
     this.pos.addScaledVector(this.vel, dt);
 
     // Bords : on glisse le long des parois
@@ -76,7 +102,7 @@ export class Ship {
     this.invuln = Math.max(0, this.invuln - dt);
     this.group.position.set(this.pos.x, this.pos.y, 2);
     // Respiration de la membrane — la cellule est vivante, pas orientée
-    this.group.scale.setScalar(1 + Math.sin(this.t * 3.2) * 0.05);
+    this.group.scale.setScalar((1 + Math.sin(this.t * 3.2) * 0.05) * (this.dashing ? 1.3 : 1));
     this.group.visible = this.invuln <= 0 || Math.floor(this.invuln * 12) % 2 === 0;
   }
 

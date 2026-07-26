@@ -94,6 +94,9 @@ button:hover { filter: brightness(1.15); }
   opacity: 0; transition: opacity 0.35s;
 }
 #damage-flash.on { opacity: 1; transition: opacity 0.05s; }
+#damage-flash.nuke {
+  background: radial-gradient(ellipse at center, rgba(215, 255, 255, 0.75), rgba(120, 230, 255, 0.3) 55%, transparent);
+}
 
 #cards { display: flex; gap: 20px; pointer-events: auto; }
 

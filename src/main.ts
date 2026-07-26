@@ -35,8 +35,12 @@ function gamepad(): Gamepad | null {
 const FACE_BUTTONS = [0, 1, 2, 3];
 let confirmWas = false;
 let startWas = false;
+let dashWas = false;
+let nukeWas = false;
 let confirmEdge = false;
 let startEdge = false;
+let dashEdge = false;
+let nukeEdge = false;
 
 function readInputEdges() {
   const gp = gamepad();
@@ -45,10 +49,18 @@ function readInputEdges() {
     keys.has("Enter") ||
     keys.has("Space");
   const start = (gp?.buttons[9]?.pressed ?? false) || keys.has("Escape");
+  // R1/RB = dash ; L2/LT (gâchette analogique) = Apoptose
+  const dash = (gp?.buttons[5]?.pressed ?? false) || keys.has("ShiftLeft") || keys.has("ShiftRight");
+  const nukeBtn = gp?.buttons[6];
+  const nuke = (nukeBtn ? nukeBtn.pressed || nukeBtn.value > 0.5 : false) || keys.has("KeyE");
   confirmEdge = face && !confirmWas;
   confirmWas = face;
   startEdge = start && !startWas;
   startWas = start;
+  dashEdge = dash && !dashWas;
+  dashWas = dash;
+  nukeEdge = nuke && !nukeWas;
+  nukeWas = nuke;
 }
 
 function inputVector(): THREE.Vector2 {
@@ -114,6 +126,38 @@ function spawnHeart(pos: THREE.Vector2) {
 function clearHearts() {
   for (const h of hearts) world.scene.remove(h.mesh);
   hearts.length = 0;
+}
+
+// Protéines : l'XP lâchée par les pathogènes, à collecter en conduisant.
+// La jauge ne se remplit plus au kill mais au ramassage (décision N4).
+interface Protein { pos: THREE.Vector2; vel: THREE.Vector2; value: number; mesh: THREE.Mesh; life: number; }
+const proteins: Protein[] = [];
+const protGeo = new THREE.CircleGeometry(0.5, 8);
+const protMat = new THREE.MeshBasicMaterial({ color: 0xcfff7a, transparent: true });
+const MAX_PROTEINS = 350;
+const dashHits = new Set<Enemy>();
+
+function spawnProtein(pos: THREE.Vector2, value: number) {
+  if (proteins.length >= MAX_PROTEINS) {
+    gauge += value; // saturation : crédit direct plutôt que de noyer la scène
+    return;
+  }
+  const a = Math.random() * Math.PI * 2;
+  const mesh = new THREE.Mesh(protGeo, protMat.clone());
+  mesh.position.set(pos.x, pos.y, 1.1);
+  world.scene.add(mesh);
+  proteins.push({
+    pos: pos.clone(),
+    vel: new THREE.Vector2(Math.cos(a), Math.sin(a)).multiplyScalar(5 + Math.random() * 9),
+    value,
+    mesh,
+    life: 18,
+  });
+}
+
+function clearProteins() {
+  for (const p of proteins) world.scene.remove(p.mesh);
+  proteins.length = 0;
 }
 
 function burst(pos: THREE.Vector2, color: number) {
@@ -189,6 +233,7 @@ function startRun(buf: AudioBuffer) {
   counters = { high: 0, mid: 0 };
   killsSinceHeart = 0;
   clearHearts();
+  clearProteins();
 
   musicSource?.stop();
   musicSource = audioCtx.createBufferSource();
@@ -264,6 +309,7 @@ function pickCard(i: number) {
 }
 
 let cardStickCooldown = 0;
+let weaponsHudTimer = 0;
 
 function updateLevelUp(dt: number) {
   cardStickCooldown = Math.max(0, cardStickCooldown - dt);
@@ -330,19 +376,36 @@ function formatTime(t: number): string {
 function onKill(e: Enemy) {
   const def = ENEMY_DEFS[e.kind];
   score += def.score;
-  gauge += def.xp;
   burst(e.pos, def.color);
+  spawnProtein(e.pos, def.xp);
   // Passif Mitose : régulièrement, un pathogène détruit laisse un cœur
   const threshold = weapons.mitoseThreshold;
   if (threshold > 0 && ++killsSinceHeart >= threshold) {
     killsSinceHeart = 0;
     spawnHeart(e.pos);
   }
+}
+
+function checkGauge() {
   if (gauge >= gaugeMax) {
     gauge = 0;
     gaugeLevel += 1;
     gaugeMax = Math.round(GAUGE_BASE * Math.pow(1.4, gaugeLevel));
     openLevelUp();
+  }
+}
+
+/** L'Apoptose : purge de l'écran, pluie de protéines. */
+function fireApoptose() {
+  world.kick(2);
+  rumble(1, 1, 500);
+  flashEl.classList.add("on", "nuke");
+  setTimeout(() => flashEl.classList.remove("on", "nuke"), 220);
+  for (let j = enemies.list.length - 1; j >= 0; j--) {
+    const e = enemies.list[j];
+    e.hp = 0;
+    onKill(e);
+    enemies.remove(j);
   }
 }
 
@@ -377,10 +440,65 @@ function tick(now: number) {
       return;
     }
     ship.speedBonus = weapons.speedBonus;
+
+    // Dash (R1) — la Saccade l'améliore
+    if (dashEdge && ship.tryDash(weapons.dashCooldown)) {
+      burst(ship.pos, 0xaffbff);
+      rumble(0.25, 0.5, 90);
+      dashHits.clear();
+    }
     ship.update(dt, inputVector());
+    if (ship.dashing) {
+      if (weapons.dashInvuln) ship.invuln = Math.max(ship.invuln, 0.06);
+      const dashDmg = weapons.dashDamage;
+      if (dashDmg > 0) {
+        for (let j = enemies.list.length - 1; j >= 0; j--) {
+          const e = enemies.list[j];
+          if (dashHits.has(e)) continue;
+          if (e.pos.distanceTo(ship.pos) < e.radius + 2.4) {
+            dashHits.add(e);
+            e.hp -= dashDmg;
+            if (e.hp <= 0) {
+              onKill(e);
+              enemies.remove(j);
+            }
+          }
+        }
+      }
+    }
+
+    // Apoptose (L2) si chargée
+    if (nukeEdge && weapons.fireNuke()) fireApoptose();
+
     updateSpawns(t);
     enemies.update(dt, t, ship.pos);
     weapons.update(dt, ship, enemies, (ev) => onKill(ev.enemy));
+
+    // Protéines : aimant (Phagocytose), ramassage → jauge
+    const magnetR = weapons.magnetRadius;
+    for (let i = proteins.length - 1; i >= 0; i--) {
+      const p = proteins[i];
+      p.life -= dt;
+      p.vel.multiplyScalar(Math.max(0, 1 - dt * 3));
+      const d = p.pos.distanceTo(ship.pos);
+      if (d < magnetR) {
+        const pull = new THREE.Vector2().subVectors(ship.pos, p.pos).normalize();
+        p.vel.addScaledVector(pull, dt * 160);
+      }
+      p.pos.addScaledVector(p.vel, dt);
+      p.mesh.position.set(p.pos.x, p.pos.y, 1.1);
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, p.life / 2.5);
+      if (d < 2.2) {
+        gauge += p.value;
+        p.life = 0;
+      }
+      if (p.life <= 0) {
+        world.scene.remove(p.mesh);
+        (p.mesh.material as THREE.Material).dispose();
+        proteins.splice(i, 1);
+      }
+    }
+    checkGauge();
 
     // Cœurs de la Mitose : ramassage à la conduite
     for (let i = hearts.length - 1; i >= 0; i--) {
@@ -421,6 +539,12 @@ function tick(now: number) {
     scoreEl.textContent = String(score);
     timeEl.textContent = formatTime(t);
     gaugeFill.style.width = `${Math.min(100, (gauge / gaugeMax) * 100)}%`;
+    // La charge d'Apoptose vit en continu dans le HUD
+    weaponsHudTimer -= dt;
+    if (weaponsHudTimer <= 0) {
+      refreshWeaponsHud();
+      weaponsHudTimer = 0.3;
+    }
   }
 
   // Éclats
@@ -503,4 +627,5 @@ addEventListener("drop", (e) => {
   get phase() { return phase; },
   get weapons() { return weapons; },
   get ship() { return ship; },
+  get enemies() { return enemies; },
 };
