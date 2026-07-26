@@ -113,9 +113,11 @@ type Phase = "title" | "run" | "levelup" | "end";
 let phase: Phase = "title";
 let analysis: TrackAnalysis | null = null;
 let trackName = "";
+const GAUGE_BASE = 15; // +50 % de lenteur demandé par N4 (2026-07-26)
+const SPAWN_DENSITY = 0.8; // −20 % de densité d'ennemis (N4)
 let score = 0;
 let gauge = 0;
-let gaugeMax = 10;
+let gaugeMax = GAUGE_BASE;
 let gaugeLevel = 0;
 let cards: { kind: WeaponKind; level: number }[] = [];
 let cardIndex = 0;
@@ -162,7 +164,7 @@ function startRun(buf: AudioBuffer) {
   score = 0;
   gauge = 0;
   gaugeLevel = 0;
-  gaugeMax = 10;
+  gaugeMax = GAUGE_BASE;
   spawnIdx = { bass: 0, mid: 0, high: 0 };
   dropIdx = 0;
   counters = { high: 0, mid: 0 };
@@ -272,17 +274,20 @@ function updateSpawns(t: number) {
   while (spawnIdx.bass < analysis.bass.onsets.length && analysis.bass.onsets[spawnIdx.bass].t <= t) {
     const o = analysis.bass.onsets[spawnIdx.bass++];
     if (inten < 0.12) continue; // quasi-silence : la soupe se calme vraiment
+    if (Math.random() > SPAWN_DENSITY) continue;
     enemies.spawn("globule", ship.pos, o.s, difficulty, speedScale);
     if (o.s > 0.75) world.kick(o.s);
     if (inten > 0.7 && o.s > 0.7) enemies.spawn("globule", ship.pos, o.s * 0.7, difficulty, speedScale);
   }
   while (spawnIdx.mid < analysis.mid.onsets.length && analysis.mid.onsets[spawnIdx.mid].t <= t) {
     const o = analysis.mid.onsets[spawnIdx.mid++];
-    if (++counters.mid % 3 === 0 && inten > 0.25) enemies.spawn("meduse", ship.pos, o.s, difficulty, speedScale);
+    if (++counters.mid % 3 === 0 && inten > 0.25 && Math.random() <= SPAWN_DENSITY)
+      enemies.spawn("meduse", ship.pos, o.s, difficulty, speedScale);
   }
   while (spawnIdx.high < analysis.high.onsets.length && analysis.high.onsets[spawnIdx.high].t <= t) {
     const o = analysis.high.onsets[spawnIdx.high++];
-    if (++counters.high % 2 === 0 && inten > 0.4) enemies.spawn("dard", ship.pos, o.s, difficulty, speedScale);
+    if (++counters.high % 2 === 0 && inten > 0.4 && Math.random() <= SPAWN_DENSITY)
+      enemies.spawn("dard", ship.pos, o.s, difficulty, speedScale);
   }
 }
 
@@ -306,7 +311,7 @@ function onKill(e: Enemy) {
   if (gauge >= gaugeMax) {
     gauge = 0;
     gaugeLevel += 1;
-    gaugeMax = Math.round(10 * Math.pow(1.4, gaugeLevel));
+    gaugeMax = Math.round(GAUGE_BASE * Math.pow(1.4, gaugeLevel));
     openLevelUp();
   }
 }
@@ -333,6 +338,8 @@ function tick(now: number) {
   const t = phase === "run" ? songTime() : 0;
   const bassEnv = analysis ? envAt(analysis.bass.env, analysis.fps, t) : 0;
   const energyEnv = analysis ? envAt(analysis.energy, analysis.fps, t) : 0.15;
+  const intenEnv = analysis ? envAt(analysis.intensity, analysis.fps, t) : 0.12;
+  const midEnv = analysis ? envAt(analysis.mid.env, analysis.fps, t) : 0.4;
 
   if (phase === "run") {
     if (startEdge) {
@@ -378,7 +385,18 @@ function tick(now: number) {
     }
   }
 
-  world.update(dt, now / 1000, bassEnv, energyEnv, ship.pos);
+  world.update(
+    dt,
+    now / 1000,
+    {
+      bass: bassEnv,
+      energy: energyEnv,
+      intensity: phase === "run" ? intenEnv : 0.12,
+      mid: midEnv,
+      danger: phase === "run" ? Math.min(1, enemies.list.length / 70) : 0,
+    },
+    ship.pos
+  );
 }
 
 function rafLoop(now: number) {

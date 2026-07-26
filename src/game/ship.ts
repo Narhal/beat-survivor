@@ -6,7 +6,9 @@ import * as THREE from "three";
 import { ARENA } from "./world";
 
 const MAX_SPEED = 32;
-const SMOOTH = 4.5; // réactivité de l'inertie (plus haut = plus direct)
+// Réglage N4 (2026-07-26) : plus nerveux à l'attaque, plus de glisse au relâché
+const SMOOTH_ACCEL = 5.0; // −10 % de délai quand on pilote
+const SMOOTH_DRIFT = 4.1; // +10 % de dérive quand le stick relâche
 
 export class Ship {
   pos = new THREE.Vector2(0, 0);
@@ -55,7 +57,7 @@ export class Ship {
       want.copy(input).normalize().multiplyScalar(MAX_SPEED * mag);
       this.lastDir.copy(input).normalize();
     }
-    const k = 1 - Math.exp(-dt * SMOOTH);
+    const k = 1 - Math.exp(-dt * (mag > 0.12 ? SMOOTH_ACCEL : SMOOTH_DRIFT));
     this.vel.lerp(want, k);
     this.pos.addScaledVector(this.vel, dt);
 
