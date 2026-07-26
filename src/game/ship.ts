@@ -1,85 +1,78 @@
-// Le vaisseau : on CONDUIT — jamais à l'arrêt, le stick oriente et module la
-// vitesse, l'inertie est fluide (on nage dans la soupe, réf. Nucleus).
+// Le vaisseau : une cellule. Le déplacement est ALIGNÉ sur le stick
+// (décision N4 2026-07-26 : pas de modèle cap+rotation type voiture) —
+// le stick pointe, la cellule va, avec juste assez d'inertie pour nager.
 
 import * as THREE from "three";
 import { ARENA } from "./world";
 
-const BASE_SPEED = 13; // vitesse plancher (on ne s'arrête pas)
 const MAX_SPEED = 32;
-const TURN_RATE = 5.2; // rad/s
-const SMOOTH = 3.2; // inertie (plus bas = plus flottant)
+const SMOOTH = 4.5; // réactivité de l'inertie (plus haut = plus direct)
 
 export class Ship {
   pos = new THREE.Vector2(0, 0);
-  vel = new THREE.Vector2(BASE_SPEED, 0);
-  heading = 0;
+  vel = new THREE.Vector2(0, 0);
+  lastDir = new THREE.Vector2(1, 0); // dernière direction de déplacement (armes directionnelles)
   hp = 3;
   invuln = 0;
   group = new THREE.Group();
 
-  private body: THREE.Mesh;
+  private t = 0;
 
   constructor(scene: THREE.Scene) {
-    // Triangle pointé vers +X
-    const shape = new THREE.Shape();
-    shape.moveTo(2.2, 0);
-    shape.lineTo(-1.4, 1.3);
-    shape.lineTo(-0.7, 0);
-    shape.lineTo(-1.4, -1.3);
-    shape.closePath();
-    this.body = new THREE.Mesh(
-      new THREE.ShapeGeometry(shape),
-      new THREE.MeshBasicMaterial({ color: 0xaffbff })
+    // Cellule symétrique bleutée : membrane, liseré, noyau
+    const membrane = new THREE.Mesh(
+      new THREE.CircleGeometry(2.2, 32),
+      new THREE.MeshBasicMaterial({ color: 0x2a7f9a, transparent: true, opacity: 0.45 })
     );
-    const halo = new THREE.Mesh(
-      new THREE.CircleGeometry(2.6, 24),
-      new THREE.MeshBasicMaterial({ color: 0x1a6f8a, transparent: true, opacity: 0.35 })
+    const rim = new THREE.Mesh(
+      new THREE.RingGeometry(2.0, 2.35, 32),
+      new THREE.MeshBasicMaterial({ color: 0x9fe8ff })
     );
-    halo.position.z = -0.5;
-    this.group.add(halo);
-    this.group.add(this.body);
+    const nucleus = new THREE.Mesh(
+      new THREE.CircleGeometry(0.85, 24),
+      new THREE.MeshBasicMaterial({ color: 0xd8fbff })
+    );
+    nucleus.position.z = 0.1;
+    rim.position.z = 0.05;
+    this.group.add(membrane, rim, nucleus);
     this.group.position.z = 2;
     scene.add(this.group);
   }
 
   reset() {
     this.pos.set(0, 0);
-    this.vel.set(BASE_SPEED, 0);
-    this.heading = 0;
+    this.vel.set(0, 0);
+    this.lastDir.set(1, 0);
     this.hp = 3;
     this.invuln = 0;
   }
 
   update(dt: number, input: THREE.Vector2) {
+    this.t += dt;
     const mag = Math.min(1, input.length());
-    if (mag > 0.15) {
-      const target = Math.atan2(input.y, input.x);
-      let diff = target - this.heading;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      const step = TURN_RATE * dt;
-      this.heading += THREE.MathUtils.clamp(diff, -step, step);
+    const want = new THREE.Vector2();
+    if (mag > 0.12) {
+      want.copy(input).normalize().multiplyScalar(MAX_SPEED * mag);
+      this.lastDir.copy(input).normalize();
     }
-
-    const speed = BASE_SPEED + (MAX_SPEED - BASE_SPEED) * (mag > 0.15 ? mag : 0);
-    const want = new THREE.Vector2(Math.cos(this.heading), Math.sin(this.heading)).multiplyScalar(speed);
     const k = 1 - Math.exp(-dt * SMOOTH);
     this.vel.lerp(want, k);
     this.pos.addScaledVector(this.vel, dt);
 
-    // Bords : glissement doux le long des parois
+    // Bords : on glisse le long des parois
     if (Math.abs(this.pos.x) > ARENA.hw - 2) {
       this.pos.x = THREE.MathUtils.clamp(this.pos.x, -(ARENA.hw - 2), ARENA.hw - 2);
-      this.vel.x *= -0.25;
+      this.vel.x = 0;
     }
     if (Math.abs(this.pos.y) > ARENA.hh - 2) {
       this.pos.y = THREE.MathUtils.clamp(this.pos.y, -(ARENA.hh - 2), ARENA.hh - 2);
-      this.vel.y *= -0.25;
+      this.vel.y = 0;
     }
 
     this.invuln = Math.max(0, this.invuln - dt);
     this.group.position.set(this.pos.x, this.pos.y, 2);
-    this.group.rotation.z = Math.atan2(this.vel.y, this.vel.x);
+    // Respiration de la membrane — la cellule est vivante, pas orientée
+    this.group.scale.setScalar(1 + Math.sin(this.t * 3.2) * 0.05);
     this.group.visible = this.invuln <= 0 || Math.floor(this.invuln * 12) % 2 === 0;
   }
 

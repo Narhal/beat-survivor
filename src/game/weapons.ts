@@ -108,7 +108,7 @@ export class Weapons {
           break;
         }
         case "eventail": {
-          const heading = Math.atan2(ship.vel.y, ship.vel.x);
+          const heading = Math.atan2(ship.lastDir.y, ship.lastDir.x);
           const n = 3 + lvl;
           const spread = Math.PI / 5;
           for (let i = 0; i < n; i++) {
