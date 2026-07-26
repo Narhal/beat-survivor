@@ -16,6 +16,10 @@ export interface TrackAnalysis {
   duration: number;
   fps: number; // frames d'enveloppe par seconde
   energy: Float32Array; // énergie globale 0..1
+  /** Énergie lissée (~2 s) : le « chef d'orchestre » — calme vs intensité. */
+  intensity: Float32Array;
+  /** Instants de drop : l'intensité surgit après une accalmie. */
+  drops: number[];
   bass: BandTrack;
   mid: BandTrack;
   high: BandTrack;
@@ -36,7 +40,55 @@ export async function analyseBuffer(buffer: AudioBuffer): Promise<TrackAnalysis>
   const mid = bandTrack(midBuf, fps, 0.11, 1.7);
   const high = bandTrack(highBuf, fps, 0.09, 1.8);
 
-  return { duration: buffer.duration, fps, energy, bass, mid, high };
+  // Intensité = énergie brute + « plénitude » du mix (activité des médiums/aigus) :
+  // le RMS seul ne voit pas la différence entre une intro basse+kick et un mix
+  // complet — les aigus (hats, cymbales) et médiums signent les sections chargées.
+  const activity = new Float32Array(energy.length);
+  for (let i = 0; i < energy.length; i++) {
+    activity[i] = 0.5 * energy[i] + 0.3 * high.env[i] + 0.2 * mid.env[i];
+  }
+  const intensity = normalize(movingAverage(activity, Math.max(1, Math.round(fps * 1.8))));
+  const drops = detectDrops(intensity, fps);
+
+  return { duration: buffer.duration, fps, energy, intensity, drops, bass, mid, high };
+}
+
+/** Moyenne glissante centrée (fenêtre en frames), somme préfixe O(n). */
+function movingAverage(src: Float32Array, win: number): Float32Array {
+  const n = src.length;
+  const half = Math.floor(win / 2);
+  const prefix = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) prefix[i + 1] = prefix[i] + src[i];
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = Math.max(0, i - half);
+    const b = Math.min(n, i + half + 1);
+    out[i] = (prefix[b] - prefix[a]) / (b - a);
+  }
+  return out;
+}
+
+/**
+ * Un drop = l'intensité franchit 0,65 en montant après être restée
+ * sous 0,45 pendant au moins 1 s. Minimum 4 s entre deux drops.
+ */
+function detectDrops(intensity: Float32Array, fps: number): number[] {
+  const drops: number[] = [];
+  let calmFrames = 0;
+  let lastDrop = -Infinity;
+  for (let i = 0; i < intensity.length; i++) {
+    if (intensity[i] < 0.45) {
+      calmFrames++;
+    } else if (intensity[i] >= 0.65) {
+      const t = i / fps;
+      if (calmFrames >= fps * 1.0 && t - lastDrop > 4) {
+        drops.push(t);
+        lastDrop = t;
+      }
+      calmFrames = 0;
+    }
+  }
+  return drops;
 }
 
 /** Échantillonne une enveloppe au temps t (secondes). */

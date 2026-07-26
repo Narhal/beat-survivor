@@ -58,8 +58,11 @@ export class Enemies {
     };
   }
 
-  /** Spawn sur le bord, à l'écart du joueur ; force ∈ 0..1 module la taille/PV. */
-  spawn(kind: EnemyKind, player: THREE.Vector2, strength: number, difficulty: number) {
+  /**
+   * Spawn sur le bord, à l'écart du joueur ; force ∈ 0..1 module la taille/PV,
+   * speedScale (l'intensité du morceau) module la vitesse.
+   */
+  spawn(kind: EnemyKind, player: THREE.Vector2, strength: number, difficulty: number, speedScale = 1) {
     if (this.list.length >= MAX_ENEMIES) return;
     const def = ENEMY_DEFS[kind];
 
@@ -92,7 +95,7 @@ export class Enemies {
       dir: new THREE.Vector2().subVectors(player, pos).normalize(),
       hp: Math.ceil(def.hp * scale * (1 + (difficulty - 1) * 0.5)),
       radius: def.radius * scale,
-      speed: def.speed * (0.9 + Math.random() * 0.2) * (1 + (difficulty - 1) * 0.25),
+      speed: def.speed * (0.9 + Math.random() * 0.2) * (1 + (difficulty - 1) * 0.25) * speedScale,
       phase: Math.random() * Math.PI * 2,
       mesh,
       orbHitCd: 0,

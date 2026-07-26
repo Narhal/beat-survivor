@@ -10,8 +10,8 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 export const ARENA = { hw: 110, hh: 70 }; // demi-largeur / demi-hauteur
 
-// Zoom out demandé par N4 (2026-07-26) : anticiper les attaques prime
-const VIEW_HH = 60; // demi-hauteur de la vue en unités monde
+// Zoom out demandé par N4 (2026-07-26, puis +20 %) : anticiper les attaques prime
+const VIEW_HH = 72; // demi-hauteur de la vue en unités monde
 
 export class World {
   scene = new THREE.Scene();

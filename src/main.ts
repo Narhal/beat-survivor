@@ -24,11 +24,31 @@ const keys = new Set<string>();
 addEventListener("keydown", (e) => keys.add(e.code));
 addEventListener("keyup", (e) => keys.delete(e.code));
 
-let confirmWasDown = false;
-
 function gamepad(): Gamepad | null {
   for (const gp of navigator.getGamepads()) if (gp && gp.connected) return gp;
   return null;
+}
+
+// Fronts montants lus UNE fois par frame. N'importe quel bouton de façade
+// valide (les mappings manette varient : ✕/A/B selon les pads), Start ou
+// Échap interrompt la run en cours.
+const FACE_BUTTONS = [0, 1, 2, 3];
+let confirmWas = false;
+let startWas = false;
+let confirmEdge = false;
+let startEdge = false;
+
+function readInputEdges() {
+  const gp = gamepad();
+  const face =
+    FACE_BUTTONS.some((i) => gp?.buttons[i]?.pressed ?? false) ||
+    keys.has("Enter") ||
+    keys.has("Space");
+  const start = (gp?.buttons[9]?.pressed ?? false) || keys.has("Escape");
+  confirmEdge = face && !confirmWas;
+  confirmWas = face;
+  startEdge = start && !startWas;
+  startWas = start;
 }
 
 function inputVector(): THREE.Vector2 {
@@ -45,15 +65,6 @@ function inputVector(): THREE.Vector2 {
   if (keys.has("ArrowUp") || keys.has("KeyW") || keys.has("KeyZ")) v.y += 1;
   if (keys.has("ArrowDown") || keys.has("KeyS")) v.y -= 1;
   return v.normalize();
-}
-
-/** Front montant du bouton de confirmation (✕ manette ou Entrée/Espace). */
-function confirmPressed(): boolean {
-  const gp = gamepad();
-  const down = (gp?.buttons[0]?.pressed ?? false) || keys.has("Enter") || keys.has("Space");
-  const edge = down && !confirmWasDown;
-  confirmWasDown = down;
-  return edge;
 }
 
 function rumble(strong: number, weak: number, ms: number) {
@@ -109,6 +120,7 @@ let gaugeLevel = 0;
 let cards: { kind: WeaponKind; level: number }[] = [];
 let cardIndex = 0;
 let spawnIdx = { bass: 0, mid: 0, high: 0 };
+let dropIdx = 0;
 let counters = { high: 0, mid: 0 };
 
 // ---------- Écrans ----------
@@ -152,6 +164,7 @@ function startRun(buf: AudioBuffer) {
   gaugeLevel = 0;
   gaugeMax = 10;
   spawnIdx = { bass: 0, mid: 0, high: 0 };
+  dropIdx = 0;
   counters = { high: 0, mid: 0 };
 
   musicSource?.stop();
@@ -172,10 +185,24 @@ function startRun(buf: AudioBuffer) {
   refreshWeaponsHud();
 }
 
-function endRun(victory: boolean) {
+/** Coupe la musique en fondu — perdre en écoutant le morceau jusqu'au bout empêche de se concentrer (N4). */
+function stopMusic(fade: number) {
+  if (!musicGain || !musicSource) return;
+  const now = audioCtx.currentTime;
+  musicGain.gain.setValueAtTime(musicGain.gain.value, now);
+  musicGain.gain.linearRampToValueAtTime(0, now + fade);
+  const src = musicSource;
+  musicSource = null;
+  setTimeout(() => {
+    try { src.stop(); } catch {}
+  }, fade * 1000 + 200);
+}
+
+function endRun(victory: boolean, aborted = false) {
   phase = "end";
-  musicGain?.gain.setTargetAtTime(victory ? 0.6 : 0.15, audioCtx.currentTime, 0.4);
-  $("end-title").textContent = victory ? "MORCEAU SURVÉCU" : "SUBMERGÉ";
+  audioCtx.resume(); // si on arrive depuis le level-up (contexte suspendu), le fondu doit se jouer
+  stopMusic(victory ? 2.5 : 1.0);
+  $("end-title").textContent = aborted ? "RUN INTERROMPUE" : victory ? "MORCEAU SURVÉCU" : "SUBMERGÉ";
   $("end-stats").textContent =
     `${trackName} — score ${score} · ${formatTime(songTime())} · niveau ${gaugeLevel + 1}`;
   show(endEl, true);
@@ -220,27 +247,42 @@ function updateLevelUp(dt: number) {
     cardStickCooldown = 0.25;
     [...cardsEl.children].forEach((c, i) => c.classList.toggle("sel", i === cardIndex));
   }
-  if (confirmPressed()) pickCard(cardIndex);
+  if (confirmEdge) pickCard(cardIndex);
 }
 
 // ---------- Spawns pilotés par la musique ----------
+// L'ÉNERGIE est le chef d'orchestre (décision N4 2026-07-26) : les onsets par
+// bande donnent le TIMING des spawns, l'intensité lissée du morceau donne la
+// QUANTITÉ et la vitesse. Période calme = accalmie réelle ; drop = déferlante.
 function updateSpawns(t: number) {
   if (!analysis) return;
   const difficulty = 1 + (t / 60) * 0.4;
+  const inten = envAt(analysis.intensity, analysis.fps, t);
+  const speedScale = 0.75 + inten * 0.5;
+
+  // Drop : l'intensité surgit après une accalmie → déferlante + secousse
+  while (dropIdx < analysis.drops.length && analysis.drops[dropIdx] <= t) {
+    dropIdx++;
+    world.kick(1.4);
+    for (let i = 0; i < 8; i++) enemies.spawn("dard", ship.pos, 0.8, difficulty, speedScale);
+    enemies.spawn("globule", ship.pos, 1, difficulty, speedScale);
+    enemies.spawn("globule", ship.pos, 0.8, difficulty, speedScale);
+  }
 
   while (spawnIdx.bass < analysis.bass.onsets.length && analysis.bass.onsets[spawnIdx.bass].t <= t) {
     const o = analysis.bass.onsets[spawnIdx.bass++];
-    enemies.spawn("globule", ship.pos, o.s, difficulty);
+    if (inten < 0.12) continue; // quasi-silence : la soupe se calme vraiment
+    enemies.spawn("globule", ship.pos, o.s, difficulty, speedScale);
     if (o.s > 0.75) world.kick(o.s);
-    if (o.s > 0.85 && t > 60) enemies.spawn("globule", ship.pos, o.s * 0.7, difficulty);
+    if (inten > 0.7 && o.s > 0.7) enemies.spawn("globule", ship.pos, o.s * 0.7, difficulty, speedScale);
   }
   while (spawnIdx.mid < analysis.mid.onsets.length && analysis.mid.onsets[spawnIdx.mid].t <= t) {
     const o = analysis.mid.onsets[spawnIdx.mid++];
-    if (++counters.mid % 3 === 0) enemies.spawn("meduse", ship.pos, o.s, difficulty);
+    if (++counters.mid % 3 === 0 && inten > 0.25) enemies.spawn("meduse", ship.pos, o.s, difficulty, speedScale);
   }
   while (spawnIdx.high < analysis.high.onsets.length && analysis.high.onsets[spawnIdx.high].t <= t) {
     const o = analysis.high.onsets[spawnIdx.high++];
-    if (++counters.high % 2 === 0) enemies.spawn("dard", ship.pos, o.s, difficulty);
+    if (++counters.high % 2 === 0 && inten > 0.4) enemies.spawn("dard", ship.pos, o.s, difficulty, speedScale);
   }
 }
 
@@ -250,8 +292,9 @@ function refreshWeaponsHud() {
 }
 
 function formatTime(t: number): string {
-  const m = Math.floor(t / 60);
-  const s = Math.floor(t % 60);
+  const clamped = Math.max(0, t);
+  const m = Math.floor(clamped / 60);
+  const s = Math.floor(clamped % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
@@ -276,8 +319,13 @@ function tick(now: number) {
   lastTick = now;
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
+  readInputEdges();
 
   if (phase === "levelup") {
+    if (startEdge) {
+      endRun(false, true);
+      return;
+    }
     updateLevelUp(dt);
     return; // simulation ET musique en pause
   }
@@ -287,6 +335,10 @@ function tick(now: number) {
   const energyEnv = analysis ? envAt(analysis.energy, analysis.fps, t) : 0.15;
 
   if (phase === "run") {
+    if (startEdge) {
+      endRun(false, true); // Start / Échap : interrompre la run de test
+      return;
+    }
     ship.update(dt, inputVector());
     updateSpawns(t);
     enemies.update(dt, t, ship.pos);
@@ -374,3 +426,9 @@ addEventListener("drop", (e) => {
     loadFile(file);
   }
 });
+
+// Poignée de debug pour la vérification headless
+(window as any).__bs = {
+  get analysis() { return analysis; },
+  get phase() { return phase; },
+};
