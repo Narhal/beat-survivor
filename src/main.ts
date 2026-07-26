@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { analyseBuffer, envAt, TrackAnalysis } from "./audio/analysis";
 import { renderDemoTrack } from "./audio/demo";
-import { World } from "./game/world";
+import { World, BG_STYLES } from "./game/world";
 import { Ship } from "./game/ship";
 import { Enemies, ENEMY_DEFS, Enemy } from "./game/enemies";
 import { Weapons, UPGRADE_INFO, UpgradeKind } from "./game/weapons";
@@ -23,6 +23,25 @@ const gaugeFill = $("gauge-fill"), weaponsEl = $("weapons"), flashEl = $("damage
 const keys = new Set<string>();
 addEventListener("keydown", (e) => keys.add(e.code));
 addEventListener("keyup", (e) => keys.delete(e.code));
+
+// Variantes de DA commutables (1-3) — méthode « DA en variantes », N4 tranche
+addEventListener("keydown", (e) => {
+  const m = e.code.match(/^(?:Digit|Numpad)([1-3])$/);
+  if (m) {
+    const i = Number(m[1]) - 1;
+    world.setStyle(i);
+    showToast(`DA : ${BG_STYLES[i]}`);
+  }
+});
+
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+function showToast(text: string) {
+  const el = $("toast");
+  el.textContent = text;
+  el.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add("hidden"), 1600);
+}
 
 function gamepad(): Gamepad | null {
   for (const gp of navigator.getGamepads()) if (gp && gp.connected) return gp;

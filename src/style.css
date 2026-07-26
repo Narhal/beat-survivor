@@ -98,6 +98,15 @@ button:hover { filter: brightness(1.15); }
   background: radial-gradient(ellipse at center, rgba(215, 255, 255, 0.75), rgba(120, 230, 255, 0.3) 55%, transparent);
 }
 
+#toast {
+  position: absolute; right: 22px; bottom: 46px; z-index: 7;
+  padding: 8px 16px; border-radius: 10px;
+  background: rgba(10, 30, 45, 0.85);
+  border: 1px solid #2b8fa8;
+  color: #9fd8e8; font-size: 14px; letter-spacing: 0.06em;
+  pointer-events: none;
+}
+
 #cards { display: flex; gap: 20px; pointer-events: auto; }
 
 .card {
