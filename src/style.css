@@ -69,6 +69,33 @@ h1 {
   50% { opacity: 0.9; }
 }
 
+/* ---------- Contrôles : blueprint de la manette ---------- */
+#pad-panel {
+  width: min(680px, 92vw);
+  border: 1px solid #2b5f78;
+  border-radius: 14px;
+  padding: 10px;
+  background:
+    linear-gradient(rgba(125, 249, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 249, 255, 0.045) 1px, transparent 1px),
+    #061321;
+  background-size: 24px 24px, 24px 24px, auto;
+}
+#pad-svg { width: 100%; height: auto; display: block; }
+#pad-svg .bp-main {
+  stroke: #7df9ff; fill: none; stroke-width: 2;
+  filter: drop-shadow(0 0 6px rgba(45, 200, 230, 0.35));
+}
+#pad-svg .bp-dim { stroke: #24506a; fill: none; stroke-width: 1.5; }
+#pad-svg .bp-leads { stroke: #4a8fa8; fill: none; stroke-width: 1; stroke-dasharray: 4 4; }
+#pad-svg .bp-labels text {
+  fill: #9fd8e8; font-size: 13px; letter-spacing: 0.08em;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+#pad-svg .bp-glyphs text {
+  fill: #7df9ff; font-size: 11px; text-anchor: middle; dominant-baseline: middle;
+}
+
 /* ---------- Pharmacie ---------- */
 #pharma-list {
   display: flex; flex-direction: column; gap: 10px;

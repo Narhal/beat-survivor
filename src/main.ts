@@ -19,6 +19,7 @@ const canvas = $("scene") as HTMLCanvasElement;
 const titleEl = $("title"), hudEl = $("hud"), levelupEl = $("levelup"), endEl = $("end");
 const pauseEl = $("pause"), optionsEl = $("options");
 const customEl = $("custom"), pharmacieEl = $("pharmacie"), introEl = $("intro");
+const controlesEl = $("controles");
 const statusEl = $("analyse-status"), cardsEl = $("cards");
 const hpEl = $("hp"), scoreEl = $("score"), timeEl = $("time");
 const gaugeFill = $("gauge-fill"), weaponsEl = $("weapons"), flashEl = $("damage-flash");
@@ -412,6 +413,7 @@ function startRun(buf: AudioBuffer) {
   show(titleEl, false);
   show(customEl, false);
   show(pharmacieEl, false);
+  show(controlesEl, false);
   show(endEl, false);
   show(hudEl, true);
   refreshWeaponsHud();
@@ -974,19 +976,24 @@ addEventListener("keydown", () => {
 });
 
 // ---------- Écrans du titre : Accueil / Custom / Pharmacie ----------
-type TitleScreen = "home" | "custom" | "pharmacie";
+type TitleScreen = "home" | "custom" | "pharmacie" | "controles";
 
 function homeMenu() {
-  setMenu([$("btn-survie"), $("btn-custom"), $("btn-pharmacie"), $("btn-options")], "y");
+  setMenu(
+    [$("btn-survie"), $("btn-custom"), $("btn-pharmacie"), $("btn-controles"), $("btn-options")],
+    "y"
+  );
 }
 
 function showTitleScreen(which: TitleScreen) {
   show(titleEl, which === "home");
   show(customEl, which === "custom");
   show(pharmacieEl, which === "pharmacie");
+  show(controlesEl, which === "controles");
   if (which === "home") homeMenu();
   if (which === "custom") setMenu([$("btn-custom-back")], "y");
   if (which === "pharmacie") renderPharmacie();
+  if (which === "controles") setMenu([$("btn-controles-back")], "y");
 }
 
 function renderPharmacie() {
@@ -1034,8 +1041,10 @@ $("btn-survie").addEventListener("click", () => {
 });
 $("btn-custom").addEventListener("click", () => showTitleScreen("custom"));
 $("btn-pharmacie").addEventListener("click", () => showTitleScreen("pharmacie"));
+$("btn-controles").addEventListener("click", () => showTitleScreen("controles"));
 $("btn-custom-back").addEventListener("click", () => showTitleScreen("home"));
 $("btn-pharma-back").addEventListener("click", () => showTitleScreen("home"));
+$("btn-controles-back").addEventListener("click", () => showTitleScreen("home"));
 
 $("btn-restart").addEventListener("click", () => {
   show(endEl, false);
