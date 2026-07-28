@@ -64,6 +64,10 @@ export class Weapons {
   shieldCharged = false;
   /** Charge de l'Apoptose, 0..1. */
   nukeCharge = 0;
+  // Bonus permanents de la Pharmacie (réassignés par main à chaque run)
+  metaDamageMul = 1;
+  metaMagnet = 0;
+  bonusNukes = 0;
   private shieldTimer = 0;
 
   private scene: THREE.Scene;
@@ -112,9 +116,9 @@ export class Weapons {
     this.syncTentacle();
   }
 
-  /** Multiplicateur de dégâts global (passif Enzymes). */
+  /** Multiplicateur de dégâts global (passif Enzymes × Pharmacie). */
   get damageMul(): number {
-    return 1 + 0.15 * (this.levels.get("enzymes") ?? 0);
+    return (1 + 0.15 * (this.levels.get("enzymes") ?? 0)) * this.metaDamageMul;
   }
 
   /** Bonus de vitesse du vaisseau (atout Flagelles). */
@@ -128,9 +132,9 @@ export class Weapons {
     return lvl > 0 ? Math.max(10, 45 - 8 * (lvl - 1)) : 0;
   }
 
-  /** Rayon d'attraction des protéines (passif Phagocytose). */
+  /** Rayon d'attraction des protéines (passif Phagocytose + Pharmacie). */
   get magnetRadius(): number {
-    return 6 + 4 * (this.levels.get("phagocytose") ?? 0);
+    return 6 + 4 * (this.levels.get("phagocytose") ?? 0) + this.metaMagnet;
   }
 
   /** Récupération du dash — la Saccade le rend plus prompt. */
@@ -148,8 +152,12 @@ export class Weapons {
     return (this.levels.get("saccade") ?? 0) >= 5 ? 2 * this.damageMul : 0;
   }
 
-  /** Déclenche l'Apoptose si elle est chargée. */
+  /** Déclenche l'Apoptose : réserve de la Pharmacie d'abord, puis la charge. */
   fireNuke(): boolean {
+    if (this.bonusNukes > 0) {
+      this.bonusNukes--;
+      return true;
+    }
     if ((this.levels.get("apoptose") ?? 0) > 0 && this.nukeCharge >= 1) {
       this.nukeCharge = 0;
       return true;
@@ -442,6 +450,7 @@ export class Weapons {
 
   describe(): string[] {
     const out: string[] = [];
+    if (this.bonusNukes > 0) out.push(`Réserve d'Apoptose ×${this.bonusNukes} (L2)`);
     for (const [kind, lvl] of this.levels) {
       if (kind === "apoptose") {
         const state = this.nukeCharge >= 1 ? "PRÊTE — L2 !" : `${Math.floor(this.nukeCharge * 100)} %`;

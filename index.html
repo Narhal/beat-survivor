@@ -10,6 +10,11 @@
   <div id="app">
     <canvas id="scene"></canvas>
 
+    <div id="intro">
+      <div id="intro-logo">NARHAL'S GAMING</div>
+      <p id="intro-prompt">— toucher pour plonger —</p>
+    </div>
+
     <div id="hud" class="hidden">
       <div id="hud-top">
         <div id="hp"></div>
@@ -25,18 +30,31 @@
     <div id="title" class="screen">
       <h1>BEAT SURVIVOR</h1>
       <p class="tagline">Ta musique génère l'assaut. Survis-lui.</p>
-      <div id="dropzone">
-        <p>Glisse un fichier audio ici<br /><span class="dim">(mp3, wav, ogg, flac…)</span></p>
-        <p class="or">— ou —</p>
-        <div class="menu-btns">
-          <button id="btn-demo">Piste démo intégrée</button>
-          <button id="btn-options" class="secondary">Options</button>
-        </div>
+      <div class="menu-btns vertical">
+        <button id="btn-survie">Survie</button>
+        <button id="btn-custom" class="secondary">Custom</button>
+        <button id="btn-pharmacie" class="secondary">Pharmacie</button>
+        <button id="btn-options" class="secondary">Options</button>
       </div>
       <p class="hint">🎮 Stick gauche = conduite · R1 = dash · L2 = Apoptose · Start = pause · ✕/A = valider.<br />
-      Clavier : ZQSD / flèches · Maj = dash · E = Apoptose · Échap = pause.<br />
-      DA : rotation auto des textures (R) · 1-2 : forcer Plasma / Tissu · F/G : texture proche/lointaine · V : couches.</p>
+      Clavier : ZQSD / flèches · Maj = dash · E = Apoptose · Échap = pause.</p>
       <p id="analyse-status" class="dim"></p>
+    </div>
+
+    <div id="custom" class="screen hidden">
+      <h2>CUSTOM</h2>
+      <div id="dropzone">
+        <p>Glisse ton morceau ici<br /><span class="dim">(mp3, wav, ogg, flac…)</span></p>
+      </div>
+      <p class="dim">La musique fait le niveau : calmes = accalmies, montées = déferlantes.</p>
+      <button id="btn-custom-back" class="secondary">Retour</button>
+    </div>
+
+    <div id="pharmacie" class="screen hidden">
+      <h2>PHARMACIE</h2>
+      <p id="pharma-xp" class="tagline"></p>
+      <div id="pharma-list"></div>
+      <button id="btn-pharma-back" class="secondary">Retour</button>
     </div>
 
     <div id="options" class="screen hidden">

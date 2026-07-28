@@ -10,12 +10,15 @@ import { World, BG_STYLES } from "./game/world";
 import { Ship } from "./game/ship";
 import { Enemies, ENEMY_DEFS, Enemy } from "./game/enemies";
 import { Weapons, UPGRADE_INFO, UpgradeKind } from "./game/weapons";
+import { renderMenuLoop, renderBubbles, renderDrop, speakTitle } from "./audio/menuAudio";
+import { META_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
 
 // ---------- DOM ----------
 const $ = (id: string) => document.getElementById(id)!;
 const canvas = $("scene") as HTMLCanvasElement;
 const titleEl = $("title"), hudEl = $("hud"), levelupEl = $("levelup"), endEl = $("end");
 const pauseEl = $("pause"), optionsEl = $("options");
+const customEl = $("custom"), pharmacieEl = $("pharmacie"), introEl = $("intro");
 const statusEl = $("analyse-status"), cardsEl = $("cards");
 const hpEl = $("hp"), scoreEl = $("score"), timeEl = $("time");
 const gaugeFill = $("gauge-fill"), weaponsEl = $("weapons"), flashEl = $("damage-flash");
@@ -273,6 +276,7 @@ function spawnRipple(pos: THREE.Vector2, scale: number) {
 function spawnProtein(pos: THREE.Vector2, value: number) {
   if (proteins.length >= MAX_PROTEINS) {
     gauge += value; // saturation : crédit direct plutôt que de noyer la scène
+    xpEarned += value;
     return;
   }
   const a = Math.random() * Math.PI * 2;
@@ -310,6 +314,13 @@ let analysis: TrackAnalysis | null = null;
 let lastBuffer: AudioBuffer | null = null; // pour « Rejouer ce morceau »
 let loading = false;
 let trackName = "";
+
+// ---------- Pharmacie : méta-progression persistante ----------
+const meta = loadMeta();
+const metaLvl = (id: string) => meta.upgrades[id] ?? 0;
+let metaSpeedMul = 1;
+let autopilot = false;
+let xpEarned = 0;
 const GAUGE_BASE = 15; // +50 % de lenteur demandé par N4 (2026-07-26)
 const SPAWN_DENSITY = 0.8; // −20 % de densité d'ennemis (N4)
 let score = 0;
@@ -366,6 +377,15 @@ function startRun(buf: AudioBuffer) {
   ship.reset();
   enemies.clear();
   weapons.reset();
+  // La Pharmacie s'applique : les acquis permanents du joueur
+  ship.hp = 3 + metaLvl("vacuole");
+  metaSpeedMul = 1 + 0.04 * metaLvl("cils");
+  weapons.metaDamageMul = 1 + 0.08 * metaLvl("concentres");
+  weapons.metaMagnet = 2.5 * metaLvl("phago");
+  weapons.bonusNukes = metaLvl("reserve");
+  autopilot = metaLvl("symbiote") > 0;
+  xpEarned = 0;
+  stopMenuMusic(0.4);
   score = 0;
   gauge = 0;
   gaugeLevel = 0;
@@ -390,6 +410,8 @@ function startRun(buf: AudioBuffer) {
 
   phase = "run";
   show(titleEl, false);
+  show(customEl, false);
+  show(pharmacieEl, false);
   show(endEl, false);
   show(hudEl, true);
   refreshWeaponsHud();
@@ -413,11 +435,15 @@ function endRun(victory: boolean, aborted = false) {
   audioCtx.resume(); // si on arrive depuis la pause (contexte suspendu), le fondu doit se jouer
   show(pauseEl, false);
   stopMusic(victory ? 2.5 : 1.0);
+  // L'XP de la run rejoint la banque de la Pharmacie
+  meta.xp += xpEarned;
+  saveMeta(meta);
   $("end-title").textContent = aborted ? "RUN INTERROMPUE" : victory ? "MORCEAU SURVÉCU" : "SUBMERGÉ";
   $("end-stats").textContent =
-    `${trackName} — score ${score} · ${formatTime(songTime())} · niveau ${gaugeLevel + 1}`;
+    `${trackName} — score ${score} · ${formatTime(songTime())} · niveau ${gaugeLevel + 1}` +
+    ` · +${xpEarned} XP (banque : ${meta.xp})`;
   show(endEl, true);
-  setMenu([$("btn-replay"), $("btn-restart")]);
+  setMenu([$("btn-replay"), $("btn-restart")], "x");
 }
 
 // ---------- Pause ----------
@@ -425,7 +451,7 @@ function openPause() {
   phase = "pause";
   audioCtx.suspend();
   show(pauseEl, true);
-  setMenu([$("btn-resume"), $("btn-abort")]);
+  setMenu([$("btn-resume"), $("btn-abort")], "y");
 }
 
 function resumeRun() {
@@ -438,10 +464,12 @@ function resumeRun() {
 let menuEls: HTMLElement[] = [];
 let menuIdx = 0;
 let menuCooldown = 0;
+let menuAxis: "x" | "y" = "x";
 
-function setMenu(els: HTMLElement[]) {
+function setMenu(els: HTMLElement[], axis: "x" | "y" = "x") {
   menuEls.forEach((el) => el.classList.remove("sel"));
   menuEls = els;
+  menuAxis = axis;
   menuIdx = 0;
   syncMenu();
 }
@@ -450,12 +478,12 @@ function syncMenu() {
   menuEls.forEach((el, i) => el.classList.toggle("sel", i === menuIdx));
 }
 
-/** Stick (axe donné) pour naviguer, ✕/A/Entrée pour valider. */
-function updateMenuNav(dt: number, axis: "x" | "y") {
+/** Stick pour naviguer (axe du menu courant), ✕/A/Entrée pour valider. */
+function updateMenuNav(dt: number) {
   if (menuEls.length === 0) return;
   menuCooldown = Math.max(0, menuCooldown - dt);
   const v = inputVector();
-  const val = axis === "x" ? v.x : -v.y;
+  const val = menuAxis === "x" ? v.x : -v.y;
   if (menuCooldown <= 0 && Math.abs(val) > 0.5) {
     menuIdx = THREE.MathUtils.euclideanModulo(menuIdx + Math.sign(val), menuEls.length);
     menuCooldown = 0.25;
@@ -468,6 +496,14 @@ function updateMenuNav(dt: number, axis: "x" | "y") {
 function openLevelUp() {
   cards = weapons.drawCards();
   if (cards.length === 0) return; // tout est au max
+  // Pilote symbiote (Pharmacie) : il choisit, la run ne s'interrompt pas
+  if (autopilot) {
+    const c = cards[Math.floor(Math.random() * cards.length)];
+    weapons.pick(c.kind);
+    refreshWeaponsHud();
+    showToast(`Symbiote : ${UPGRADE_INFO[c.kind].name}`);
+    return;
+  }
   phase = "levelup";
   cardIndex = 0;
   audioCtx.suspend();
@@ -648,7 +684,7 @@ function tick(now: number) {
       resumeRun();
       return;
     }
-    updateMenuNav(dt, "y");
+    updateMenuNav(dt);
     return; // simulation ET musique en pause
   }
 
@@ -661,15 +697,19 @@ function tick(now: number) {
   const intenEnv = !ambient && analysis ? envAt(analysis.intensity, analysis.fps, t) : 0.15;
   const midEnv = !ambient && analysis ? envAt(analysis.mid.env, analysis.fps, t) : 0.45;
 
-  if (phase === "title" && !optionsOpen && !loading) updateMenuNav(dt, "x");
-  if (phase === "end") updateMenuNav(dt, "x");
+  if (!introDone) {
+    if (confirmEdge || startEdge) advanceIntro();
+  } else {
+    if (phase === "title" && !optionsOpen && !loading) updateMenuNav(dt);
+    if (phase === "end") updateMenuNav(dt);
+  }
 
   if (phase === "run") {
     if (startEdge) {
       openPause(); // Start / Échap : pause (Interrompre y coupe la musique)
       return;
     }
-    ship.speedBonus = weapons.speedBonus;
+    ship.speedBonus = weapons.speedBonus * metaSpeedMul;
 
     // Dash (R1) — la Saccade l'améliore
     if (dashEdge && ship.tryDash(weapons.dashCooldown)) {
@@ -730,6 +770,7 @@ function tick(now: number) {
       (p.mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, p.life / 2.5);
       if (d < 2.2) {
         gauge += p.value;
+        xpEarned += p.value;
         p.life = 0;
       }
       if (p.life <= 0) {
@@ -848,20 +889,162 @@ if (new URLSearchParams(location.search).has("autotick")) {
 let optionsOpen = false;
 let musicVolume = Number(localStorage.getItem("bs-volume") ?? "1");
 
-const titleMenu = () => setMenu([$("btn-demo"), $("btn-options")]);
+// ---------- Musique de menu (boucle planante/acid synthétisée) ----------
+let menuLoopBuf: AudioBuffer | null = null;
+let dropBuf: AudioBuffer | null = null;
+let menuSrc: AudioBufferSourceNode | null = null;
+let menuGain: GainNode | null = null;
 
-$("btn-demo").addEventListener("click", () => {
+function playOneShot(buf: AudioBuffer, vol: number) {
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const g = audioCtx.createGain();
+  g.gain.value = vol;
+  src.connect(g);
+  g.connect(audioCtx.destination);
+  src.start();
+}
+
+async function startMenuMusic() {
+  if (menuSrc) return;
+  if (!menuLoopBuf) menuLoopBuf = await renderMenuLoop();
+  if (menuSrc) return; // une autre montée a gagné la course
+  menuSrc = audioCtx.createBufferSource();
+  menuSrc.buffer = menuLoopBuf;
+  menuSrc.loop = true;
+  menuGain = audioCtx.createGain();
+  menuGain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+  menuGain.gain.linearRampToValueAtTime(0.35 * musicVolume, audioCtx.currentTime + 2.8);
+  menuSrc.connect(menuGain);
+  menuGain.connect(audioCtx.destination);
+  menuSrc.start();
+}
+
+function stopMenuMusic(fade: number) {
+  if (!menuSrc || !menuGain) return;
+  const src = menuSrc, g = menuGain;
+  menuSrc = null;
+  menuGain = null;
+  const now = audioCtx.currentTime;
+  g.gain.setValueAtTime(g.gain.value, now);
+  g.gain.linearRampToValueAtTime(0, now + fade);
+  setTimeout(() => {
+    try { src.stop(); } catch {}
+  }, fade * 1000 + 100);
+}
+
+// ---------- Intro : Narhal's Gaming ----------
+let introDone = false;
+let introState: "wait" | "logo" | "done" = "wait";
+
+function advanceIntro() {
+  if (introState === "wait") {
+    introState = "logo";
+    audioCtx.resume();
+    renderBubbles().then((b) => playOneShot(b, 0.55)); // ça barbote
+    renderDrop().then((b) => (dropBuf = b));
+    renderMenuLoop().then((b) => (menuLoopBuf = b)); // pré-rendu pendant le logo
+    $("intro-prompt").classList.add("hidden");
+    $("intro-logo").classList.add("on");
+    setTimeout(() => {
+      if (introState === "logo") finishIntro();
+    }, 4300);
+  } else if (introState === "logo") {
+    finishIntro(); // toute entrée saute l'intro
+  }
+}
+
+function finishIntro() {
+  if (introState === "done") return;
+  introState = "done";
+  introEl.classList.add("fadeout");
+  setTimeout(() => {
+    introEl.classList.add("hidden");
+    introDone = true;
+    speakTitle(); // « Beat Survivor » au vocoder (placeholder synthèse système)
+    if (dropBuf) playOneShot(dropBuf, 0.6);
+    startMenuMusic();
+    homeMenu();
+  }, 950);
+}
+
+introEl.addEventListener("click", advanceIntro);
+addEventListener("keydown", () => {
+  if (!introDone) advanceIntro();
+});
+
+// ---------- Écrans du titre : Accueil / Custom / Pharmacie ----------
+type TitleScreen = "home" | "custom" | "pharmacie";
+
+function homeMenu() {
+  setMenu([$("btn-survie"), $("btn-custom"), $("btn-pharmacie"), $("btn-options")], "y");
+}
+
+function showTitleScreen(which: TitleScreen) {
+  show(titleEl, which === "home");
+  show(customEl, which === "custom");
+  show(pharmacieEl, which === "pharmacie");
+  if (which === "home") homeMenu();
+  if (which === "custom") setMenu([$("btn-custom-back")], "y");
+  if (which === "pharmacie") renderPharmacie();
+}
+
+function renderPharmacie() {
+  $("pharma-xp").textContent = `${meta.xp} XP en banque`;
+  const list = $("pharma-list");
+  list.innerHTML = "";
+  const navEls: HTMLElement[] = [];
+  for (const def of META_DEFS) {
+    const lvl = metaLvl(def.id);
+    const row = document.createElement("div");
+    row.className = "pharma-row";
+    const cost = costOf(def, lvl);
+    const maxed = lvl >= def.max;
+    row.innerHTML =
+      `<div class="pharma-info">` +
+      `<div class="pharma-name">${def.name}</div>` +
+      `<div class="pharma-desc">${def.desc}</div>` +
+      `<div class="pharma-lvl">${"●".repeat(lvl)}${"○".repeat(def.max - lvl)}</div>` +
+      `</div>`;
+    const btn = document.createElement("button");
+    btn.textContent = maxed ? "MAX" : `${cost} XP`;
+    btn.disabled = maxed || meta.xp < cost;
+    if (!maxed) {
+      btn.addEventListener("click", () => {
+        if (meta.xp >= cost && metaLvl(def.id) < def.max) {
+          meta.xp -= cost;
+          meta.upgrades[def.id] = metaLvl(def.id) + 1;
+          saveMeta(meta);
+          showToast(`Pharmacie : ${def.name} amélioré`);
+          renderPharmacie();
+        }
+      });
+    }
+    row.appendChild(btn);
+    list.appendChild(row);
+    navEls.push(btn);
+  }
+  navEls.push($("btn-pharma-back"));
+  setMenu(navEls, "y");
+}
+
+$("btn-survie").addEventListener("click", () => {
   audioCtx.resume();
   loadDemo();
 });
+$("btn-custom").addEventListener("click", () => showTitleScreen("custom"));
+$("btn-pharmacie").addEventListener("click", () => showTitleScreen("pharmacie"));
+$("btn-custom-back").addEventListener("click", () => showTitleScreen("home"));
+$("btn-pharma-back").addEventListener("click", () => showTitleScreen("home"));
+
 $("btn-restart").addEventListener("click", () => {
   show(endEl, false);
-  show(titleEl, true);
   show(hudEl, false);
   statusEl.textContent = "";
   enemies.clear();
   phase = "title";
-  titleMenu();
+  showTitleScreen("home");
+  startMenuMusic();
 });
 $("btn-replay").addEventListener("click", () => {
   if (lastBuffer && analysis) {
@@ -887,7 +1070,7 @@ $("btn-options").addEventListener("click", () => {
 $("btn-options-close").addEventListener("click", () => {
   optionsOpen = false;
   show(optionsEl, false);
-  titleMenu();
+  homeMenu();
 });
 addEventListener("keydown", (e) => {
   if (e.code === "Escape" && optionsOpen) $("btn-options-close").click();
@@ -896,6 +1079,7 @@ optVolume.addEventListener("input", () => {
   musicVolume = Number(optVolume.value);
   localStorage.setItem("bs-volume", optVolume.value);
   if (musicGain && phase === "run") musicGain.gain.value = musicVolume;
+  if (menuGain) menuGain.gain.value = 0.35 * musicVolume;
 });
 optLayers.addEventListener("change", () => {
   if (optLayers.checked !== world.layersEnabled) world.toggleLayers();
@@ -903,8 +1087,6 @@ optLayers.addEventListener("change", () => {
 optRotate.addEventListener("change", () => {
   autoRotate = optRotate.checked;
 });
-
-titleMenu(); // sélection manette dès l'écran titre
 
 const dropzone = $("dropzone");
 addEventListener("dragover", (e) => {
