@@ -28,12 +28,36 @@
       <div id="dropzone">
         <p>Glisse un fichier audio ici<br /><span class="dim">(mp3, wav, ogg, flac…)</span></p>
         <p class="or">— ou —</p>
-        <button id="btn-demo">Piste démo intégrée</button>
+        <div class="menu-btns">
+          <button id="btn-demo">Piste démo intégrée</button>
+          <button id="btn-options" class="secondary">Options</button>
+        </div>
       </div>
-      <p class="hint">🎮 Manette recommandée : stick gauche = conduite · R1 = dash · L2 = Apoptose (une fois débloquée).<br />
-      Clavier : ZQSD / flèches · Maj = dash · E = Apoptose. Start ou Échap : interrompre la run (coupe la musique).<br />
-      DA : rotation auto des textures (R pour couper/reprendre) · 1-2 : forcer Plasma / Tissu · F/G : texture proche/lointaine · V : couches on/off.</p>
+      <p class="hint">🎮 Stick gauche = conduite · R1 = dash · L2 = Apoptose · Start = pause · ✕/A = valider.<br />
+      Clavier : ZQSD / flèches · Maj = dash · E = Apoptose · Échap = pause.<br />
+      DA : rotation auto des textures (R) · 1-2 : forcer Plasma / Tissu · F/G : texture proche/lointaine · V : couches.</p>
       <p id="analyse-status" class="dim"></p>
+    </div>
+
+    <div id="options" class="screen hidden">
+      <h2>OPTIONS</h2>
+      <div id="options-panel">
+        <label>Volume musique
+          <input id="opt-volume" type="range" min="0" max="1" step="0.05" />
+        </label>
+        <label class="check"><input id="opt-layers" type="checkbox" checked /> Couches de textures</label>
+        <label class="check"><input id="opt-rotate" type="checkbox" checked /> Rotation auto des textures</label>
+      </div>
+      <button id="btn-options-close">Fermer</button>
+    </div>
+
+    <div id="pause" class="screen hidden">
+      <h2>PAUSE</h2>
+      <div class="menu-btns vertical">
+        <button id="btn-resume">Reprendre</button>
+        <button id="btn-abort" class="secondary">Interrompre la run</button>
+      </div>
+      <p class="dim">Start / Échap : reprendre</p>
     </div>
 
     <div id="levelup" class="screen hidden">
@@ -45,7 +69,10 @@
     <div id="end" class="screen hidden">
       <h2 id="end-title">SUBMERGÉ</h2>
       <p id="end-stats"></p>
-      <button id="btn-restart">Rejouer</button>
+      <div class="menu-btns">
+        <button id="btn-replay">Rejouer ce morceau</button>
+        <button id="btn-restart" class="secondary">Changer de morceau</button>
+      </div>
     </div>
   </div>
   <script type="module" src="/src/main.ts"></script>

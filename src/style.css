@@ -26,7 +26,18 @@ h1 {
   font-size: clamp(40px, 8vw, 84px);
   letter-spacing: 0.12em;
   color: #7df9ff;
-  text-shadow: 0 0 24px #16c8e0, 0 0 60px #0a5f80;
+  animation: titlePulse 3.2s ease-in-out infinite;
+}
+
+@keyframes titlePulse {
+  0%, 100% { text-shadow: 0 0 24px #16c8e0, 0 0 60px #0a5f80; }
+  50% { text-shadow: 0 0 34px #2fe0f6, 0 0 90px #0f7ba6, 0 0 130px #0a5f80; }
+}
+
+/* L'écran titre laisse voir la soupe vivante derrière (leçon lofi-rider) */
+#title.screen {
+  background: rgba(3, 6, 14, 0.32);
+  backdrop-filter: none;
 }
 
 h2 { font-size: 34px; letter-spacing: 0.1em; color: #ffb0f0; text-shadow: 0 0 18px #c239a8; }
@@ -49,12 +60,37 @@ button {
   font: inherit; font-size: 17px;
   color: #04121a;
   background: linear-gradient(180deg, #7df9ff, #2fb8d8);
-  border: none; border-radius: 10px;
+  border: 2px solid transparent; border-radius: 10px;
   padding: 12px 28px;
   cursor: pointer;
   box-shadow: 0 0 18px rgba(45, 200, 230, 0.45);
 }
 button:hover { filter: brightness(1.15); }
+button.secondary {
+  color: #9fd8e8;
+  background: rgba(15, 40, 58, 0.85);
+  border-color: #2b8fa8;
+  box-shadow: none;
+}
+button.sel {
+  border-color: #b06cff;
+  box-shadow: 0 0 22px rgba(160, 90, 255, 0.55);
+  transform: translateY(-2px);
+}
+
+.menu-btns { display: flex; gap: 16px; justify-content: center; }
+.menu-btns.vertical { flex-direction: column; align-items: stretch; min-width: 260px; }
+
+#options-panel {
+  display: flex; flex-direction: column; gap: 18px;
+  padding: 26px 34px; border-radius: 14px;
+  background: rgba(10, 26, 40, 0.9); border: 1px solid #2b5f78;
+  min-width: 320px; text-align: left;
+}
+#options-panel label { display: flex; flex-direction: column; gap: 8px; font-size: 15px; color: #9fd8e8; }
+#options-panel label.check { flex-direction: row; align-items: center; gap: 10px; cursor: pointer; }
+#options-panel input[type="range"] { accent-color: #2fb8d8; }
+#options-panel input[type="checkbox"] { accent-color: #b06cff; width: 16px; height: 16px; }
 
 #hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 

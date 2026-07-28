@@ -15,6 +15,7 @@ import { Weapons, UPGRADE_INFO, UpgradeKind } from "./game/weapons";
 const $ = (id: string) => document.getElementById(id)!;
 const canvas = $("scene") as HTMLCanvasElement;
 const titleEl = $("title"), hudEl = $("hud"), levelupEl = $("levelup"), endEl = $("end");
+const pauseEl = $("pause"), optionsEl = $("options");
 const statusEl = $("analyse-status"), cardsEl = $("cards");
 const hpEl = $("hp"), scoreEl = $("score"), timeEl = $("time");
 const gaugeFill = $("gauge-fill"), weaponsEl = $("weapons"), flashEl = $("damage-flash");
@@ -303,9 +304,11 @@ function burst(pos: THREE.Vector2, color: number) {
 }
 
 // ---------- État de partie ----------
-type Phase = "title" | "run" | "levelup" | "end";
+type Phase = "title" | "run" | "levelup" | "pause" | "end";
 let phase: Phase = "title";
 let analysis: TrackAnalysis | null = null;
+let lastBuffer: AudioBuffer | null = null; // pour « Rejouer ce morceau »
+let loading = false;
 let trackName = "";
 const GAUGE_BASE = 15; // +50 % de lenteur demandé par N4 (2026-07-26)
 const SPAWN_DENSITY = 0.8; // −20 % de densité d'ennemis (N4)
@@ -326,6 +329,8 @@ function show(el: HTMLElement, on: boolean) {
 }
 
 async function loadFile(file: File) {
+  if (loading) return;
+  loading = true;
   statusEl.textContent = `Décodage de « ${file.name} »…`;
   try {
     const buf = await audioCtx.decodeAudioData(await file.arrayBuffer());
@@ -333,11 +338,14 @@ async function loadFile(file: File) {
     await startFromBuffer(buf);
   } catch (err) {
     statusEl.textContent = "Impossible de décoder ce fichier — un autre format ?";
+    loading = false;
     console.error(err);
   }
 }
 
 async function loadDemo() {
+  if (loading) return;
+  loading = true;
   statusEl.textContent = "Synthèse de la piste démo…";
   trackName = "Piste démo";
   const buf = await renderDemoTrack();
@@ -348,7 +356,9 @@ async function startFromBuffer(buf: AudioBuffer) {
   statusEl.textContent = "Analyse du morceau (onsets, énergie)…";
   await new Promise((r) => setTimeout(r, 30)); // laisse respirer le DOM
   analysis = await analyseBuffer(buf);
+  lastBuffer = buf;
   statusEl.textContent = "";
+  loading = false;
   startRun(buf);
 }
 
@@ -371,7 +381,7 @@ function startRun(buf: AudioBuffer) {
   musicSource = audioCtx.createBufferSource();
   musicSource.buffer = buf;
   musicGain = audioCtx.createGain();
-  musicGain.gain.value = 1;
+  musicGain.gain.value = musicVolume;
   musicSource.connect(musicGain);
   musicGain.connect(audioCtx.destination);
   audioCtx.resume();
@@ -400,12 +410,58 @@ function stopMusic(fade: number) {
 
 function endRun(victory: boolean, aborted = false) {
   phase = "end";
-  audioCtx.resume(); // si on arrive depuis le level-up (contexte suspendu), le fondu doit se jouer
+  audioCtx.resume(); // si on arrive depuis la pause (contexte suspendu), le fondu doit se jouer
+  show(pauseEl, false);
   stopMusic(victory ? 2.5 : 1.0);
   $("end-title").textContent = aborted ? "RUN INTERROMPUE" : victory ? "MORCEAU SURVÉCU" : "SUBMERGÉ";
   $("end-stats").textContent =
     `${trackName} — score ${score} · ${formatTime(songTime())} · niveau ${gaugeLevel + 1}`;
   show(endEl, true);
+  setMenu([$("btn-replay"), $("btn-restart")]);
+}
+
+// ---------- Pause ----------
+function openPause() {
+  phase = "pause";
+  audioCtx.suspend();
+  show(pauseEl, true);
+  setMenu([$("btn-resume"), $("btn-abort")]);
+}
+
+function resumeRun() {
+  show(pauseEl, false);
+  audioCtx.resume();
+  phase = "run";
+}
+
+// ---------- Navigation manette des menus ----------
+let menuEls: HTMLElement[] = [];
+let menuIdx = 0;
+let menuCooldown = 0;
+
+function setMenu(els: HTMLElement[]) {
+  menuEls.forEach((el) => el.classList.remove("sel"));
+  menuEls = els;
+  menuIdx = 0;
+  syncMenu();
+}
+
+function syncMenu() {
+  menuEls.forEach((el, i) => el.classList.toggle("sel", i === menuIdx));
+}
+
+/** Stick (axe donné) pour naviguer, ✕/A/Entrée pour valider. */
+function updateMenuNav(dt: number, axis: "x" | "y") {
+  if (menuEls.length === 0) return;
+  menuCooldown = Math.max(0, menuCooldown - dt);
+  const v = inputVector();
+  const val = axis === "x" ? v.x : -v.y;
+  if (menuCooldown <= 0 && Math.abs(val) > 0.5) {
+    menuIdx = THREE.MathUtils.euclideanModulo(menuIdx + Math.sign(val), menuEls.length);
+    menuCooldown = 0.25;
+    syncMenu();
+  }
+  if (confirmEdge) menuEls[menuIdx].click();
 }
 
 // ---------- Level-up ----------
@@ -587,15 +643,30 @@ function tick(now: number) {
     return; // simulation ET musique en pause
   }
 
+  if (phase === "pause") {
+    if (startEdge) {
+      resumeRun();
+      return;
+    }
+    updateMenuNav(dt, "y");
+    return; // simulation ET musique en pause
+  }
+
   const t = phase === "run" ? songTime() : 0;
-  const bassEnv = analysis ? envAt(analysis.bass.env, analysis.fps, t) : 0;
-  const energyEnv = analysis ? envAt(analysis.energy, analysis.fps, t) : 0.15;
-  const intenEnv = analysis ? envAt(analysis.intensity, analysis.fps, t) : 0.12;
-  const midEnv = analysis ? envAt(analysis.mid.env, analysis.fps, t) : 0.4;
+  // Hors run (titre, fin) : une respiration ambiante pour que la soupe vive
+  const ambient = phase !== "run";
+  const bassEnv = !ambient && analysis ? envAt(analysis.bass.env, analysis.fps, t)
+    : 0.12 + 0.12 * Math.sin(now / 1000 * 2.1);
+  const energyEnv = !ambient && analysis ? envAt(analysis.energy, analysis.fps, t) : 0.2;
+  const intenEnv = !ambient && analysis ? envAt(analysis.intensity, analysis.fps, t) : 0.15;
+  const midEnv = !ambient && analysis ? envAt(analysis.mid.env, analysis.fps, t) : 0.45;
+
+  if (phase === "title" && !optionsOpen && !loading) updateMenuNav(dt, "x");
+  if (phase === "end") updateMenuNav(dt, "x");
 
   if (phase === "run") {
     if (startEdge) {
-      endRun(false, true); // Start / Échap : interrompre la run de test
+      openPause(); // Start / Échap : pause (Interrompre y coupe la musique)
       return;
     }
     ship.speedBonus = weapons.speedBonus;
@@ -774,6 +845,11 @@ if (new URLSearchParams(location.search).has("autotick")) {
 }
 
 // ---------- Branchements UI ----------
+let optionsOpen = false;
+let musicVolume = Number(localStorage.getItem("bs-volume") ?? "1");
+
+const titleMenu = () => setMenu([$("btn-demo"), $("btn-options")]);
+
 $("btn-demo").addEventListener("click", () => {
   audioCtx.resume();
   loadDemo();
@@ -785,7 +861,50 @@ $("btn-restart").addEventListener("click", () => {
   statusEl.textContent = "";
   enemies.clear();
   phase = "title";
+  titleMenu();
 });
+$("btn-replay").addEventListener("click", () => {
+  if (lastBuffer && analysis) {
+    show(endEl, false);
+    startRun(lastBuffer);
+  }
+});
+$("btn-resume").addEventListener("click", resumeRun);
+$("btn-abort").addEventListener("click", () => endRun(false, true));
+
+// Options : volume persistant, couches et rotation en direct
+const optVolume = $("opt-volume") as HTMLInputElement;
+const optLayers = $("opt-layers") as HTMLInputElement;
+const optRotate = $("opt-rotate") as HTMLInputElement;
+optVolume.value = String(musicVolume);
+
+$("btn-options").addEventListener("click", () => {
+  optionsOpen = true;
+  optLayers.checked = world.layersEnabled;
+  optRotate.checked = autoRotate;
+  show(optionsEl, true);
+});
+$("btn-options-close").addEventListener("click", () => {
+  optionsOpen = false;
+  show(optionsEl, false);
+  titleMenu();
+});
+addEventListener("keydown", (e) => {
+  if (e.code === "Escape" && optionsOpen) $("btn-options-close").click();
+});
+optVolume.addEventListener("input", () => {
+  musicVolume = Number(optVolume.value);
+  localStorage.setItem("bs-volume", optVolume.value);
+  if (musicGain && phase === "run") musicGain.gain.value = musicVolume;
+});
+optLayers.addEventListener("change", () => {
+  if (optLayers.checked !== world.layersEnabled) world.toggleLayers();
+});
+optRotate.addEventListener("change", () => {
+  autoRotate = optRotate.checked;
+});
+
+titleMenu(); // sélection manette dès l'écran titre
 
 const dropzone = $("dropzone");
 addEventListener("dragover", (e) => {
