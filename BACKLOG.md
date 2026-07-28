@@ -1,15 +1,14 @@
 # Backlog Beat Survivor
 
-## Chantier bestiaire (à venir)
+## Chantier bestiaire (v1 livrée — détails remis à la phase de polish)
 
-- [ ] Comportements spécifiques par espèce (tous les ennemis ne chassent pas
-      le joueur : patrouilleurs, dériveurs, embusqués…)
-- [ ] Note N4 (2026-07-28) : la courbe de rentrée (progress) pourrait alors
-      perdre son rôle de contrôle de densité, mais elle **reste** pour gérer
-      le TYPE de monstres autorisés à spawner — les plus coriaces
-      n'apparaissent que tard dans la run (paliers par progression)
-- [ ] Silhouettes organiques (globules à membrane, méduses à tentilles,
-      dards-flagelles) à la place des placeholders géométriques
+- [x] Comportements spécifiques par espèce (kyste = dériveur qui ne chasse
+      pas ; moucherons en escouade ; colosse qui se scinde)
+- [x] La progression débloque les TYPES : kyste > 25 %, moucherons > 45 %,
+      colosse > 60 % (note N4 appliquée)
+- [x] Silhouettes organiques vectorielles à la place des placeholders
+- [ ] Polish (plus tard, N4) : proportions des espèces, seuils, animations
+      fines, espèces supplémentaires (patrouilleurs, embusqués…), boss ?
 
 ## En attente de verdict N4 (feeling)
 
