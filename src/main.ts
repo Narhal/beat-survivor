@@ -408,31 +408,41 @@ function updateSpawns(t: number) {
   const inten = envAt(analysis.intensity, analysis.fps, t);
   const speedScale = 0.75 + inten * 0.5;
 
+  // Courbe de rentrée (N4, 2026-07-28) : la musique donne le rythme, mais la
+  // PROGRESSION dans la run donne le volume — départ léger pour laisser le
+  // joueur s'installer, fin dense. De ~1/3 de la densité au début à 115 % à la fin.
+  const progress = Math.min(1, t / (analysis.duration || 60));
+  const ramp = 0.35 + 0.8 * Math.pow(progress, 0.8);
+  const density = SPAWN_DENSITY * ramp;
+
   // Drop : l'intensité surgit après une accalmie → déferlante + secousse
+  // (elle aussi grossit avec la progression)
   while (dropIdx < analysis.drops.length && analysis.drops[dropIdx] <= t) {
     dropIdx++;
     world.kick(1.4);
-    for (let i = 0; i < 8; i++) enemies.spawn("dard", ship.pos, 0.8, difficulty, speedScale);
+    const nDards = Math.max(3, Math.round(8 * ramp));
+    for (let i = 0; i < nDards; i++) enemies.spawn("dard", ship.pos, 0.8, difficulty, speedScale);
     enemies.spawn("globule", ship.pos, 1, difficulty, speedScale);
-    enemies.spawn("globule", ship.pos, 0.8, difficulty, speedScale);
+    if (ramp > 0.6) enemies.spawn("globule", ship.pos, 0.8, difficulty, speedScale);
   }
 
   while (spawnIdx.bass < analysis.bass.onsets.length && analysis.bass.onsets[spawnIdx.bass].t <= t) {
     const o = analysis.bass.onsets[spawnIdx.bass++];
     if (inten < 0.12) continue; // quasi-silence : la soupe se calme vraiment
-    if (Math.random() > SPAWN_DENSITY) continue;
+    if (Math.random() > density) continue;
     enemies.spawn("globule", ship.pos, o.s, difficulty, speedScale);
     if (o.s > 0.75) world.kick(o.s);
-    if (inten > 0.7 && o.s > 0.7) enemies.spawn("globule", ship.pos, o.s * 0.7, difficulty, speedScale);
+    if (inten > 0.7 && o.s > 0.7 && ramp > 0.7)
+      enemies.spawn("globule", ship.pos, o.s * 0.7, difficulty, speedScale);
   }
   while (spawnIdx.mid < analysis.mid.onsets.length && analysis.mid.onsets[spawnIdx.mid].t <= t) {
     const o = analysis.mid.onsets[spawnIdx.mid++];
-    if (++counters.mid % 3 === 0 && inten > 0.25 && Math.random() <= SPAWN_DENSITY)
+    if (++counters.mid % 3 === 0 && inten > 0.25 && Math.random() <= density)
       enemies.spawn("meduse", ship.pos, o.s, difficulty, speedScale);
   }
   while (spawnIdx.high < analysis.high.onsets.length && analysis.high.onsets[spawnIdx.high].t <= t) {
     const o = analysis.high.onsets[spawnIdx.high++];
-    if (++counters.high % 2 === 0 && inten > 0.4 && Math.random() <= SPAWN_DENSITY)
+    if (++counters.high % 2 === 0 && inten > 0.4 && Math.random() <= density)
       enemies.spawn("dard", ship.pos, o.s, difficulty, speedScale);
   }
 }
