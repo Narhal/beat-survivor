@@ -1,5 +1,16 @@
 # Backlog Beat Survivor
 
+## Chantier bestiaire (à venir)
+
+- [ ] Comportements spécifiques par espèce (tous les ennemis ne chassent pas
+      le joueur : patrouilleurs, dériveurs, embusqués…)
+- [ ] Note N4 (2026-07-28) : la courbe de rentrée (progress) pourrait alors
+      perdre son rôle de contrôle de densité, mais elle **reste** pour gérer
+      le TYPE de monstres autorisés à spawner — les plus coriaces
+      n'apparaissent que tard dans la run (paliers par progression)
+- [ ] Silhouettes organiques (globules à membrane, méduses à tentilles,
+      dards-flagelles) à la place des placeholders géométriques
+
 ## En attente de verdict N4 (feeling)
 
 - [ ] Conduite : l'inertie « on nage dans la soupe » est-elle bonne ? (BASE_SPEED,
