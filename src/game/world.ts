@@ -14,7 +14,8 @@ export const ARENA = { hw: 110, hh: 70 }; // demi-largeur / demi-hauteur
 // Zoom out demandé par N4 (2026-07-26, puis +20 %) : anticiper les attaques prime
 const VIEW_HH = 72; // demi-hauteur de la vue en unités monde
 
-export const BG_STYLES = ["Plasma", "Abysses", "Tissu"] as const;
+// Abysses écartée par N4 (2026-07-28) : pas assez de variance ni de texture
+export const BG_STYLES = ["Plasma", "Tissu"] as const;
 
 /** Ce que le monde écoute de la musique et du jeu à chaque frame. */
 export interface WorldAudio {
@@ -85,36 +86,7 @@ const FRAG_PLASMA = FRAG_COMMON + /* glsl */ `
   }
 `;
 
-// ——— Variante 2 : ABYSSES — presque noir, faisceaux de microscope, particules ———
-const FRAG_ABYSSES = FRAG_COMMON + /* glsl */ `
-  float dots(vec2 q, float s) {
-    vec2 g = fract(q) - 0.5;
-    float d = length(g + 0.25 * vec2(sin(uTime * 0.3 + q.y * 2.0), cos(uTime * 0.22 + q.x * 1.7)));
-    return smoothstep(s, s * 0.3, d);
-  }
-
-  void main() {
-    vec2 p1 = (vPos + uDrift) * 0.06;
-    vec2 p2 = (vPos + uDrift * 0.5) * 0.12 + 17.3;
-    float d1 = dots(p1, 0.10);
-    float d2 = dots(p2, 0.055);
-
-    // Faisceaux diagonaux qui balaient lentement — la lumière du microscope
-    float beamCoord = (vPos.x + uDrift.x * 0.3) * 0.020 + vPos.y * 0.008;
-    float beam = pow(0.5 + 0.5 * sin(beamCoord * 6.2831 + uTime * 0.15 + uJourney), 3.0);
-
-    vec3 deep = mix(vec3(0.003, 0.008, 0.020), vec3(0.030, 0.008, 0.008), uHeat * 0.8);
-    vec3 beamCol = mix(vec3(0.012, 0.035, 0.050), vec3(0.055, 0.022, 0.012), uHeat) * (0.6 + uEnergy * 0.7);
-    vec3 dotCol = mix(vec3(0.10, 0.16, 0.18), vec3(0.20, 0.10, 0.06), uHeat);
-
-    vec3 col = deep + beamCol * beam + dotCol * (d1 * 0.35 + d2 * 0.2) * (0.5 + beam);
-    col += vec3(0.015, 0.05, 0.06) * uBass * uBass * (0.3 + beam);
-
-    gl_FragColor = vec4(col, 1.0);
-  }
-`;
-
-// ——— Variante 3 : TISSU — membranes réticulées, vaisseaux, l'organisme littéral ———
+// ——— Variante 2 : TISSU — membranes réticulées, vaisseaux, l'organisme littéral ———
 const FRAG_TISSU = FRAG_COMMON + /* glsl */ `
   vec2 wob(vec2 q, float t) {
     return vec2(sin(t + q.y), cos(t * 0.7 + q.x)) * 0.15;
@@ -163,7 +135,14 @@ export class World {
   private bgUniforms: Record<string, THREE.IUniform>;
   private bgMats: THREE.ShaderMaterial[];
   private bg: THREE.Mesh;
-  private layers: { mesh: THREE.Mesh; mat: THREE.ShaderMaterial; hasTex: boolean }[] = [];
+  private layers: {
+    mesh: THREE.Mesh;
+    mat: THREE.ShaderMaterial;
+    hasTex: boolean;
+    fade: number; // 0..1, fondu-enchaîné lors des rotations de textures
+    pending: THREE.Texture | null;
+  }[] = [];
+  private bubbles: { mesh: THREE.Mesh; speed: number; sway: number; phase: number }[] = [];
   private tintColor = new THREE.Color();
   private tintCool = new THREE.Color(0.30, 0.62, 0.75);
   private tintWarm = new THREE.Color(0.85, 0.40, 0.22);
@@ -195,7 +174,7 @@ export class World {
       uHeat: { value: 0 },
     };
     // Un matériau par variante, tous branchés sur les MÊMES uniforms
-    this.bgMats = [FRAG_PLASMA, FRAG_ABYSSES, FRAG_TISSU].map(
+    this.bgMats = [FRAG_PLASMA, FRAG_TISSU].map(
       (fs) =>
         new THREE.ShaderMaterial({
           uniforms: this.bgUniforms,
@@ -232,8 +211,35 @@ export class World {
       mesh.position.z = z;
       mesh.visible = false;
       this.scene.add(mesh);
-      this.layers.push({ mesh, mat, hasTex: false });
+      this.layers.push({ mesh, mat, hasTex: false, fade: 1, pending: null });
     }
+
+    // Bulles éparses qui remontent (réf. N4 : niveaux aquatiques de DKC2) —
+    // la plupart derrière le gameplay, quelques grosses devant, très discrètes
+    const bubbleGeo = new THREE.RingGeometry(0.72, 1, 16);
+    const mkBubble = (front: boolean) => {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x9fd8e8,
+        transparent: true,
+        opacity: front ? 0.10 : 0.20,
+      });
+      const mesh = new THREE.Mesh(bubbleGeo, mat);
+      mesh.position.set(
+        (Math.random() * 2 - 1) * (ARENA.hw + 10),
+        (Math.random() * 2 - 1) * (ARENA.hh + 8),
+        front ? 6 : -7
+      );
+      mesh.scale.setScalar(front ? 2.5 + Math.random() * 2 : 0.5 + Math.random() * 1.1);
+      this.scene.add(mesh);
+      this.bubbles.push({
+        mesh,
+        speed: (front ? 7 : 4) + Math.random() * 3,
+        sway: 0.6 + Math.random() * 1.2,
+        phase: Math.random() * Math.PI * 2,
+      });
+    };
+    for (let i = 0; i < 18; i++) mkBubble(false);
+    for (let i = 0; i < 6; i++) mkBubble(true);
 
     // Parois de l'arène
     const w = ARENA.hw, h = ARENA.hh;
@@ -272,7 +278,19 @@ export class World {
     const layer = this.layers[slot];
     layer.mat.uniforms.uMap.value = tex;
     layer.hasTex = !!tex;
+    layer.pending = null;
     layer.mesh.visible = layer.hasTex && this.layersEnabled;
+  }
+
+  /** Comme setLayerTexture, mais en fondu-enchaîné (rotation des variantes). */
+  crossfadeLayer(slot: 0 | 1, tex: THREE.Texture) {
+    const layer = this.layers[slot];
+    if (!layer.hasTex) {
+      this.setLayerTexture(slot, tex);
+      layer.fade = 0; // apparition en fondu
+      return;
+    }
+    layer.pending = tex;
   }
 
   toggleLayers(): boolean {
@@ -320,13 +338,34 @@ export class World {
     this.bgUniforms.uJourney.value = this.journey;
     this.bgUniforms.uHeat.value = this.heat;
 
-    // Couches textures : teinte voyageuse qui chauffe, opacité portée par l'énergie
+    // Couches textures : teinte voyageuse qui chauffe, opacité portée par
+    // l'énergie, fondu-enchaîné lors des rotations
     this.tintColor.lerpColors(this.tintCool, this.tintWarm, this.heat);
     const breathe = 0.8 + 0.2 * Math.sin(this.journey);
     for (let i = 0; i < this.layers.length; i++) {
       const l = this.layers[i];
+      if (l.pending) {
+        l.fade -= dt / 0.9;
+        if (l.fade <= 0) {
+          l.mat.uniforms.uMap.value = l.pending;
+          l.pending = null;
+        }
+      } else if (l.fade < 1) {
+        l.fade = Math.min(1, l.fade + dt / 0.9);
+      }
       (l.mat.uniforms.uTint.value as THREE.Color).copy(this.tintColor).multiplyScalar(breathe * (i === 0 ? 1 : 0.65));
-      l.mat.uniforms.uOpacity.value = (i === 0 ? 0.30 + energy * 0.25 : 0.20 + energy * 0.15);
+      l.mat.uniforms.uOpacity.value =
+        (i === 0 ? 0.30 + energy * 0.25 : 0.20 + energy * 0.15) * Math.max(0, l.fade);
+    }
+
+    // Les bulles remontent, portées par l'intensité, et se rembobinent en bas
+    for (const b of this.bubbles) {
+      b.mesh.position.y += b.speed * (0.7 + intensity * 0.7) * dt;
+      b.mesh.position.x += Math.sin(time * b.sway + b.phase) * 2.5 * dt;
+      if (b.mesh.position.y > ARENA.hh + 10) {
+        b.mesh.position.y = -ARENA.hh - 10;
+        b.mesh.position.x = (Math.random() * 2 - 1) * (ARENA.hw + 10);
+      }
     }
 
     const wallMat = this.walls.material as THREE.LineBasicMaterial;

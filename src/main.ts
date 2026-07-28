@@ -24,25 +24,32 @@ const keys = new Set<string>();
 addEventListener("keydown", (e) => keys.add(e.code));
 addEventListener("keyup", (e) => keys.delete(e.code));
 
-// Variantes de DA commutables (1-3) — méthode « DA en variantes », N4 tranche.
-// F/G : cycle des textures Midjourney (couche proche/lointaine), V : couches on/off.
+// Variantes de DA commutables (1-2) — méthode « DA en variantes », N4 tranche.
+// Rotation AUTO des textures par défaut (fraîcheur, décision N4 2026-07-28) ;
+// F/G : cycle manuel proche/lointaine, R : rotation auto on/off, V : couches on/off.
 addEventListener("keydown", (e) => {
-  const m = e.code.match(/^(?:Digit|Numpad)([1-3])$/);
+  const m = e.code.match(/^(?:Digit|Numpad)([1-2])$/);
   if (m) {
     const i = Number(m[1]) - 1;
-    world.setStyle(i);
-    nearIdx = 0;
-    farIdx = 1;
+    autoRotate = false;
+    nearIdx = firstPoolIndexOf(i);
+    farIdx = nearIdx + 1;
     applyLayers(true);
-    showToast(`DA : ${BG_STYLES[i]}`);
+    showToast(`DA : ${BG_STYLES[i]} (rotation auto coupée — R pour reprendre)`);
   }
   if (e.code === "KeyF") {
+    autoRotate = false;
     nearIdx++;
     loadLayer(0);
   }
   if (e.code === "KeyG") {
+    autoRotate = false;
     farIdx++;
     loadLayer(1);
+  }
+  if (e.code === "KeyR") {
+    autoRotate = !autoRotate;
+    showToast(`Rotation auto des textures : ${autoRotate ? "ON" : "OFF"}`);
   }
   if (e.code === "KeyV") {
     showToast(`Couches textures : ${world.toggleLayers() ? "ON" : "OFF"}`);
@@ -50,23 +57,33 @@ addEventListener("keydown", (e) => {
 });
 
 // ---------- Textures Midjourney (masters de N4, pipeline prepare-textures) ----------
-const PISTES = ["plasma", "abysses", "tissu"] as const;
+// Pool COMBINÉ plasma+tissu : la rotation alterne toutes les variantes pour
+// garder de la fraîcheur et repousser la redondance (décision N4 2026-07-28).
+const PISTES = ["plasma", "tissu"] as const;
 let texManifest: Record<string, string[]> | null = null;
+let texPool: { piste: (typeof PISTES)[number]; file: string }[] = [];
 const texLoader = new THREE.TextureLoader();
 const texCache = new Map<string, THREE.Texture>();
 let nearIdx = 0;
 let farIdx = 1;
+let autoRotate = true;
+let nearTimer = 40;
+let farTimer = 65;
+
+function firstPoolIndexOf(styleIndex: number): number {
+  const piste = PISTES[styleIndex];
+  const i = texPool.findIndex((e) => e.piste === piste);
+  return i < 0 ? 0 : i;
+}
 
 function loadLayer(slot: 0 | 1, silent = false) {
-  const piste = PISTES[world.styleIndex];
-  const list = texManifest?.[piste];
-  if (!list || list.length === 0) {
+  if (texPool.length === 0) {
     world.setLayerTexture(slot, null);
     return;
   }
   const idx = slot === 0 ? nearIdx : farIdx;
-  const file = list[((idx % list.length) + list.length) % list.length];
-  const url = `/textures/${piste}/${file}`;
+  const entry = texPool[((idx % texPool.length) + texPool.length) % texPool.length];
+  const url = `/textures/${entry.piste}/${entry.file}`;
   let tex = texCache.get(url);
   if (!tex) {
     tex = texLoader.load(url);
@@ -74,8 +91,10 @@ function loadLayer(slot: 0 | 1, silent = false) {
     tex.colorSpace = THREE.SRGBColorSpace;
     texCache.set(url, tex);
   }
-  world.setLayerTexture(slot, tex);
-  if (!silent) showToast(`Couche ${slot === 0 ? "proche" : "lointaine"} : ${file.replace(".webp", "")}`);
+  world.crossfadeLayer(slot, tex);
+  // Le shader socle suit la matière de la couche proche (cohérence du monde)
+  if (slot === 0) world.setStyle(entry.piste === "plasma" ? 0 : 1);
+  if (!silent) showToast(`Couche ${slot === 0 ? "proche" : "lointaine"} : ${entry.file.replace(".webp", "")}`);
 }
 
 function applyLayers(silent = false) {
@@ -83,10 +102,31 @@ function applyLayers(silent = false) {
   loadLayer(1, silent);
 }
 
+/** Rotation auto : la couche proche change toutes les ~40 s, la lointaine ~65 s. */
+function updateTextureRotation(dt: number) {
+  if (!autoRotate || texPool.length === 0) return;
+  nearTimer -= dt;
+  farTimer -= dt;
+  if (nearTimer <= 0) {
+    nearTimer = 40;
+    nearIdx += 1 + Math.floor(Math.random() * 3);
+    loadLayer(0, true);
+  }
+  if (farTimer <= 0) {
+    farTimer = 65;
+    farIdx += 1 + Math.floor(Math.random() * 3);
+    loadLayer(1, true);
+  }
+}
+
 fetch("/textures/manifest.json")
   .then((r) => (r.ok ? r.json() : null))
   .then((m) => {
     texManifest = m;
+    texPool = [];
+    for (const piste of PISTES) {
+      for (const file of texManifest?.[piste] ?? []) texPool.push({ piste, file });
+    }
     applyLayers(true);
   })
   .catch(() => {}); // pas de textures = pas de couches, le shader reste en socle
@@ -212,6 +252,22 @@ const protGeo = new THREE.CircleGeometry(0.5, 8);
 const protMat = new THREE.MeshBasicMaterial({ color: 0xcfff7a, transparent: true });
 const MAX_PROTEINS = 350;
 const dashHits = new Set<Enemy>();
+
+// Sillage : l'onde qu'on laisse en nageant (sensation d'eau, réf. DKC2)
+interface Ripple { mesh: THREE.Mesh; life: number; scale: number; }
+const ripples: Ripple[] = [];
+const rippleGeo = new THREE.RingGeometry(0.85, 1, 24);
+let rippleTimer = 0;
+
+function spawnRipple(pos: THREE.Vector2, scale: number) {
+  const mesh = new THREE.Mesh(
+    rippleGeo,
+    new THREE.MeshBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: 0.28 * scale })
+  );
+  mesh.position.set(pos.x, pos.y, 4); // au-dessus de la couche joueur
+  world.scene.add(mesh);
+  ripples.push({ mesh, life: 0.7, scale });
+}
 
 function spawnProtein(pos: THREE.Vector2, value: number) {
   if (proteins.length >= MAX_PROTEINS) {
@@ -530,9 +586,19 @@ function tick(now: number) {
     // Dash (R1) — la Saccade l'améliore
     if (dashEdge && ship.tryDash(weapons.dashCooldown)) {
       burst(ship.pos, 0xaffbff);
+      spawnRipple(ship.pos, 1.8);
       rumble(0.25, 0.5, 90);
       dashHits.clear();
     }
+
+    // Sillage : on trouble l'eau quand on nage vite
+    rippleTimer -= dt;
+    if (rippleTimer <= 0 && ship.vel.length() > 16) {
+      rippleTimer = 0.14;
+      spawnRipple(ship.pos, 0.9);
+    }
+
+    updateTextureRotation(dt);
     ship.update(dt, inputVector());
     if (ship.dashing) {
       if (weapons.dashInvuln) ship.invuln = Math.max(ship.invuln, 0.06);
@@ -630,6 +696,20 @@ function tick(now: number) {
     if (weaponsHudTimer <= 0) {
       refreshWeaponsHud();
       weaponsHudTimer = 0.3;
+    }
+  }
+
+  // Sillage : les anneaux s'élargissent et s'estompent
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    const r = ripples[i];
+    r.life -= dt;
+    const k = 1 - r.life / 0.7;
+    r.mesh.scale.setScalar((1.2 + k * 4.5) * r.scale);
+    (r.mesh.material as THREE.MeshBasicMaterial).opacity = 0.28 * r.scale * (1 - k);
+    if (r.life <= 0) {
+      world.scene.remove(r.mesh);
+      (r.mesh.material as THREE.Material).dispose();
+      ripples.splice(i, 1);
     }
   }
 

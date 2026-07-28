@@ -13,9 +13,13 @@ const SRC = path.resolve(repoRoot, "../masters-beat-survivor/textures");
 const DST = path.join(repoRoot, "public", "textures");
 const SIZE = 1024;
 
+// Pistes écartées par N4 (2026-07-28 : abysses « pas fou, trop léger ») —
+// les masters restent sur sa machine, ils ne sont juste plus intégrés.
+const EXCLUDE = new Set(["abysses"]);
+
 const manifest = {};
 const pistes = (await readdir(SRC, { withFileTypes: true }))
-  .filter((d) => d.isDirectory())
+  .filter((d) => d.isDirectory() && !EXCLUDE.has(d.name))
   .map((d) => d.name);
 
 for (const piste of pistes) {
