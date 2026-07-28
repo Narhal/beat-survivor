@@ -482,24 +482,39 @@ function updateSpawns(t: number) {
     if (ramp > 0.6) enemies.spawn("globule", ship.pos, 0.8, difficulty, speedScale);
   }
 
+  // La progression débloque les ESPÈCES (note N4 : les coriaces arrivent tard)
   while (spawnIdx.bass < analysis.bass.onsets.length && analysis.bass.onsets[spawnIdx.bass].t <= t) {
     const o = analysis.bass.onsets[spawnIdx.bass++];
     if (inten < 0.12) continue; // quasi-silence : la soupe se calme vraiment
     if (Math.random() > density) continue;
-    enemies.spawn("globule", ship.pos, o.s, difficulty, speedScale);
+    if (progress > 0.6 && Math.random() < 0.16) {
+      enemies.spawn("colosse", ship.pos, o.s, difficulty, speedScale);
+    } else {
+      enemies.spawn("globule", ship.pos, o.s, difficulty, speedScale);
+    }
     if (o.s > 0.75) world.kick(o.s);
     if (inten > 0.7 && o.s > 0.7 && ramp > 0.7)
       enemies.spawn("globule", ship.pos, o.s * 0.7, difficulty, speedScale);
   }
   while (spawnIdx.mid < analysis.mid.onsets.length && analysis.mid.onsets[spawnIdx.mid].t <= t) {
     const o = analysis.mid.onsets[spawnIdx.mid++];
-    if (++counters.mid % 3 === 0 && inten > 0.25 && Math.random() <= density)
-      enemies.spawn("meduse", ship.pos, o.s, difficulty, speedScale);
+    if (++counters.mid % 3 === 0 && inten > 0.25 && Math.random() <= density) {
+      if (progress > 0.25 && Math.random() < 0.35) {
+        enemies.spawn("kyste", ship.pos, o.s, difficulty, speedScale);
+      } else {
+        enemies.spawn("meduse", ship.pos, o.s, difficulty, speedScale);
+      }
+    }
   }
   while (spawnIdx.high < analysis.high.onsets.length && analysis.high.onsets[spawnIdx.high].t <= t) {
     const o = analysis.high.onsets[spawnIdx.high++];
-    if (++counters.high % 2 === 0 && inten > 0.4 && Math.random() <= density)
-      enemies.spawn("dard", ship.pos, o.s, difficulty, speedScale);
+    if (++counters.high % 2 === 0 && inten > 0.4 && Math.random() <= density) {
+      if (progress > 0.45 && Math.random() < 0.35) {
+        enemies.squad("moucheron", ship.pos, 3, o.s, difficulty, speedScale);
+      } else {
+        enemies.spawn("dard", ship.pos, o.s, difficulty, speedScale);
+      }
+    }
   }
 }
 
@@ -520,6 +535,8 @@ function onKill(e: Enemy) {
   score += def.score;
   burst(e.pos, def.color);
   spawnProtein(e.pos, def.xp);
+  // Le colosse se scinde en globules — la mitose joue aussi contre nous
+  if (e.kind === "colosse") enemies.burstAt("globule", e.pos, ship.pos, 3, 1);
   // Passif Mitose : régulièrement, un pathogène détruit laisse un cœur
   const threshold = weapons.mitoseThreshold;
   if (threshold > 0 && ++killsSinceHeart >= threshold) {
