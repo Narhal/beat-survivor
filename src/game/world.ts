@@ -39,6 +39,21 @@ const FRAG_COMMON = /* glsl */ `
   uniform vec2 uDrift;
 `;
 
+// Couches de textures Midjourney (masters de N4) : dérive en parallaxe,
+// teintées par le jeu (palette voyageuse + chaleur), fondues en additif.
+const FRAG_LAYER = /* glsl */ `
+  varying vec2 vPos;
+  uniform sampler2D uMap;
+  uniform vec2 uDrift;
+  uniform float uParallax, uTile, uOpacity;
+  uniform vec3 uTint;
+  void main() {
+    vec2 uv = (vPos + uDrift * uParallax) / uTile;
+    float lum = texture2D(uMap, uv).g;
+    gl_FragColor = vec4(uTint, lum * uOpacity);
+  }
+`;
+
 // ——— Variante 1 : PLASMA — cellules molles en dérive, l'actuel raffiné ———
 const FRAG_PLASMA = FRAG_COMMON + /* glsl */ `
   float cells(vec2 p, float t) {
@@ -143,10 +158,15 @@ export class World {
   renderer: THREE.WebGLRenderer;
   composer: EffectComposer;
   styleIndex = 0;
+  layersEnabled = true;
 
   private bgUniforms: Record<string, THREE.IUniform>;
   private bgMats: THREE.ShaderMaterial[];
   private bg: THREE.Mesh;
+  private layers: { mesh: THREE.Mesh; mat: THREE.ShaderMaterial; hasTex: boolean }[] = [];
+  private tintColor = new THREE.Color();
+  private tintCool = new THREE.Color(0.30, 0.62, 0.75);
+  private tintWarm = new THREE.Color(0.85, 0.40, 0.22);
   private walls: THREE.LineSegments;
   private zoomKick = 0;
   // Le voyage : la soupe défile sous l'arène, poussée par l'énergie du morceau
@@ -188,6 +208,33 @@ export class World {
     this.bg.position.z = -10;
     this.scene.add(this.bg);
 
+    // Deux couches de textures : proche (pleine dérive) et lointaine (parallaxe)
+    for (const [parallax, tile, z] of [
+      [1.0, 260, -8.5],
+      [0.45, 420, -9],
+    ] as const) {
+      const mat = new THREE.ShaderMaterial({
+        uniforms: {
+          uMap: { value: null },
+          uDrift: { value: this.driftPos }, // référence partagée : suit le voyage
+          uParallax: { value: parallax },
+          uTile: { value: tile },
+          uOpacity: { value: 0 },
+          uTint: { value: new THREE.Color() },
+        },
+        vertexShader: BG_VERTEX,
+        fragmentShader: FRAG_LAYER,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), mat);
+      mesh.position.z = z;
+      mesh.visible = false;
+      this.scene.add(mesh);
+      this.layers.push({ mesh, mat, hasTex: false });
+    }
+
     // Parois de l'arène
     const w = ARENA.hw, h = ARENA.hh;
     const pts = [
@@ -218,6 +265,20 @@ export class World {
   setStyle(index: number) {
     this.styleIndex = ((index % this.bgMats.length) + this.bgMats.length) % this.bgMats.length;
     this.bg.material = this.bgMats[this.styleIndex];
+  }
+
+  /** Branche une texture Midjourney sur une couche (0 = proche, 1 = lointaine). */
+  setLayerTexture(slot: 0 | 1, tex: THREE.Texture | null) {
+    const layer = this.layers[slot];
+    layer.mat.uniforms.uMap.value = tex;
+    layer.hasTex = !!tex;
+    layer.mesh.visible = layer.hasTex && this.layersEnabled;
+  }
+
+  toggleLayers(): boolean {
+    this.layersEnabled = !this.layersEnabled;
+    for (const l of this.layers) l.mesh.visible = l.hasTex && this.layersEnabled;
+    return this.layersEnabled;
   }
 
   resize() {
@@ -258,6 +319,15 @@ export class World {
     (this.bgUniforms.uDrift.value as THREE.Vector2).copy(this.driftPos);
     this.bgUniforms.uJourney.value = this.journey;
     this.bgUniforms.uHeat.value = this.heat;
+
+    // Couches textures : teinte voyageuse qui chauffe, opacité portée par l'énergie
+    this.tintColor.lerpColors(this.tintCool, this.tintWarm, this.heat);
+    const breathe = 0.8 + 0.2 * Math.sin(this.journey);
+    for (let i = 0; i < this.layers.length; i++) {
+      const l = this.layers[i];
+      (l.mat.uniforms.uTint.value as THREE.Color).copy(this.tintColor).multiplyScalar(breathe * (i === 0 ? 1 : 0.65));
+      l.mat.uniforms.uOpacity.value = (i === 0 ? 0.30 + energy * 0.25 : 0.20 + energy * 0.15);
+    }
 
     const wallMat = this.walls.material as THREE.LineBasicMaterial;
     wallMat.color.setHSL(

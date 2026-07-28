@@ -24,15 +24,72 @@ const keys = new Set<string>();
 addEventListener("keydown", (e) => keys.add(e.code));
 addEventListener("keyup", (e) => keys.delete(e.code));
 
-// Variantes de DA commutables (1-3) — méthode « DA en variantes », N4 tranche
+// Variantes de DA commutables (1-3) — méthode « DA en variantes », N4 tranche.
+// F/G : cycle des textures Midjourney (couche proche/lointaine), V : couches on/off.
 addEventListener("keydown", (e) => {
   const m = e.code.match(/^(?:Digit|Numpad)([1-3])$/);
   if (m) {
     const i = Number(m[1]) - 1;
     world.setStyle(i);
+    nearIdx = 0;
+    farIdx = 1;
+    applyLayers(true);
     showToast(`DA : ${BG_STYLES[i]}`);
   }
+  if (e.code === "KeyF") {
+    nearIdx++;
+    loadLayer(0);
+  }
+  if (e.code === "KeyG") {
+    farIdx++;
+    loadLayer(1);
+  }
+  if (e.code === "KeyV") {
+    showToast(`Couches textures : ${world.toggleLayers() ? "ON" : "OFF"}`);
+  }
 });
+
+// ---------- Textures Midjourney (masters de N4, pipeline prepare-textures) ----------
+const PISTES = ["plasma", "abysses", "tissu"] as const;
+let texManifest: Record<string, string[]> | null = null;
+const texLoader = new THREE.TextureLoader();
+const texCache = new Map<string, THREE.Texture>();
+let nearIdx = 0;
+let farIdx = 1;
+
+function loadLayer(slot: 0 | 1, silent = false) {
+  const piste = PISTES[world.styleIndex];
+  const list = texManifest?.[piste];
+  if (!list || list.length === 0) {
+    world.setLayerTexture(slot, null);
+    return;
+  }
+  const idx = slot === 0 ? nearIdx : farIdx;
+  const file = list[((idx % list.length) + list.length) % list.length];
+  const url = `/textures/${piste}/${file}`;
+  let tex = texCache.get(url);
+  if (!tex) {
+    tex = texLoader.load(url);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    texCache.set(url, tex);
+  }
+  world.setLayerTexture(slot, tex);
+  if (!silent) showToast(`Couche ${slot === 0 ? "proche" : "lointaine"} : ${file.replace(".webp", "")}`);
+}
+
+function applyLayers(silent = false) {
+  loadLayer(0, silent);
+  loadLayer(1, silent);
+}
+
+fetch("/textures/manifest.json")
+  .then((r) => (r.ok ? r.json() : null))
+  .then((m) => {
+    texManifest = m;
+    applyLayers(true);
+  })
+  .catch(() => {}); // pas de textures = pas de couches, le shader reste en socle
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function showToast(text: string) {
