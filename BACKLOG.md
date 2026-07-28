@@ -9,6 +9,16 @@
 - [x] Silhouettes organiques vectorielles à la place des placeholders
 - [ ] Polish (plus tard, N4) : proportions des espèces, seuils, animations
       fines, espèces supplémentaires (patrouilleurs, embusqués…), boss ?
+- [ ] Bestiaire v2 — comportements organisés (idées N4 2026-07-28) : nuée qui
+      traverse l'écran en formation, bande qui encercle, « gros lard » qui
+      explose au centre en petites bestioles fuyant vers l'extérieur
+- [ ] Sprites Midjourney pour les entités : fond noir pur = transparence
+      gratuite en blending additif (bioluminescents) / luminance→alpha
+      (translucides) ; vue de dessus, pointés +X, --sref par famille
+- [ ] Apparence du joueur : membrane translucide Midjourney + mitochondries
+      bioluminescentes qui pulsent sur la basse (bassEnv → intensité du noyau)
+- [ ] Variété de rendu des ennemis : certains bioluminescents (additif),
+      d'autres translucides (alpha faible)
 
 ## En attente de verdict N4 (feeling)
 
