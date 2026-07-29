@@ -333,6 +333,27 @@ const protGeo = new THREE.CircleGeometry(0.5, 8);
 const protMat = new THREE.MeshBasicMaterial({ color: 0xcfff7a, transparent: true });
 const MAX_PROTEINS = 350;
 const dashHits = new Set<Enemy>();
+let dashWasCooling = false;
+
+/** Le dash est de nouveau prêt : anneau cyan sur la cellule + blip. */
+function dashReadyCue() {
+  burst(ship.pos, 0x7df9ff);
+  try {
+    const now = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(620, now);
+    o.frequency.exponentialRampToValueAtTime(980, now + 0.06);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.exponentialRampToValueAtTime(0.13, now + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start(now);
+    o.stop(now + 0.12);
+  } catch {}
+}
 
 // Sillage : l'onde qu'on laisse en nageant (sensation d'eau, réf. DKC2).
 // Arc aux 3/4 — le quart ARRIÈRE est prélevé (N4 : des cercles complets
@@ -931,8 +952,19 @@ function tick(now: number) {
     if (nukeEdge && weapons.fireNuke()) fireApoptose();
 
     updateSpawns(t);
-    enemies.update(dt, t, ship.pos);
+    enemies.update(dt, t, ship.pos, {
+      onKill: (e) => onKill(e),
+      onPop: (pos, kind) => {
+        burst(pos, kind === "kyste" ? 0xffa050 : 0xd02858);
+        world.kick(kind === "colosse" ? 1 : 0.7);
+        rumble(0.3, 0.4, 140);
+      },
+    });
     weapons.update(dt, ship, enemies, (ev) => onKill(ev.enemy));
+
+    // Signal « dash prêt » : anneau sur la cellule + blip discret (idée N4)
+    if (dashWasCooling && ship.dashCd <= 0) dashReadyCue();
+    dashWasCooling = ship.dashCd > 0;
 
     // Spirales d'aspiration : rotation, ramassage → toutes les protéines foncent
     for (let i = spirals.length - 1; i >= 0; i--) {

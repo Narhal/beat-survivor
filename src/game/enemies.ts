@@ -56,6 +56,17 @@ export interface SpriteSet {
 }
 
 const MAX_ENEMIES = 150;
+/** Le mastodonte explose de lui-même après ce temps à l'écran (idée N4). */
+const COLOSSE_LIFE = 12;
+/** Éclatement du kyste : rayon et dégâts de l'AoE — contre les ENNEMIS. */
+const KYSTE_AOE_RADIUS = 13;
+const KYSTE_AOE_DMG = 6;
+
+/** Effets remontés à main (visuels, sons, crédit des kills). */
+export interface EnemyFx {
+  onKill?: (e: Enemy) => void;
+  onPop?: (pos: THREE.Vector2, kind: EnemyKind) => void;
+}
 
 /** Blob organique irrégulier (silhouette vivante, pas un cercle parfait). */
 function blobGeometry(points: number, wobble: number, seed: number): THREE.ShapeGeometry {
@@ -187,10 +198,25 @@ export class Enemies {
     return mat;
   }
 
-  /** Spawn sur le bord, à l'écart du joueur. */
+  /**
+   * Spawn sur le bord, à l'écart du joueur — sauf le kyste : lui apparaît
+   * n'importe où DANS l'arène (idée N4), stationnaire, loin du joueur.
+   */
   spawn(kind: EnemyKind, player: THREE.Vector2, strength: number, difficulty: number, speedScale = 1) {
-    const pos = this.edgePoint(player);
+    const pos = kind === "kyste" ? this.interiorPoint(player) : this.edgePoint(player);
     this.add(kind, pos, player, strength, difficulty, speedScale);
+  }
+
+  private interiorPoint(player: THREE.Vector2): THREE.Vector2 {
+    let pos = new THREE.Vector2();
+    for (let tries = 0; tries < 10; tries++) {
+      pos.set(
+        (Math.random() * 2 - 1) * (ARENA.hw - 8),
+        (Math.random() * 2 - 1) * (ARENA.hh - 8)
+      );
+      if (pos.distanceTo(player) > 28) break;
+    }
+    return pos;
   }
 
   /** Escouade : plusieurs individus depuis le MÊME point du bord (essaims). */
@@ -320,8 +346,9 @@ export class Enemies {
     });
   }
 
-  update(dt: number, time: number, player: THREE.Vector2) {
+  update(dt: number, time: number, player: THREE.Vector2, fx?: EnemyFx) {
     const popped: Enemy[] = [];
+    const expired: Enemy[] = [];
 
     for (const e of this.list) {
       e.orbHitCd = Math.max(0, e.orbHitCd - dt);
@@ -335,8 +362,11 @@ export class Enemies {
           break;
         }
         case "colosse": {
-          // Le mastodonte trace sa route, imperturbable
+          // Le mastodonte trace sa route, imperturbable — mais il est
+          // instable : passé COLOSSE_LIFE, il explose de lui-même
           e.pos.addScaledVector(e.dir, e.speed * dt);
+          e.telegraph += dt;
+          if (e.telegraph >= COLOSSE_LIFE) expired.push(e);
           break;
         }
         case "meduse": {
@@ -360,11 +390,9 @@ export class Enemies {
           break;
         }
         case "kyste": {
-          // Dériveur : ne chasse pas, rebondit mollement sur les parois.
-          // Si le joueur s'approche : télégraphe (pulsation) puis éclate en dards.
-          e.pos.addScaledVector(e.dir, e.speed * dt);
-          if (Math.abs(e.pos.x) > ARENA.hw - 2) e.dir.x *= -1;
-          if (Math.abs(e.pos.y) > ARENA.hh - 2) e.dir.y *= -1;
+          // Mine STATIONNAIRE posée dans l'arène (idée N4). Le joueur qui
+          // s'approche la fait télégrapher puis éclater — et l'éclatement
+          // blesse les ENNEMIS alentour : c'est un outil tactique à déclencher.
           if (e.pos.distanceTo(player) < 12) {
             e.telegraph += dt;
             if (e.telegraph >= 0.9) popped.push(e);
@@ -385,17 +413,40 @@ export class Enemies {
         e.mesh.scale.setScalar(e.baseScale * (1 + e.telegraph * 0.5 * (1 + Math.sin(time * 22))));
       } else {
         e.mesh.rotation.z = time * 0.6 + e.phase;
-        e.mesh.scale.setScalar(e.baseScale * (1 + 0.06 * Math.sin(time * 2.8 + e.phase)));
+        // Le mastodonte proche de l'explosion pulse de plus en plus fort
+        const urgency =
+          e.kind === "colosse" ? Math.max(0, e.telegraph - (COLOSSE_LIFE - 3)) / 3 : 0;
+        e.mesh.scale.setScalar(
+          e.baseScale * (1 + (0.06 + urgency * 0.2) * Math.sin(time * (2.8 + urgency * 14) + e.phase))
+        );
       }
     }
 
-    // Kystes arrivés à terme : éclatement en éventail de dards vers le joueur
+    // Kystes déclenchés : AoE contre les ennemis alentour (le joueur est épargné)
     for (const e of popped) {
       const i = this.list.indexOf(e);
-      if (i >= 0) {
-        this.remove(i);
-        this.burstAt("dard", e.pos, player, 3, 1.1);
+      if (i < 0) continue;
+      this.remove(i);
+      fx?.onPop?.(e.pos, "kyste");
+      for (let j = this.list.length - 1; j >= 0; j--) {
+        const o = this.list[j];
+        if (o.pos.distanceTo(e.pos) < KYSTE_AOE_RADIUS) {
+          o.hp -= KYSTE_AOE_DMG;
+          if (o.hp <= 0) {
+            fx?.onKill?.(o);
+            this.remove(j);
+          }
+        }
       }
+    }
+
+    // Mastodontes périmés : explosion spontanée en étoile de dards
+    for (const e of expired) {
+      const i = this.list.indexOf(e);
+      if (i < 0) continue;
+      this.remove(i);
+      fx?.onPop?.(e.pos, "colosse");
+      this.emitRadial("dard", e.pos, 6, 1.05);
     }
 
     // Les dards, moucherons et colosses sortis de l'arène disparaissent
