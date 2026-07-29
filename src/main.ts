@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { analyseBuffer, envAt, TrackAnalysis } from "./audio/analysis";
 import { renderDemoTrack } from "./audio/demo";
-import { World, BG_STYLES } from "./game/world";
+import { World, BG_STYLES, ARENA } from "./game/world";
 import { Ship } from "./game/ship";
 import { Enemies, ENEMY_DEFS, Enemy, EnemyKind } from "./game/enemies";
 import { Weapons, UPGRADE_INFO, UpgradeKind } from "./game/weapons";
@@ -326,26 +326,29 @@ function clearHearts() {
 // Protéines : l'XP lâchée par les pathogènes, à collecter en conduisant.
 // La jauge ne se remplit plus au kill mais au ramassage (décision N4).
 // PERMANENTES (N4 2026-07-28) : elles attendent d'être ramassées, sans expirer.
-interface Protein { pos: THREE.Vector2; vel: THREE.Vector2; value: number; mesh: THREE.Mesh; }
+// Petites et NETTES, sans halo (le halo les rendait floues — N4).
+interface Protein { pos: THREE.Vector2; vel: THREE.Vector2; value: number; mesh: THREE.Mesh; homing: boolean; }
 const proteins: Protein[] = [];
 const protGeo = new THREE.CircleGeometry(0.5, 8);
 const protMat = new THREE.MeshBasicMaterial({ color: 0xcfff7a, transparent: true });
-const protHaloMat = glowMaterial(0xd4ff7a, 0.9);
 const MAX_PROTEINS = 350;
 const dashHits = new Set<Enemy>();
 
-// Sillage : l'onde qu'on laisse en nageant (sensation d'eau, réf. DKC2)
+// Sillage : l'onde qu'on laisse en nageant (sensation d'eau, réf. DKC2).
+// Arc aux 3/4 — le quart ARRIÈRE est prélevé (N4 : des cercles complets
+// dérangent l'œil, les arcs s'enchâssent et font une vraie onde).
 interface Ripple { mesh: THREE.Mesh; life: number; scale: number; }
 const ripples: Ripple[] = [];
-const rippleGeo = new THREE.RingGeometry(0.85, 1, 24);
+const rippleGeo = new THREE.RingGeometry(0.85, 1, 24, 1, Math.PI / 4, Math.PI * 1.5);
 let rippleTimer = 0;
 
-function spawnRipple(pos: THREE.Vector2, scale: number) {
+function spawnRipple(pos: THREE.Vector2, scale: number, heading: number) {
   const mesh = new THREE.Mesh(
     rippleGeo,
     new THREE.MeshBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: 0.28 * scale })
   );
   mesh.position.set(pos.x, pos.y, 4); // au-dessus de la couche joueur
+  mesh.rotation.z = heading + Math.PI; // l'ouverture regarde vers l'arrière
   world.scene.add(mesh);
   ripples.push({ mesh, life: 0.7, scale });
 }
@@ -360,12 +363,7 @@ function spawnProtein(pos: THREE.Vector2, value: number) {
   const mesh = proteinSpriteMat
     ? new THREE.Mesh(spriteQuad, proteinSpriteMat)
     : new THREE.Mesh(protGeo, protMat);
-  if (proteinSpriteMat) mesh.scale.setScalar(1.2);
-  // Halo serré et intense : l'XP se voit de loin sans tache laiteuse
-  const halo = new THREE.Mesh(spriteQuad, protHaloMat);
-  halo.scale.setScalar(proteinSpriteMat ? 0.8 : 1.9);
-  halo.position.z = -0.05;
-  mesh.add(halo);
+  if (proteinSpriteMat) mesh.scale.setScalar(0.85);
   mesh.position.set(pos.x, pos.y, 1.1);
   world.scene.add(mesh);
   proteins.push({
@@ -373,12 +371,53 @@ function spawnProtein(pos: THREE.Vector2, value: number) {
     vel: new THREE.Vector2(Math.cos(a), Math.sin(a)).multiplyScalar(5 + Math.random() * 9),
     value,
     mesh,
+    homing: false,
   });
 }
 
 function clearProteins() {
   for (const p of proteins) world.scene.remove(p.mesh);
   proteins.length = 0;
+}
+
+// Spirale d'aspiration (N4 2026-07-28) : pickup rare — toutes les protéines
+// de l'arène foncent vers le joueur. 2-4 apparitions par run, après 30 % du
+// morceau. Placeholder vectoriel en attendant un éventuel sprite.
+interface SpiralPickup { pos: THREE.Vector2; mesh: THREE.Object3D; }
+const spirals: SpiralPickup[] = [];
+let spiralTimes: number[] = [];
+let spiralIdx = 0;
+
+function spawnSpiral() {
+  const group = new THREE.Group();
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 60; i++) {
+    const t = i / 60;
+    const angle = t * Math.PI * 6; // trois tours
+    const r = 0.12 + t * 1.3;
+    pts.push(new THREE.Vector3(Math.cos(angle) * r, Math.sin(angle) * r, 0));
+  }
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0x9ff5ff })
+  );
+  group.add(line);
+  const core = new THREE.Mesh(spriteQuad, glowMaterial(0x9ff5ff, 0.7));
+  core.scale.setScalar(0.5);
+  core.position.z = -0.05;
+  group.add(core);
+  const pos = new THREE.Vector2(
+    (Math.random() * 2 - 1) * ARENA.hw * 0.75,
+    (Math.random() * 2 - 1) * ARENA.hh * 0.75
+  );
+  group.position.set(pos.x, pos.y, 1.2);
+  world.scene.add(group);
+  spirals.push({ pos, mesh: group });
+}
+
+function clearSpirals() {
+  for (const s of spirals) world.scene.remove(s.mesh);
+  spirals.length = 0;
 }
 
 function burst(pos: THREE.Vector2, color: number) {
@@ -470,6 +509,13 @@ function startRun(buf: AudioBuffer) {
   autopilot = metaLvl("symbiote") > 0;
   xpEarned = 0;
   stopMenuMusic(0.4);
+  // Spirales d'aspiration : 2-4 par run, réparties après 30 % du morceau
+  const dur = analysis?.duration ?? 60;
+  spiralTimes = Array.from(
+    { length: 2 + Math.floor(Math.random() * 3) },
+    () => dur * (0.3 + Math.random() * 0.62)
+  ).sort((a, b) => a - b);
+  spiralIdx = 0;
   score = 0;
   gauge = 0;
   gaugeLevel = 0;
@@ -480,6 +526,7 @@ function startRun(buf: AudioBuffer) {
   killsSinceHeart = 0;
   clearHearts();
   clearProteins();
+  clearSpirals();
 
   musicSource?.stop();
   musicSource = audioCtx.createBufferSource();
@@ -648,6 +695,12 @@ function updateSpawns(t: number) {
   const ramp = 0.35 + 0.8 * Math.pow(progress, 0.8);
   const density = SPAWN_DENSITY * ramp;
 
+  // Spirales d'aspiration planifiées
+  while (spiralIdx < spiralTimes.length && spiralTimes[spiralIdx] <= t) {
+    spiralIdx++;
+    spawnSpiral();
+  }
+
   // Drop : l'intensité surgit après une accalmie → déferlante + secousse
   // (elle aussi grossit avec la progression)
   while (dropIdx < analysis.drops.length && analysis.drops[dropIdx] <= t) {
@@ -711,7 +764,11 @@ function onKill(e: Enemy) {
   const def = ENEMY_DEFS[e.kind];
   score += def.score;
   burst(e.pos, def.color);
-  spawnProtein(e.pos, def.xp);
+  // Les coriaces lâchent plusieurs protéines (N4 : les rouges coûtent plus de tirs)
+  const drops = e.kind === "colosse" ? 3 : e.kind === "globule" ? 2 : 1;
+  const each = Math.floor(def.xp / drops);
+  let rem = def.xp - each * drops;
+  for (let i = 0; i < drops; i++) spawnProtein(e.pos, each + (rem-- > 0 ? 1 : 0));
   // Le colosse se scinde en globules — la mitose joue aussi contre nous
   if (e.kind === "colosse") enemies.burstAt("globule", e.pos, ship.pos, 3, 1);
   // Passif Mitose : régulièrement, un pathogène détruit laisse un cœur
@@ -800,7 +857,7 @@ function tick(now: number) {
     // Dash (R1) — la Saccade l'améliore
     if (dashEdge && ship.tryDash(weapons.dashCooldown)) {
       burst(ship.pos, 0xaffbff);
-      spawnRipple(ship.pos, 1.8);
+      spawnRipple(ship.pos, 1.8, Math.atan2(ship.lastDir.y, ship.lastDir.x));
       rumble(0.25, 0.5, 90);
       dashHits.clear();
     }
@@ -809,7 +866,7 @@ function tick(now: number) {
     rippleTimer -= dt;
     if (rippleTimer <= 0 && ship.vel.length() > 16) {
       rippleTimer = 0.14;
-      spawnRipple(ship.pos, 0.9);
+      spawnRipple(ship.pos, 0.9, Math.atan2(ship.vel.y, ship.vel.x));
     }
 
     updateTextureRotation(dt);
@@ -840,15 +897,36 @@ function tick(now: number) {
     enemies.update(dt, t, ship.pos);
     weapons.update(dt, ship, enemies, (ev) => onKill(ev.enemy));
 
+    // Spirales d'aspiration : rotation, ramassage → toutes les protéines foncent
+    for (let i = spirals.length - 1; i >= 0; i--) {
+      const s = spirals[i];
+      s.mesh.rotation.z -= dt * 2.8;
+      if (s.pos.distanceTo(ship.pos) < 3) {
+        for (const p of proteins) p.homing = true;
+        burst(s.pos, 0x9ff5ff);
+        rumble(0.3, 0.6, 200);
+        showToast("Aspiration !");
+        world.scene.remove(s.mesh);
+        spirals.splice(i, 1);
+      }
+    }
+
     // Protéines : aimant (Phagocytose), ramassage → jauge — elles n'expirent pas
     const magnetR = weapons.magnetRadius;
     for (let i = proteins.length - 1; i >= 0; i--) {
       const p = proteins[i];
-      p.vel.multiplyScalar(Math.max(0, 1 - dt * 3));
       const d = p.pos.distanceTo(ship.pos);
-      if (d < magnetR) {
+      if (p.homing) {
+        // Aspirée par la spirale : elle fonce, quelle que soit la distance
         const pull = new THREE.Vector2().subVectors(ship.pos, p.pos).normalize();
-        p.vel.addScaledVector(pull, dt * 160);
+        p.vel.addScaledVector(pull, dt * 500);
+        if (p.vel.length() > 95) p.vel.setLength(95);
+      } else {
+        p.vel.multiplyScalar(Math.max(0, 1 - dt * 3));
+        if (d < magnetR) {
+          const pull = new THREE.Vector2().subVectors(ship.pos, p.pos).normalize();
+          p.vel.addScaledVector(pull, dt * 160);
+        }
       }
       p.pos.addScaledVector(p.vel, dt);
       p.mesh.position.set(p.pos.x, p.pos.y, 1.1);
@@ -1199,4 +1277,6 @@ addEventListener("drop", (e) => {
   get weapons() { return weapons; },
   get ship() { return ship; },
   get enemies() { return enemies; },
+  get proteins() { return proteins; },
+  spawnSpiral,
 };

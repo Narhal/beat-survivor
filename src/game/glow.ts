@@ -18,9 +18,9 @@ export function glowTexture(): THREE.Texture {
     const ctx = c.getContext("2d")!;
     const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
     g.addColorStop(0, "rgba(255,255,255,1)");
-    g.addColorStop(0.3, "rgba(255,255,255,0.85)");
-    g.addColorStop(0.55, "rgba(255,255,255,0.22)");
-    g.addColorStop(0.75, "rgba(255,255,255,0.05)");
+    g.addColorStop(0.25, "rgba(255,255,255,0.95)");
+    g.addColorStop(0.45, "rgba(255,255,255,0.3)");
+    g.addColorStop(0.62, "rgba(255,255,255,0.06)");
     g.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 128, 128);

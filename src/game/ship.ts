@@ -8,8 +8,8 @@ import { glowMaterial } from "./glow";
 
 const MAX_SPEED = 32;
 const HP_MAX = 5; // 3 au départ, la Mitose peut soigner au-delà
-// Réglage N4 (2026-07-26, ×2) : plus nerveux à l'attaque, plus de glisse au relâché
-const SMOOTH_ACCEL = 6.0; // survivre exige de répondre tout de suite
+// Réglage N4 (2026-07-26, ×3) : plus nerveux à l'attaque, plus de glisse au relâché
+const SMOOTH_ACCEL = 7.0; // survivre exige de répondre tout de suite
 const SMOOTH_DRIFT = 4.1;
 const DASH_SPEED = 95;
 const DASH_DURATION = 0.16;
@@ -131,7 +131,7 @@ export class Ship {
     // Halo de luminescence : la cellule se détache du fond et pulse sur la basse
     this.glowMat = glowMaterial(0x7df9ff, 0.55);
     this.glowMesh = new THREE.Mesh(quad, this.glowMat);
-    this.glowMesh.scale.setScalar(3.0);
+    this.glowMesh.scale.setScalar(2.3);
     this.glowMesh.position.z = -0.2;
     this.group.add(this.glowMesh);
     this.membraneMesh = new THREE.Mesh(

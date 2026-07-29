@@ -117,11 +117,16 @@ const ORIENTED: Set<EnemyKind> = new Set(["meduse", "dard", "moucheron"]);
  * Échelle (x, y) du halo relative au corps — serré sur la silhouette.
  * Le dard a un halo étiré le long de sa course, pas un rond.
  */
+// Ultra-fin (verdict N4 ×2) : le halo vit SOUS la silhouette, en liseré —
+// une bioluminescence intérieure, jamais une aura qui déborde.
 const HALO_SCALE: Partial<Record<EnemyKind, [number, number]>> = {
-  dard: [1.05, 0.42],
-  moucheron: [0.8, 0.62],
+  dard: [0.95, 0.3],
+  moucheron: [0.55, 0.45],
+  meduse: [0.52, 0.48],
+  kyste: [0.6, 0.6],
+  colosse: [0.7, 0.7],
 };
-const HALO_DEFAULT: [number, number] = [0.92, 0.92];
+const HALO_DEFAULT: [number, number] = [0.6, 0.6];
 
 export class Enemies {
   list: Enemy[] = [];
