@@ -117,7 +117,7 @@ export class Ship {
       this.mitoMesh.rotation.z += dt * 0.18;
     }
     if (this.membraneMesh) this.membraneMesh.rotation.z -= dt * 0.06;
-    if (this.glowMat) this.glowMat.opacity = 0.22 + this.beat * 0.3;
+    if (this.glowMat) this.glowMat.opacity = 0.4 + this.beat * 0.45;
     this.group.visible = this.invuln <= 0 || Math.floor(this.invuln * 12) % 2 === 0;
   }
 
@@ -129,9 +129,9 @@ export class Ship {
     this.group.clear();
     const quad = new THREE.PlaneGeometry(2, 2);
     // Halo de luminescence : la cellule se détache du fond et pulse sur la basse
-    this.glowMat = glowMaterial(0x7df9ff, 0.3);
+    this.glowMat = glowMaterial(0x7df9ff, 0.55);
     this.glowMesh = new THREE.Mesh(quad, this.glowMat);
-    this.glowMesh.scale.setScalar(4.2);
+    this.glowMesh.scale.setScalar(3.0);
     this.glowMesh.position.z = -0.2;
     this.group.add(this.glowMesh);
     this.membraneMesh = new THREE.Mesh(

@@ -308,8 +308,8 @@ function spawnHeart(pos: THREE.Vector2) {
     ? new THREE.Mesh(spriteQuad, heartSpriteMat.clone())
     : new THREE.Mesh(heartGeo, heartMat);
   const base = heartSpriteMat ? 2.8 : 1;
-  const halo = new THREE.Mesh(spriteQuad, glowMaterial(0xff7aa8, 0.5));
-  halo.scale.setScalar(heartSpriteMat ? 1.4 : 3);
+  const halo = new THREE.Mesh(spriteQuad, glowMaterial(0xff7aa8, 0.8));
+  halo.scale.setScalar(heartSpriteMat ? 0.95 : 2.2);
   halo.position.z = -0.05;
   mesh.add(halo);
   mesh.scale.setScalar(base);
@@ -325,10 +325,12 @@ function clearHearts() {
 
 // Protéines : l'XP lâchée par les pathogènes, à collecter en conduisant.
 // La jauge ne se remplit plus au kill mais au ramassage (décision N4).
-interface Protein { pos: THREE.Vector2; vel: THREE.Vector2; value: number; mesh: THREE.Mesh; haloMat: THREE.MeshBasicMaterial; life: number; }
+// PERMANENTES (N4 2026-07-28) : elles attendent d'être ramassées, sans expirer.
+interface Protein { pos: THREE.Vector2; vel: THREE.Vector2; value: number; mesh: THREE.Mesh; }
 const proteins: Protein[] = [];
 const protGeo = new THREE.CircleGeometry(0.5, 8);
 const protMat = new THREE.MeshBasicMaterial({ color: 0xcfff7a, transparent: true });
+const protHaloMat = glowMaterial(0xd4ff7a, 0.9);
 const MAX_PROTEINS = 350;
 const dashHits = new Set<Enemy>();
 
@@ -356,13 +358,12 @@ function spawnProtein(pos: THREE.Vector2, value: number) {
   }
   const a = Math.random() * Math.PI * 2;
   const mesh = proteinSpriteMat
-    ? new THREE.Mesh(spriteQuad, proteinSpriteMat.clone())
-    : new THREE.Mesh(protGeo, protMat.clone());
-  if (proteinSpriteMat) mesh.scale.setScalar(2.0);
-  // Halo de luminescence : l'XP doit se voir de loin (lisibilité, N4)
-  const haloMat = glowMaterial(0xd4ff7a, 0.55);
-  const halo = new THREE.Mesh(spriteQuad, haloMat);
-  halo.scale.setScalar(proteinSpriteMat ? 1.3 : 2.6);
+    ? new THREE.Mesh(spriteQuad, proteinSpriteMat)
+    : new THREE.Mesh(protGeo, protMat);
+  if (proteinSpriteMat) mesh.scale.setScalar(1.2);
+  // Halo serré et intense : l'XP se voit de loin sans tache laiteuse
+  const halo = new THREE.Mesh(spriteQuad, protHaloMat);
+  halo.scale.setScalar(proteinSpriteMat ? 0.8 : 1.9);
   halo.position.z = -0.05;
   mesh.add(halo);
   mesh.position.set(pos.x, pos.y, 1.1);
@@ -372,8 +373,6 @@ function spawnProtein(pos: THREE.Vector2, value: number) {
     vel: new THREE.Vector2(Math.cos(a), Math.sin(a)).multiplyScalar(5 + Math.random() * 9),
     value,
     mesh,
-    haloMat,
-    life: 18,
   });
 }
 
@@ -841,11 +840,10 @@ function tick(now: number) {
     enemies.update(dt, t, ship.pos);
     weapons.update(dt, ship, enemies, (ev) => onKill(ev.enemy));
 
-    // Protéines : aimant (Phagocytose), ramassage → jauge
+    // Protéines : aimant (Phagocytose), ramassage → jauge — elles n'expirent pas
     const magnetR = weapons.magnetRadius;
     for (let i = proteins.length - 1; i >= 0; i--) {
       const p = proteins[i];
-      p.life -= dt;
       p.vel.multiplyScalar(Math.max(0, 1 - dt * 3));
       const d = p.pos.distanceTo(ship.pos);
       if (d < magnetR) {
@@ -854,18 +852,10 @@ function tick(now: number) {
       }
       p.pos.addScaledVector(p.vel, dt);
       p.mesh.position.set(p.pos.x, p.pos.y, 1.1);
-      const fade = Math.min(1, p.life / 2.5);
-      (p.mesh.material as THREE.MeshBasicMaterial).opacity = fade;
-      p.haloMat.opacity = 0.55 * fade;
       if (d < 2.2) {
         gauge += p.value;
         xpEarned += p.value;
-        p.life = 0;
-      }
-      if (p.life <= 0) {
         world.scene.remove(p.mesh);
-        (p.mesh.material as THREE.Material).dispose();
-        p.haloMat.dispose();
         proteins.splice(i, 1);
       }
     }

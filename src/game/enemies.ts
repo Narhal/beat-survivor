@@ -113,12 +113,15 @@ function kysteGeometry(): THREE.ShapeGeometry {
 /** Ces espèces s'orientent dans le sens de leur déplacement. */
 const ORIENTED: Set<EnemyKind> = new Set(["meduse", "dard", "moucheron"]);
 
-/** Taille relative du halo de luminescence (par rapport au corps). */
-const HALO_REL: Partial<Record<EnemyKind, number>> = {
-  dard: 0.9,
-  moucheron: 1.2,
-  colosse: 1.2,
+/**
+ * Échelle (x, y) du halo relative au corps — serré sur la silhouette.
+ * Le dard a un halo étiré le long de sa course, pas un rond.
+ */
+const HALO_SCALE: Partial<Record<EnemyKind, [number, number]>> = {
+  dard: [1.05, 0.42],
+  moucheron: [0.8, 0.62],
 };
+const HALO_DEFAULT: [number, number] = [0.92, 0.92];
 
 export class Enemies {
   list: Enemy[] = [];
@@ -159,7 +162,7 @@ export class Enemies {
   private haloFor(kind: EnemyKind): THREE.MeshBasicMaterial {
     let mat = this.haloMats[kind];
     if (!mat) {
-      mat = glowMaterial(ENEMY_DEFS[kind].color, 0.4);
+      mat = glowMaterial(ENEMY_DEFS[kind].color, 0.85);
       this.haloMats[kind] = mat;
     }
     return mat;
@@ -267,7 +270,8 @@ export class Enemies {
       mesh.add(halo);
     }
     halo.material = this.haloFor(kind);
-    halo.scale.setScalar(HALO_REL[kind] ?? 1.4);
+    const [hx, hy] = HALO_SCALE[kind] ?? HALO_DEFAULT;
+    halo.scale.set(hx, hy, 1);
 
     mesh.scale.setScalar(baseScale);
     mesh.position.set(pos.x, pos.y, 1);
