@@ -202,11 +202,24 @@ export class Enemies {
     }
   }
 
-  /** Apparition sur place (scission du colosse, éclatement du kyste). */
+  /** Apparition sur place, en éventail vers une cible (éclatement du kyste). */
   burstAt(kind: EnemyKind, at: THREE.Vector2, target: THREE.Vector2, count: number, speedScale = 1) {
     for (let i = 0; i < count; i++) {
       const p = at.clone().add(new THREE.Vector2((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3));
       this.add(kind, p, target, 0.6, 1, speedScale, (i - (count - 1) / 2) * 0.45);
+    }
+  }
+
+  /**
+   * Éclatement radial (le colosse) : count ennemis partent en étoile depuis
+   * un point, chacun en ligne droite vers l'extérieur de l'arène.
+   */
+  emitRadial(kind: EnemyKind, at: THREE.Vector2, count: number, speedScale = 1) {
+    const base = Math.random() * Math.PI * 2;
+    for (let k = 0; k < count; k++) {
+      const a = base + (k * Math.PI * 2) / count;
+      const target = at.clone().add(new THREE.Vector2(Math.cos(a), Math.sin(a)));
+      this.add(kind, at.clone(), target, 0.6, 1, speedScale);
     }
   }
 
@@ -240,11 +253,18 @@ export class Enemies {
     const scale = 0.8 + strength * 0.5;
 
     // Cap initial : vers la cible (dards, moucherons), aléatoire pour les
-    // kystes — eux dérivent, ils ne chassent personne
+    // kystes (dériveurs) ; le colosse TRAVERSE l'arène en ligne droite,
+    // indifférent au joueur (verdict N4 : un mastodonte, pas un chasseur)
     let dir: THREE.Vector2;
     if (kind === "kyste") {
       const a = Math.random() * Math.PI * 2;
       dir = new THREE.Vector2(Math.cos(a), Math.sin(a));
+    } else if (kind === "colosse") {
+      const interior = new THREE.Vector2(
+        (Math.random() * 2 - 1) * ARENA.hw * 0.5,
+        (Math.random() * 2 - 1) * ARENA.hh * 0.5
+      );
+      dir = interior.sub(pos).normalize();
     } else {
       dir = new THREE.Vector2().subVectors(target, pos).normalize();
       if (dirSpread !== 0) dir.rotateAround(new THREE.Vector2(), dirSpread);
@@ -308,11 +328,15 @@ export class Enemies {
       e.tentHitCd = Math.max(0, e.tentHitCd - dt);
 
       switch (e.kind) {
-        case "globule":
-        case "colosse": {
+        case "globule": {
           const d = new THREE.Vector2().subVectors(player, e.pos).normalize();
           e.pos.addScaledVector(d, e.speed * dt);
           e.dir.copy(d);
+          break;
+        }
+        case "colosse": {
+          // Le mastodonte trace sa route, imperturbable
+          e.pos.addScaledVector(e.dir, e.speed * dt);
           break;
         }
         case "meduse": {
@@ -374,12 +398,12 @@ export class Enemies {
       }
     }
 
-    // Les dards et moucherons sortis de l'arène disparaissent
+    // Les dards, moucherons et colosses sortis de l'arène disparaissent
     for (let i = this.list.length - 1; i >= 0; i--) {
       const e = this.list[i];
       if (
-        (e.kind === "dard" || e.kind === "moucheron") &&
-        (Math.abs(e.pos.x) > ARENA.hw + 6 || Math.abs(e.pos.y) > ARENA.hh + 6)
+        (e.kind === "dard" || e.kind === "moucheron" || e.kind === "colosse") &&
+        (Math.abs(e.pos.x) > ARENA.hw + 8 || Math.abs(e.pos.y) > ARENA.hh + 8)
       ) {
         this.remove(i);
       }

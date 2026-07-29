@@ -13,6 +13,10 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const SRC = path.resolve(repoRoot, "../masters-beat-survivor/sprites");
 const DST = path.join(repoRoot, "public", "sprites");
 const SIZE = 512;
+// Gain lumineux par espèce : les pickups doivent être NÉON (verdict N4 —
+// brillants par eux-mêmes, sans halo), le reste garde le gain standard.
+const GAIN = { pickups: 2.1 };
+const GAIN_DEFAULT = 1.45;
 
 const manifest = {};
 const especes = (await readdir(SRC, { withFileTypes: true }))
@@ -31,7 +35,7 @@ for (const espece of especes) {
       .removeAlpha()
       // Gain lumineux : les masters MJ sont sombres, le jeu vit sous un bloom
       // à seuil haut — sans ça les sprites sont moins lisibles que le vectoriel
-      .linear(1.45, 0)
+      .linear(GAIN[espece] ?? GAIN_DEFAULT, 0)
       .toBuffer();
     const alpha = await sharp(rgb).greyscale().toBuffer();
     await sharp(rgb).joinChannel(alpha).webp({ quality: 88 }).toFile(path.join(DST, espece, out));

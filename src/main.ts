@@ -348,7 +348,7 @@ function spawnRipple(pos: THREE.Vector2, scale: number, heading: number) {
     new THREE.MeshBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: 0.28 * scale })
   );
   mesh.position.set(pos.x, pos.y, 4); // au-dessus de la couche joueur
-  mesh.rotation.z = heading + Math.PI; // l'ouverture regarde vers l'arrière
+  mesh.rotation.z = heading; // l'ouverture regarde vers l'AVANT (verdict N4)
   world.scene.add(mesh);
   ripples.push({ mesh, life: 0.7, scale });
 }
@@ -764,13 +764,17 @@ function onKill(e: Enemy) {
   const def = ENEMY_DEFS[e.kind];
   score += def.score;
   burst(e.pos, def.color);
-  // Les coriaces lâchent plusieurs protéines (N4 : les rouges coûtent plus de tirs)
-  const drops = e.kind === "colosse" ? 3 : e.kind === "globule" ? 2 : 1;
-  const each = Math.floor(def.xp / drops);
-  let rem = def.xp - each * drops;
-  for (let i = 0; i < drops; i++) spawnProtein(e.pos, each + (rem-- > 0 ? 1 : 0));
-  // Le colosse se scinde en globules — la mitose joue aussi contre nous
-  if (e.kind === "colosse") enemies.burstAt("globule", e.pos, ship.pos, 3, 1);
+  // Le colosse n'est pas une récompense : il éclate en 6 dards en étoile
+  // (hexagone) qui filent en ligne droite vers l'extérieur (verdict N4)
+  if (e.kind === "colosse") {
+    enemies.emitRadial("dard", e.pos, 6, 1.05);
+  } else {
+    // Les coriaces lâchent plusieurs protéines (les rouges coûtent des tirs)
+    const drops = e.kind === "globule" ? 2 : 1;
+    const each = Math.floor(def.xp / drops);
+    let rem = def.xp - each * drops;
+    for (let i = 0; i < drops; i++) spawnProtein(e.pos, each + (rem-- > 0 ? 1 : 0));
+  }
   // Passif Mitose : régulièrement, un pathogène détruit laisse un cœur
   const threshold = weapons.mitoseThreshold;
   if (threshold > 0 && ++killsSinceHeart >= threshold) {
