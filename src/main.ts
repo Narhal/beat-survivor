@@ -12,6 +12,7 @@ import { Enemies, ENEMY_DEFS, Enemy, EnemyKind } from "./game/enemies";
 import { Weapons, UPGRADE_INFO, UpgradeKind } from "./game/weapons";
 import { renderMenuLoop, renderBubbles, renderDrop, speakTitle } from "./audio/menuAudio";
 import { META_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
+import { glowMaterial } from "./game/glow";
 
 // ---------- DOM ----------
 const $ = (id: string) => document.getElementById(id)!;
@@ -160,9 +161,9 @@ fetch("/sprites/manifest.json")
     const cfg: Record<string, { additive: boolean; scale: number; rot: number }> = {
       globule: { additive: false, scale: 1.6, rot: 0 },
       meduse: { additive: false, scale: 1.9, rot: -0.09 },
-      dard: { additive: true, scale: 2.6, rot: -0.27 },
+      dard: { additive: true, scale: 3.1, rot: -0.27 },
       kyste: { additive: false, scale: 1.7, rot: 0 },
-      moucheron: { additive: true, scale: 2.2, rot: -Math.PI / 2 },
+      moucheron: { additive: true, scale: 2.5, rot: -Math.PI / 2 },
       colosse: { additive: false, scale: 1.5, rot: 0 },
     };
     for (const kind of Object.keys(cfg) as EnemyKind[]) {
@@ -307,6 +308,10 @@ function spawnHeart(pos: THREE.Vector2) {
     ? new THREE.Mesh(spriteQuad, heartSpriteMat.clone())
     : new THREE.Mesh(heartGeo, heartMat);
   const base = heartSpriteMat ? 2.8 : 1;
+  const halo = new THREE.Mesh(spriteQuad, glowMaterial(0xff7aa8, 0.5));
+  halo.scale.setScalar(heartSpriteMat ? 1.4 : 3);
+  halo.position.z = -0.05;
+  mesh.add(halo);
   mesh.scale.setScalar(base);
   mesh.position.set(pos.x, pos.y, 1.2);
   world.scene.add(mesh);
@@ -320,7 +325,7 @@ function clearHearts() {
 
 // Protéines : l'XP lâchée par les pathogènes, à collecter en conduisant.
 // La jauge ne se remplit plus au kill mais au ramassage (décision N4).
-interface Protein { pos: THREE.Vector2; vel: THREE.Vector2; value: number; mesh: THREE.Mesh; life: number; }
+interface Protein { pos: THREE.Vector2; vel: THREE.Vector2; value: number; mesh: THREE.Mesh; haloMat: THREE.MeshBasicMaterial; life: number; }
 const proteins: Protein[] = [];
 const protGeo = new THREE.CircleGeometry(0.5, 8);
 const protMat = new THREE.MeshBasicMaterial({ color: 0xcfff7a, transparent: true });
@@ -353,7 +358,13 @@ function spawnProtein(pos: THREE.Vector2, value: number) {
   const mesh = proteinSpriteMat
     ? new THREE.Mesh(spriteQuad, proteinSpriteMat.clone())
     : new THREE.Mesh(protGeo, protMat.clone());
-  if (proteinSpriteMat) mesh.scale.setScalar(1.25);
+  if (proteinSpriteMat) mesh.scale.setScalar(2.0);
+  // Halo de luminescence : l'XP doit se voir de loin (lisibilité, N4)
+  const haloMat = glowMaterial(0xd4ff7a, 0.55);
+  const halo = new THREE.Mesh(spriteQuad, haloMat);
+  halo.scale.setScalar(proteinSpriteMat ? 1.3 : 2.6);
+  halo.position.z = -0.05;
+  mesh.add(halo);
   mesh.position.set(pos.x, pos.y, 1.1);
   world.scene.add(mesh);
   proteins.push({
@@ -361,6 +372,7 @@ function spawnProtein(pos: THREE.Vector2, value: number) {
     vel: new THREE.Vector2(Math.cos(a), Math.sin(a)).multiplyScalar(5 + Math.random() * 9),
     value,
     mesh,
+    haloMat,
     life: 18,
   });
 }
@@ -842,7 +854,9 @@ function tick(now: number) {
       }
       p.pos.addScaledVector(p.vel, dt);
       p.mesh.position.set(p.pos.x, p.pos.y, 1.1);
-      (p.mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, p.life / 2.5);
+      const fade = Math.min(1, p.life / 2.5);
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity = fade;
+      p.haloMat.opacity = 0.55 * fade;
       if (d < 2.2) {
         gauge += p.value;
         xpEarned += p.value;
@@ -851,6 +865,7 @@ function tick(now: number) {
       if (p.life <= 0) {
         world.scene.remove(p.mesh);
         (p.mesh.material as THREE.Material).dispose();
+        p.haloMat.dispose();
         proteins.splice(i, 1);
       }
     }

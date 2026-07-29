@@ -4,6 +4,7 @@
 
 import * as THREE from "three";
 import { ARENA } from "./world";
+import { glowMaterial } from "./glow";
 
 const MAX_SPEED = 32;
 const HP_MAX = 5; // 3 au départ, la Mitose peut soigner au-delà
@@ -29,6 +30,8 @@ export class Ship {
   private t = 0;
   private mitoMesh: THREE.Mesh | null = null;
   private membraneMesh: THREE.Mesh | null = null;
+  private glowMesh: THREE.Mesh | null = null;
+  private glowMat: THREE.MeshBasicMaterial | null = null;
 
   get dashing(): boolean {
     return this.dashTime > 0;
@@ -114,6 +117,7 @@ export class Ship {
       this.mitoMesh.rotation.z += dt * 0.18;
     }
     if (this.membraneMesh) this.membraneMesh.rotation.z -= dt * 0.06;
+    if (this.glowMat) this.glowMat.opacity = 0.22 + this.beat * 0.3;
     this.group.visible = this.invuln <= 0 || Math.floor(this.invuln * 12) % 2 === 0;
   }
 
@@ -124,6 +128,12 @@ export class Ship {
   setSprites(membrane: THREE.Texture, mito: THREE.Texture) {
     this.group.clear();
     const quad = new THREE.PlaneGeometry(2, 2);
+    // Halo de luminescence : la cellule se détache du fond et pulse sur la basse
+    this.glowMat = glowMaterial(0x7df9ff, 0.3);
+    this.glowMesh = new THREE.Mesh(quad, this.glowMat);
+    this.glowMesh.scale.setScalar(4.2);
+    this.glowMesh.position.z = -0.2;
+    this.group.add(this.glowMesh);
     this.membraneMesh = new THREE.Mesh(
       quad,
       new THREE.MeshBasicMaterial({ map: membrane, transparent: true, depthWrite: false })

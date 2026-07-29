@@ -9,6 +9,7 @@
 
 import * as THREE from "three";
 import { ARENA } from "./world";
+import { glowMaterial } from "./glow";
 
 export type EnemyKind = "globule" | "meduse" | "dard" | "kyste" | "moucheron" | "colosse";
 
@@ -112,6 +113,13 @@ function kysteGeometry(): THREE.ShapeGeometry {
 /** Ces espèces s'orientent dans le sens de leur déplacement. */
 const ORIENTED: Set<EnemyKind> = new Set(["meduse", "dard", "moucheron"]);
 
+/** Taille relative du halo de luminescence (par rapport au corps). */
+const HALO_REL: Partial<Record<EnemyKind, number>> = {
+  dard: 0.9,
+  moucheron: 1.2,
+  colosse: 1.2,
+};
+
 export class Enemies {
   list: Enemy[] = [];
   /** true = sprites Midjourney (si fournis), false = silhouettes vectorielles. */
@@ -144,6 +152,17 @@ export class Enemies {
 
   setSprites(kind: EnemyKind, set: SpriteSet) {
     this.sprites[kind] = set;
+  }
+
+  private haloMats: Partial<Record<EnemyKind, THREE.MeshBasicMaterial>> = {};
+
+  private haloFor(kind: EnemyKind): THREE.MeshBasicMaterial {
+    let mat = this.haloMats[kind];
+    if (!mat) {
+      mat = glowMaterial(ENEMY_DEFS[kind].color, 0.4);
+      this.haloMats[kind] = mat;
+    }
+    return mat;
   }
 
   private matFor(tex: THREE.Texture, additive: boolean): THREE.MeshBasicMaterial {
@@ -239,6 +258,17 @@ export class Enemies {
       mesh.geometry = this.geos[kind];
       mesh.material = this.mats[kind];
     }
+    // Halo de luminescence : détache l'entité du fond, couleur de l'espèce
+    let halo = mesh.userData.halo as THREE.Mesh | undefined;
+    if (!halo) {
+      halo = new THREE.Mesh(this.spriteGeo, this.haloFor(kind));
+      halo.position.z = -0.06;
+      mesh.userData.halo = halo;
+      mesh.add(halo);
+    }
+    halo.material = this.haloFor(kind);
+    halo.scale.setScalar(HALO_REL[kind] ?? 1.4);
+
     mesh.scale.setScalar(baseScale);
     mesh.position.set(pos.x, pos.y, 1);
     mesh.visible = true;

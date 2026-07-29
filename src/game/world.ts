@@ -354,8 +354,10 @@ export class World {
         l.fade = Math.min(1, l.fade + dt / 0.9);
       }
       (l.mat.uniforms.uTint.value as THREE.Color).copy(this.tintColor).multiplyScalar(breathe * (i === 0 ? 1 : 0.65));
+      // Légèrement en retrait depuis la couche de luminescence gameplay :
+      // le fond ne doit jamais concurrencer les entités (lisibilité, N4)
       l.mat.uniforms.uOpacity.value =
-        (i === 0 ? 0.30 + energy * 0.25 : 0.20 + energy * 0.15) * Math.max(0, l.fade);
+        (i === 0 ? 0.24 + energy * 0.2 : 0.16 + energy * 0.12) * Math.max(0, l.fade);
     }
 
     // Les bulles remontent, portées par l'intensité, et se rembobinent en bas
