@@ -10,13 +10,15 @@ import { Ship } from "./ship";
 
 export type UpgradeCategory = "Arme" | "Atout" | "Passif";
 export type UpgradeKind =
-  | "blaster" | "eventail" | "orbes" | "onde" | "tentacule" | "apoptose" // armes
+  | "blaster" | "eventail" | "orbes" | "onde" | "tentacule" | "apoptose" | "mine" | "arc" // armes
   | "flagelles" | "membrane" // atouts
   | "mitose" | "enzymes" | "phagocytose"; // passifs
 
 export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat: UpgradeCategory }> = {
   blaster: { name: "Anticorps", desc: "Tire sur le pathogène le plus proche.", cat: "Arme" },
-  eventail: { name: "Éventail", desc: "Gerbe de projectiles vers l'avant.", cat: "Arme" },
+  eventail: { name: "Éventail", desc: "Gerbe de projectiles vers l'arrière — couvre ta fuite.", cat: "Arme" },
+  mine: { name: "Mine", desc: "Pond régulièrement une mine qui explose à l'approche des pathogènes.", cat: "Arme" },
+  arc: { name: "Arc voltaïque", desc: "Cône électrique devant toi : tout ce qui y entre grille. Bref aux premiers paliers, puis plus long et plus ample.", cat: "Arme" },
   orbes: { name: "Orbes", desc: "Satellites en orbite, dégâts de contact.", cat: "Arme" },
   onde: { name: "Onde de choc", desc: "Anneau périodique qui balaie autour de toi.", cat: "Arme" },
   tentacule: { name: "Filament", desc: "Un long filament urticant traîne paresseusement derrière toi (réf. méduse). Paliers : longueur, dégâts, jusqu'à 3 filaments.", cat: "Arme" },
@@ -84,6 +86,11 @@ export class Weapons {
   private orbAngle = 0;
   private tentacleMeshes: THREE.Mesh[] = [];
   private filaments: THREE.Vector2[][] = [];
+  private mines: { pos: THREE.Vector2; mesh: THREE.Mesh; age: number }[] = [];
+  private explosions: { mesh: THREE.Mesh; life: number; max: number }[] = [];
+  private arcMesh: THREE.Mesh | null = null;
+  private arcTimer = 0;
+  private arcParams = { len: 0, half: 0 };
   private shieldMesh: THREE.Mesh;
   private time = 0;
 
@@ -94,6 +101,8 @@ export class Weapons {
   private orbMat = new THREE.MeshBasicMaterial({ color: 0x8effc0 });
   private tentGeo = new THREE.CircleGeometry(1, 10);
   private tentMat = new THREE.MeshBasicMaterial({ color: 0x66f0d8 });
+  private mineGeo = new THREE.CircleGeometry(0.8, 12);
+  private mineMat = new THREE.MeshBasicMaterial({ color: 0xffc36e });
   private projPool: THREE.Mesh[] = [];
 
   constructor(scene: THREE.Scene) {
@@ -118,6 +127,16 @@ export class Weapons {
     this.shieldCharged = false;
     this.shieldTimer = 0;
     this.nukeCharge = 0;
+    for (const mn of this.mines) this.scene.remove(mn.mesh);
+    this.mines = [];
+    for (const ex of this.explosions) this.scene.remove(ex.mesh);
+    this.explosions = [];
+    if (this.arcMesh) {
+      this.scene.remove(this.arcMesh);
+      this.arcMesh.geometry.dispose();
+      this.arcMesh = null;
+    }
+    this.arcTimer = 0;
     this.syncOrbs();
     this.syncTentacle();
   }
@@ -258,7 +277,8 @@ export class Weapons {
           break;
         }
         case "eventail": {
-          const heading = Math.atan2(ship.lastDir.y, ship.lastDir.x);
+          // Tire vers l'ARRIÈRE (N4 2026-07-30) : l'éventail couvre la fuite
+          const heading = Math.atan2(ship.lastDir.y, ship.lastDir.x) + Math.PI;
           const n = 3 + lvl;
           const spread = Math.PI / 5;
           for (let i = 0; i < n; i++) {
@@ -285,8 +305,132 @@ export class Weapons {
           this.cooldowns.set(kind, 2.4 / (1 + (lvl - 1) * 0.2));
           break;
         }
+        case "mine": {
+          // Pond une mine sous la cellule ; elle s'arme puis guette
+          const mesh = new THREE.Mesh(this.mineGeo, this.mineMat);
+          mesh.position.set(ship.pos.x, ship.pos.y, 0.8);
+          this.scene.add(mesh);
+          this.mines.push({ pos: ship.pos.clone(), mesh, age: 0 });
+          this.cooldowns.set(kind, 3.5 / (1 + (lvl - 1) * 0.22));
+          break;
+        }
+        case "arc": {
+          // Active le cône électrique devant la cellule — bref mais létal
+          const len = 14 + lvl * 3;
+          const half = 0.35 + lvl * 0.06;
+          this.arcParams = { len, half };
+          this.arcTimer = 0.7 + lvl * 0.25;
+          if (this.arcMesh) {
+            this.scene.remove(this.arcMesh);
+            this.arcMesh.geometry.dispose();
+          }
+          const shape = new THREE.Shape();
+          shape.moveTo(0, 0);
+          const STEPS = 14;
+          for (let i = 0; i <= STEPS; i++) {
+            const a = -half + (2 * half * i) / STEPS;
+            shape.lineTo(Math.cos(a), Math.sin(a));
+          }
+          shape.closePath();
+          this.arcMesh = new THREE.Mesh(
+            new THREE.ShapeGeometry(shape),
+            new THREE.MeshBasicMaterial({
+              color: 0xbef3ff,
+              transparent: true,
+              opacity: 0.35,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+            })
+          );
+          this.arcMesh.scale.setScalar(len);
+          this.scene.add(this.arcMesh);
+          this.cooldowns.set(kind, 6.5);
+          break;
+        }
         default:
           break; // orbes, tentacule et les non-armes sont passifs, gérés plus bas
+      }
+    }
+
+    // Mines : armement, détection de proximité, explosion en AoE
+    for (let i = this.mines.length - 1; i >= 0; i--) {
+      const mn = this.mines[i];
+      mn.age += dt;
+      mn.mesh.scale.setScalar(1 + 0.15 * Math.sin(mn.age * 8));
+      let boom = mn.age > 6; // au bout du compte, elle saute seule
+      if (!boom && mn.age > 0.4) {
+        for (const e of enemies.list) {
+          if (e.pos.distanceTo(mn.pos) < 3.6) {
+            boom = true;
+            break;
+          }
+        }
+      }
+      if (boom) {
+        const mineLvl = this.levels.get("mine") ?? 1;
+        const radius = 8 + mineLvl * 1.5;
+        const mineDmg = (5 + mineLvl * 2) * mul;
+        for (let j = enemies.list.length - 1; j >= 0; j--) {
+          const e = enemies.list[j];
+          if (e.pos.distanceTo(mn.pos) < radius) {
+            e.hp -= mineDmg;
+            if (e.hp <= 0) {
+              onKill({ enemy: e });
+              enemies.remove(j);
+            }
+          }
+        }
+        const ring = new THREE.Mesh(
+          this.waveGeo,
+          new THREE.MeshBasicMaterial({ color: 0xffc36e, transparent: true, opacity: 0.85 })
+        );
+        ring.position.set(mn.pos.x, mn.pos.y, 1.5);
+        this.scene.add(ring);
+        this.explosions.push({ mesh: ring, life: 0.35, max: radius });
+        this.scene.remove(mn.mesh);
+        this.mines.splice(i, 1);
+      }
+    }
+    for (let i = this.explosions.length - 1; i >= 0; i--) {
+      const ex = this.explosions[i];
+      ex.life -= dt;
+      const k = 1 - ex.life / 0.35;
+      ex.mesh.scale.setScalar(Math.max(0.01, ex.max * k));
+      (ex.mesh.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - k);
+      if (ex.life <= 0) {
+        this.scene.remove(ex.mesh);
+        (ex.mesh.material as THREE.Material).dispose();
+        this.explosions.splice(i, 1);
+      }
+    }
+
+    // Arc voltaïque actif : suit la cellule, grésille, foudroie ce qui entre
+    if (this.arcTimer > 0 && this.arcMesh) {
+      this.arcTimer -= dt;
+      const heading = Math.atan2(ship.lastDir.y, ship.lastDir.x);
+      this.arcMesh.position.set(ship.pos.x, ship.pos.y, 1.45);
+      this.arcMesh.rotation.z = heading;
+      (this.arcMesh.material as THREE.MeshBasicMaterial).opacity = 0.2 + Math.random() * 0.28;
+      const { len, half } = this.arcParams;
+      for (let j = enemies.list.length - 1; j >= 0; j--) {
+        const e = enemies.list[j];
+        const to = new THREE.Vector2().subVectors(e.pos, ship.pos);
+        const d = to.length();
+        if (d < len + e.radius) {
+          let ang = Math.atan2(to.y, to.x) - heading;
+          while (ang > Math.PI) ang -= Math.PI * 2;
+          while (ang < -Math.PI) ang += Math.PI * 2;
+          if (Math.abs(ang) < half) {
+            e.hp = 0; // le cône oneshot (N4)
+            onKill({ enemy: e });
+            enemies.remove(j);
+          }
+        }
+      }
+      if (this.arcTimer <= 0) {
+        this.scene.remove(this.arcMesh);
+        this.arcMesh.geometry.dispose();
+        this.arcMesh = null;
       }
     }
 

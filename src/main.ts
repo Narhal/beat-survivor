@@ -620,11 +620,13 @@ let menuEls: HTMLElement[] = [];
 let menuIdx = 0;
 let menuCooldown = 0;
 let menuAxis: "x" | "y" = "x";
+let menuCols = 0; // > 0 : navigation en grille (Pharmacie)
 
-function setMenu(els: HTMLElement[], axis: "x" | "y" = "x") {
+function setMenu(els: HTMLElement[], axis: "x" | "y" = "x", cols = 0) {
   menuEls.forEach((el) => el.classList.remove("sel"));
   menuEls = els;
   menuAxis = axis;
+  menuCols = cols;
   menuIdx = 0;
   syncMenu();
 }
@@ -633,14 +635,21 @@ function syncMenu() {
   menuEls.forEach((el, i) => el.classList.toggle("sel", i === menuIdx));
 }
 
-/** Stick pour naviguer (axe du menu courant), ✕/A/Entrée pour valider. */
+/** Stick pour naviguer (axe ou grille), ✕/A/Entrée pour valider. */
 function updateMenuNav(dt: number) {
   if (menuEls.length === 0) return;
   menuCooldown = Math.max(0, menuCooldown - dt);
   const v = inputVector();
-  const val = menuAxis === "x" ? v.x : -v.y;
-  if (menuCooldown <= 0 && Math.abs(val) > 0.5) {
-    menuIdx = THREE.MathUtils.euclideanModulo(menuIdx + Math.sign(val), menuEls.length);
+  let delta = 0;
+  if (menuCols > 0) {
+    if (Math.abs(v.x) > 0.5) delta = Math.sign(v.x);
+    else if (Math.abs(v.y) > 0.5) delta = v.y > 0 ? -menuCols : menuCols;
+  } else {
+    const val = menuAxis === "x" ? v.x : -v.y;
+    if (Math.abs(val) > 0.5) delta = Math.sign(val);
+  }
+  if (menuCooldown <= 0 && delta !== 0) {
+    menuIdx = THREE.MathUtils.euclideanModulo(menuIdx + delta, menuEls.length);
     menuCooldown = 0.25;
     syncMenu();
   }
@@ -1226,23 +1235,22 @@ function renderPharmacie() {
   const list = $("pharma-list");
   list.innerHTML = "";
   const navEls: HTMLElement[] = [];
+  // Grille de cartes carrées (N4 2026-07-30) : tout visible d'un coup,
+  // la carte entière est le bouton d'achat
   for (const def of META_DEFS) {
     const lvl = metaLvl(def.id);
-    const row = document.createElement("div");
-    row.className = "pharma-row";
     const cost = costOf(def, lvl);
     const maxed = lvl >= def.max;
-    row.innerHTML =
-      `<div class="pharma-info">` +
-      `<div class="pharma-name">${def.name}</div>` +
-      `<div class="pharma-desc">${def.desc}</div>` +
-      `<div class="pharma-lvl">${"●".repeat(lvl)}${"○".repeat(def.max - lvl)}</div>` +
-      `</div>`;
-    const btn = document.createElement("button");
-    btn.textContent = maxed ? "MAX" : `${cost} XP`;
-    btn.disabled = maxed || meta.xp < cost;
+    const card = document.createElement("button");
+    card.className = "pharma-card";
+    card.disabled = maxed || meta.xp < cost;
+    card.innerHTML =
+      `<span class="pc-name">${def.name}</span>` +
+      `<span class="pc-desc">${def.desc}</span>` +
+      `<span class="pc-lvl">${"●".repeat(lvl)}${"○".repeat(def.max - lvl)}</span>` +
+      `<span class="pc-cost">${maxed ? "MAX" : `${cost} XP`}</span>`;
     if (!maxed) {
-      btn.addEventListener("click", () => {
+      card.addEventListener("click", () => {
         if (meta.xp >= cost && metaLvl(def.id) < def.max) {
           meta.xp -= cost;
           meta.upgrades[def.id] = metaLvl(def.id) + 1;
@@ -1252,12 +1260,11 @@ function renderPharmacie() {
         }
       });
     }
-    row.appendChild(btn);
-    list.appendChild(row);
-    navEls.push(btn);
+    list.appendChild(card);
+    navEls.push(card);
   }
   navEls.push($("btn-pharma-back"));
-  setMenu(navEls, "y");
+  setMenu(navEls, "y", 4);
 }
 
 $("btn-survie").addEventListener("click", () => {
