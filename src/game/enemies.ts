@@ -39,10 +39,19 @@ export interface Enemy {
   speed: number;
   phase: number;
   baseScale: number;
+  spriteRot: number; // offset d'angle du sprite Midjourney (0 en vectoriel)
   telegraph: number; // kyste : compte à rebours avant éclatement
   mesh: THREE.Mesh;
   orbHitCd: number; // anti-spam dégâts de contact des orbes
   tentHitCd: number; // idem pour le tentacule
+}
+
+/** Sprites Midjourney d'une espèce : textures, blending, échelle, offset d'angle. */
+export interface SpriteSet {
+  textures: THREE.Texture[];
+  additive: boolean; // bioluminescent (additif) vs translucide (alpha-luminance)
+  scale: number; // le sujet ne remplit pas le cadre : facteur de compensation
+  rotOffset: number; // le sprite ne pointe pas exactement +X : correction
 }
 
 const MAX_ENEMIES = 150;
@@ -105,6 +114,11 @@ const ORIENTED: Set<EnemyKind> = new Set(["meduse", "dard", "moucheron"]);
 
 export class Enemies {
   list: Enemy[] = [];
+  /** true = sprites Midjourney (si fournis), false = silhouettes vectorielles. */
+  spritesEnabled = true;
+  private sprites: Partial<Record<EnemyKind, SpriteSet>> = {};
+  private spriteGeo = new THREE.PlaneGeometry(2, 2);
+  private spriteMats = new Map<THREE.Texture, THREE.MeshBasicMaterial>();
   private scene: THREE.Scene;
   private geos: Record<EnemyKind, THREE.BufferGeometry>;
   private mats: Record<EnemyKind, THREE.MeshBasicMaterial>;
@@ -126,6 +140,24 @@ export class Enemies {
         new THREE.MeshBasicMaterial({ color: ENEMY_DEFS[k].color }),
       ])
     ) as Record<EnemyKind, THREE.MeshBasicMaterial>;
+  }
+
+  setSprites(kind: EnemyKind, set: SpriteSet) {
+    this.sprites[kind] = set;
+  }
+
+  private matFor(tex: THREE.Texture, additive: boolean): THREE.MeshBasicMaterial {
+    let mat = this.spriteMats.get(tex);
+    if (!mat) {
+      mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+        blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+      });
+      this.spriteMats.set(tex, mat);
+    }
+    return mat;
   }
 
   /** Spawn sur le bord, à l'écart du joueur. */
@@ -192,9 +224,21 @@ export class Enemies {
     }
 
     const mesh = this.pool.pop() ?? new THREE.Mesh();
-    mesh.geometry = this.geos[kind];
-    mesh.material = this.mats[kind];
-    const baseScale = def.radius * scale;
+    const sp = this.spritesEnabled ? this.sprites[kind] : undefined;
+    let baseScale = def.radius * scale;
+    let spriteRot = 0;
+    if (sp && sp.textures.length > 0) {
+      mesh.geometry = this.spriteGeo;
+      mesh.material = this.matFor(
+        sp.textures[Math.floor(Math.random() * sp.textures.length)],
+        sp.additive
+      );
+      baseScale *= sp.scale;
+      spriteRot = sp.rotOffset;
+    } else {
+      mesh.geometry = this.geos[kind];
+      mesh.material = this.mats[kind];
+    }
     mesh.scale.setScalar(baseScale);
     mesh.position.set(pos.x, pos.y, 1);
     mesh.visible = true;
@@ -209,6 +253,7 @@ export class Enemies {
       speed: def.speed * (0.9 + Math.random() * 0.2) * (1 + (difficulty - 1) * 0.25) * speedScale,
       phase: Math.random() * Math.PI * 2,
       baseScale,
+      spriteRot,
       telegraph: 0,
       mesh,
       orbHitCd: 0,
@@ -269,7 +314,7 @@ export class Enemies {
 
       e.mesh.position.set(e.pos.x, e.pos.y, 1);
       if (ORIENTED.has(e.kind)) {
-        e.mesh.rotation.z = Math.atan2(e.dir.y, e.dir.x);
+        e.mesh.rotation.z = Math.atan2(e.dir.y, e.dir.x) + e.spriteRot;
         e.mesh.scale.setScalar(e.baseScale);
       } else if (e.kind === "kyste") {
         e.mesh.rotation.z = time * 0.4 + e.phase;

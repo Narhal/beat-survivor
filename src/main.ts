@@ -8,7 +8,7 @@ import { analyseBuffer, envAt, TrackAnalysis } from "./audio/analysis";
 import { renderDemoTrack } from "./audio/demo";
 import { World, BG_STYLES } from "./game/world";
 import { Ship } from "./game/ship";
-import { Enemies, ENEMY_DEFS, Enemy } from "./game/enemies";
+import { Enemies, ENEMY_DEFS, Enemy, EnemyKind } from "./game/enemies";
 import { Weapons, UPGRADE_INFO, UpgradeKind } from "./game/weapons";
 import { renderMenuLoop, renderBubbles, renderDrop, speakTitle } from "./audio/menuAudio";
 import { META_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
@@ -58,6 +58,10 @@ addEventListener("keydown", (e) => {
   }
   if (e.code === "KeyV") {
     showToast(`Couches textures : ${world.toggleLayers() ? "ON" : "OFF"}`);
+  }
+  if (e.code === "KeyB") {
+    enemies.spritesEnabled = !enemies.spritesEnabled;
+    showToast(`Sprites du bestiaire : ${enemies.spritesEnabled ? "ON" : "OFF (vectoriel)"} — nouveaux spawns`);
   }
 });
 
@@ -135,6 +139,67 @@ fetch("/textures/manifest.json")
     applyLayers(true);
   })
   .catch(() => {}); // pas de textures = pas de couches, le shader reste en socle
+
+// ---------- Sprites Midjourney : bestiaire, joueur, pickups ----------
+const spriteQuad = new THREE.PlaneGeometry(2, 2);
+let heartSpriteMat: THREE.MeshBasicMaterial | null = null;
+let proteinSpriteMat: THREE.MeshBasicMaterial | null = null;
+
+function loadSpriteTex(url: string): THREE.Texture {
+  const tex = texLoader.load(url);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+fetch("/sprites/manifest.json")
+  .then((r) => (r.ok ? r.json() : null))
+  .then((m: Record<string, string[]> | null) => {
+    if (!m) return;
+    // Bioluminescents en additif, translucides en alpha-luminance (cuit au
+    // pipeline) ; scale compense la marge du cadre, rot l'angle du sujet.
+    const cfg: Record<string, { additive: boolean; scale: number; rot: number }> = {
+      globule: { additive: false, scale: 1.6, rot: 0 },
+      meduse: { additive: false, scale: 1.9, rot: -0.09 },
+      dard: { additive: true, scale: 2.6, rot: -0.27 },
+      kyste: { additive: false, scale: 1.7, rot: 0 },
+      moucheron: { additive: true, scale: 2.2, rot: -Math.PI / 2 },
+      colosse: { additive: false, scale: 1.5, rot: 0 },
+    };
+    for (const kind of Object.keys(cfg) as EnemyKind[]) {
+      const files = m[kind];
+      if (!files || files.length === 0) continue;
+      enemies.setSprites(kind, {
+        textures: files.map((f) => loadSpriteTex(`/sprites/${kind}/${f}`)),
+        additive: cfg[kind].additive,
+        scale: cfg[kind].scale,
+        rotOffset: cfg[kind].rot,
+      });
+    }
+    if (m.joueur) {
+      const mem = m.joueur.find((f) => f.includes("membrane"));
+      const mito = m.joueur.find((f) => f.includes("mito"));
+      if (mem && mito) {
+        ship.setSprites(
+          loadSpriteTex(`/sprites/joueur/${mem}`),
+          loadSpriteTex(`/sprites/joueur/${mito}`)
+        );
+      }
+    }
+    if (m.pickups) {
+      const coeur = m.pickups.find((f) => f.includes("coeur"));
+      const prot = m.pickups.find((f) => f.includes("prot"));
+      const mk = (f: string) =>
+        new THREE.MeshBasicMaterial({
+          map: loadSpriteTex(`/sprites/pickups/${f}`),
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        });
+      if (coeur) heartSpriteMat = mk(coeur);
+      if (prot) proteinSpriteMat = mk(prot);
+    }
+  })
+  .catch(() => {}); // pas de sprites = silhouettes vectorielles
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function showToast(text: string) {
@@ -232,16 +297,20 @@ const bursts: Burst[] = [];
 const burstGeo = new THREE.RingGeometry(0.8, 1, 20);
 
 // Cœurs de la Mitose : à ramasser en conduisant dessus
-interface Heart { pos: THREE.Vector2; mesh: THREE.Mesh; life: number; }
+interface Heart { pos: THREE.Vector2; mesh: THREE.Mesh; life: number; base: number; }
 const hearts: Heart[] = [];
 const heartGeo = new THREE.CircleGeometry(1.1, 16);
 const heartMat = new THREE.MeshBasicMaterial({ color: 0xff7aa8, transparent: true });
 
 function spawnHeart(pos: THREE.Vector2) {
-  const mesh = new THREE.Mesh(heartGeo, heartMat);
+  const mesh = heartSpriteMat
+    ? new THREE.Mesh(spriteQuad, heartSpriteMat.clone())
+    : new THREE.Mesh(heartGeo, heartMat);
+  const base = heartSpriteMat ? 2.8 : 1;
+  mesh.scale.setScalar(base);
   mesh.position.set(pos.x, pos.y, 1.2);
   world.scene.add(mesh);
-  hearts.push({ pos: pos.clone(), mesh, life: 14 });
+  hearts.push({ pos: pos.clone(), mesh, life: 14, base });
 }
 
 function clearHearts() {
@@ -281,7 +350,10 @@ function spawnProtein(pos: THREE.Vector2, value: number) {
     return;
   }
   const a = Math.random() * Math.PI * 2;
-  const mesh = new THREE.Mesh(protGeo, protMat.clone());
+  const mesh = proteinSpriteMat
+    ? new THREE.Mesh(spriteQuad, proteinSpriteMat.clone())
+    : new THREE.Mesh(protGeo, protMat.clone());
+  if (proteinSpriteMat) mesh.scale.setScalar(1.25);
   mesh.position.set(pos.x, pos.y, 1.1);
   world.scene.add(mesh);
   proteins.push({
@@ -712,6 +784,7 @@ function tick(now: number) {
       return;
     }
     ship.speedBonus = weapons.speedBonus * metaSpeedMul;
+    ship.beat = bassEnv;
 
     // Dash (R1) — la Saccade l'améliore
     if (dashEdge && ship.tryDash(weapons.dashCooldown)) {
@@ -787,7 +860,7 @@ function tick(now: number) {
     for (let i = hearts.length - 1; i >= 0; i--) {
       const h = hearts[i];
       h.life -= dt;
-      h.mesh.scale.setScalar(1 + Math.sin(t * 5) * 0.15);
+      h.mesh.scale.setScalar(h.base * (1 + Math.sin(t * 5) * 0.15));
       (h.mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, h.life / 2);
       if (h.pos.distanceTo(ship.pos) < 3) {
         ship.heal();

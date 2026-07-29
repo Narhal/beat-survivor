@@ -20,11 +20,15 @@ export class Ship {
   hp = 3;
   invuln = 0;
   speedBonus = 1; // atout Flagelles, piloté depuis main
+  /** Enveloppe de basse 0..1, poussée par main — fait battre la mitochondrie. */
+  beat = 0;
   dashCd = 0;
   group = new THREE.Group();
 
   private dashTime = 0;
   private t = 0;
+  private mitoMesh: THREE.Mesh | null = null;
+  private membraneMesh: THREE.Mesh | null = null;
 
   get dashing(): boolean {
     return this.dashTime > 0;
@@ -103,7 +107,41 @@ export class Ship {
     this.group.position.set(this.pos.x, this.pos.y, 2);
     // Respiration de la membrane — la cellule est vivante, pas orientée
     this.group.scale.setScalar((1 + Math.sin(this.t * 3.2) * 0.05) * (this.dashing ? 1.3 : 1));
+    // La mitochondrie bat le rythme depuis l'intérieur (bioluminescence)
+    if (this.mitoMesh) {
+      (this.mitoMesh.material as THREE.MeshBasicMaterial).opacity = 0.32 + this.beat * 0.75;
+      this.mitoMesh.scale.setScalar(2.6 * (1 + this.beat * 0.16));
+      this.mitoMesh.rotation.z += dt * 0.18;
+    }
+    if (this.membraneMesh) this.membraneMesh.rotation.z -= dt * 0.06;
     this.group.visible = this.invuln <= 0 || Math.floor(this.invuln * 12) % 2 === 0;
+  }
+
+  /**
+   * Bascule la cellule en sprites Midjourney : membrane translucide +
+   * mitochondrie bioluminescente qui pulse sur la basse (envie forte de N4).
+   */
+  setSprites(membrane: THREE.Texture, mito: THREE.Texture) {
+    this.group.clear();
+    const quad = new THREE.PlaneGeometry(2, 2);
+    this.membraneMesh = new THREE.Mesh(
+      quad,
+      new THREE.MeshBasicMaterial({ map: membrane, transparent: true, depthWrite: false })
+    );
+    this.membraneMesh.scale.setScalar(3.1);
+    this.mitoMesh = new THREE.Mesh(
+      quad,
+      new THREE.MeshBasicMaterial({
+        map: mito,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        opacity: 0.5,
+      })
+    );
+    this.mitoMesh.scale.setScalar(2.6);
+    this.mitoMesh.position.z = 0.1;
+    this.group.add(this.membraneMesh, this.mitoMesh);
   }
 
   /** Retourne true si le coup a porté (pas d'invulnérabilité en cours). */

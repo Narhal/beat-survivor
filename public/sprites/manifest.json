@@ -1,0 +1,28 @@
+{
+  "colosse": [
+    "colosse.webp"
+  ],
+  "dard": [
+    "dard.webp"
+  ],
+  "globule": [
+    "globule.webp"
+  ],
+  "joueur": [
+    "membrane.webp",
+    "mitochondrie.webp"
+  ],
+  "kyste": [
+    "kyste.webp"
+  ],
+  "meduse": [
+    "meduse.webp"
+  ],
+  "moucheron": [
+    "moucheron.webp"
+  ],
+  "pickups": [
+    "coeur.webp",
+    "proteine.webp"
+  ]
+}
