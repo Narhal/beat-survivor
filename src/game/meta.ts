@@ -53,6 +53,14 @@ export const META_DEFS: MetaDef[] = [
     growth: 2,
   },
   {
+    id: "reroll",
+    name: "Plasticité",
+    desc: "+1 relance des choix d'évolution par run, par palier (R1 sur l'écran de choix).",
+    max: 5,
+    baseCost: 90,
+    growth: 1.8,
+  },
+  {
     id: "symbiote",
     name: "Pilote symbiote",
     desc: "Choisit les évolutions à ta place — la run ne s'interrompt plus.",

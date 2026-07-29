@@ -19,7 +19,7 @@ export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat
   eventail: { name: "Éventail", desc: "Gerbe de projectiles vers l'avant.", cat: "Arme" },
   orbes: { name: "Orbes", desc: "Satellites en orbite, dégâts de contact.", cat: "Arme" },
   onde: { name: "Onde de choc", desc: "Anneau périodique qui balaie autour de toi.", cat: "Arme" },
-  tentacule: { name: "Tentacule", desc: "Ondule autour de toi et tue sur son passage. Se multiplie par palier (jusqu'à 5 bras), puis frappe plus fort.", cat: "Arme" },
+  tentacule: { name: "Filament", desc: "Un long filament urticant traîne paresseusement derrière toi (réf. méduse). Paliers : longueur, dégâts, jusqu'à 3 filaments.", cat: "Arme" },
   apoptose: { name: "Apoptose", desc: "L2 : purge tout l'écran une fois chargée — se charge plus vite par palier.", cat: "Arme" },
   flagelles: { name: "Flagelles", desc: "Vitesse de nage augmentée à chaque palier.", cat: "Atout" },
   membrane: { name: "Membrane", desc: "Absorbe un coup, puis se recharge — de plus en plus vite par palier.", cat: "Atout" },
@@ -30,11 +30,12 @@ export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat
 };
 
 const MAX_LEVEL = 5;
-const TENTACLE_SEGMENTS = 8;
+const FILAMENT_SEGS = 10;
+/** Nombre maximum d'ARMES simultanées : il faut faire des choix (N4). */
+const MAX_WEAPONS = 5;
 
-// Le Tentacule va plus loin (décision N4 2026-07-28) : paliers 1-5 = un bras
-// de plus (jusqu'à 5), paliers 6-7 = dégâts globaux des bras.
-function maxLevelOf(kind: UpgradeKind): number {
+// Le Filament va plus loin : 7 paliers (longueur, dégâts, jusqu'à 3 filaments).
+export function maxLevelOf(kind: UpgradeKind): number {
   return kind === "tentacule" ? 7 : MAX_LEVEL;
 }
 
@@ -77,7 +78,7 @@ export class Weapons {
   private orbMeshes: THREE.Mesh[] = [];
   private orbAngle = 0;
   private tentacleMeshes: THREE.Mesh[] = [];
-  private tentacleAngle = 0;
+  private filaments: THREE.Vector2[][] = [];
   private shieldMesh: THREE.Mesh;
   private time = 0;
 
@@ -176,18 +177,32 @@ export class Weapons {
     return false;
   }
 
-  /** Les 3 cartes du level-up : armes, atouts et passifs mélangés. */
+  /**
+   * Les 3 cartes du level-up. Règles (N4 2026-07-29) :
+   * - maximum 5 armes possédées → plus de nouvelles armes proposées au-delà ;
+   * - tirage pondéré : ce qu'on possède déjà revient 3× plus souvent
+   *   (on construit un build, on ne papillonne pas).
+   */
   drawCards(): { kind: UpgradeKind; level: number }[] {
-    const options: { kind: UpgradeKind; level: number }[] = [];
+    const weaponsOwned = [...this.levels.keys()].filter((k) => UPGRADE_INFO[k].cat === "Arme").length;
+    const options: { kind: UpgradeKind; level: number; weight: number }[] = [];
     for (const kind of Object.keys(UPGRADE_INFO) as UpgradeKind[]) {
       const lvl = this.levels.get(kind) ?? 0;
-      if (lvl < maxLevelOf(kind)) options.push({ kind, level: lvl + 1 });
+      if (lvl >= maxLevelOf(kind)) continue;
+      const isNewWeapon = lvl === 0 && UPGRADE_INFO[kind].cat === "Arme";
+      if (isNewWeapon && weaponsOwned >= MAX_WEAPONS) continue;
+      options.push({ kind, level: lvl + 1, weight: lvl > 0 ? 3 : 1 });
     }
-    for (let i = options.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [options[i], options[j]] = [options[j], options[i]];
+    const out: { kind: UpgradeKind; level: number }[] = [];
+    while (out.length < 3 && options.length > 0) {
+      const total = options.reduce((s, o) => s + o.weight, 0);
+      let roll = Math.random() * total;
+      let idx = 0;
+      while (idx < options.length - 1 && (roll -= options[idx].weight) > 0) idx++;
+      const picked = options.splice(idx, 1)[0];
+      out.push({ kind: picked.kind, level: picked.level });
     }
-    return options.slice(0, 3);
+    return out;
   }
 
   pick(kind: UpgradeKind) {
@@ -195,8 +210,8 @@ export class Weapons {
     if (kind === "membrane" && (this.levels.get("membrane") ?? 0) === 1) {
       this.shieldCharged = true; // premier palier : bouclier chargé d'office
     }
-    this.syncOrbs();
-    this.syncTentacle();
+    if (kind === "orbes") this.syncOrbs();
+    // Les filaments se reconstruisent d'eux-mêmes quand leur nombre change
   }
 
   update(dt: number, ship: Ship, enemies: Enemies, onKill: (e: KillEvent) => void) {
@@ -352,41 +367,66 @@ export class Weapons {
       }
     }
 
-    // Tentacules : des bras organiques qui ondulent en tournant, léthals sur
-    // leur passage. Un bras de plus par palier (max 5), puis dégâts globaux.
-    const tentLvl = this.levels.get("tentacule") ?? 0;
-    if (tentLvl > 0) {
-      const arms = Math.min(5, tentLvl);
-      const dmgBoost = 1 + 0.35 * Math.max(0, tentLvl - 5);
-      this.tentacleAngle += dt * 1.9;
-      const length = 11 + arms * 0.8;
-      for (let k = 0; k < this.tentacleMeshes.length; k++) {
-        const arm = Math.floor(k / TENTACLE_SEGMENTS);
-        const seg = k % TENTACLE_SEGMENTS;
-        const frac = (seg + 1) / TENTACLE_SEGMENTS;
-        // Ondulation : chaque segment traîne et serpente derrière le précédent,
-        // chaque bras a sa phase propre
-        const a =
-          this.tentacleAngle +
-          (arm * Math.PI * 2) / arms +
-          Math.sin(this.time * 2.6 - seg * 0.65 + arm * 1.7) * 0.22 -
-          seg * 0.06;
-        const sx = ship.pos.x + Math.cos(a) * length * frac;
-        const sy = ship.pos.y + Math.sin(a) * length * frac;
-        const m = this.tentacleMeshes[k];
-        m.position.set(sx, sy, 1.4);
-        const segR = 1.3 * (1 - frac * 0.55); // s'affine vers le bout
-        m.scale.setScalar(segR);
-        const spos = new THREE.Vector2(sx, sy);
-        for (let j = enemies.list.length - 1; j >= 0; j--) {
-          const e = enemies.list[j];
-          if (e.tentHitCd > 0) continue;
-          if (spos.distanceTo(e.pos) < e.radius + segR) {
-            e.tentHitCd = 0.35;
-            e.hp -= 1.5 * dmgBoost * mul;
-            if (e.hp <= 0) {
-              onKill({ enemy: e });
-              enemies.remove(j);
+    // Filaments (ex-Tentacule, refonte N4 2026-07-29) : de longs filaments
+    // urticants qui traînent paresseusement derrière la cellule, comme
+    // certaines méduses. Paliers : longueur, dégâts, jusqu'à 3 filaments
+    // (2e au palier 3, 3e au palier 5).
+    const filLvl = this.levels.get("tentacule") ?? 0;
+    if (filLvl > 0) {
+      const count = filLvl >= 5 ? 3 : filLvl >= 3 ? 2 : 1;
+      const length = 13 + filLvl * 2;
+      const spacing = length / FILAMENT_SEGS;
+      const filDmg = (1.2 + filLvl * 0.25) * mul;
+
+      // (Re)construction quand le nombre de filaments change
+      if (this.filaments.length !== count) {
+        for (const m of this.tentacleMeshes) this.scene.remove(m);
+        this.tentacleMeshes = [];
+        this.filaments = [];
+        for (let f = 0; f < count; f++) {
+          const pts: THREE.Vector2[] = [];
+          for (let i = 0; i < FILAMENT_SEGS; i++) pts.push(ship.pos.clone());
+          this.filaments.push(pts);
+          for (let i = 0; i < FILAMENT_SEGS; i++) {
+            const m = new THREE.Mesh(this.tentGeo, this.tentMat);
+            this.scene.add(m);
+            this.tentacleMeshes.push(m);
+          }
+        }
+      }
+
+      const heading = ship.lastDir;
+      const perp = new THREE.Vector2(-heading.y, heading.x);
+      for (let f = 0; f < count; f++) {
+        const pts = this.filaments[f];
+        // Ancre : derrière la cellule, écartée latéralement par filament
+        const anchor = ship.pos
+          .clone()
+          .addScaledVector(heading, -1.4)
+          .addScaledVector(perp, (f - (count - 1) / 2) * 1.8);
+        pts[0].lerp(anchor, 1 - Math.exp(-dt * 14));
+        // Contrainte de distance adoucie : c'est elle qui fait la paresse
+        for (let i = 1; i < FILAMENT_SEGS; i++) {
+          const d = pts[i].clone().sub(pts[i - 1]);
+          const dist = Math.max(0.0001, d.length());
+          const target = pts[i - 1].clone().addScaledVector(d.multiplyScalar(1 / dist), spacing);
+          pts[i].lerp(target, 1 - Math.exp(-dt * 9));
+        }
+        for (let i = 0; i < FILAMENT_SEGS; i++) {
+          const m = this.tentacleMeshes[f * FILAMENT_SEGS + i];
+          const segR = 0.85 * (1 - (i / FILAMENT_SEGS) * 0.55); // s'affine vers le bout
+          m.position.set(pts[i].x, pts[i].y, 1.4);
+          m.scale.setScalar(segR);
+          for (let j = enemies.list.length - 1; j >= 0; j--) {
+            const e = enemies.list[j];
+            if (e.tentHitCd > 0) continue;
+            if (pts[i].distanceTo(e.pos) < e.radius + segR) {
+              e.tentHitCd = 0.3;
+              e.hp -= filDmg;
+              if (e.hp <= 0) {
+                onKill({ enemy: e });
+                enemies.remove(j);
+              }
             }
           }
         }
@@ -437,15 +477,7 @@ export class Weapons {
   private syncTentacle() {
     for (const m of this.tentacleMeshes) this.scene.remove(m);
     this.tentacleMeshes = [];
-    const lvl = this.levels.get("tentacule") ?? 0;
-    if (lvl > 0) {
-      const arms = Math.min(5, lvl);
-      for (let k = 0; k < arms * TENTACLE_SEGMENTS; k++) {
-        const m = new THREE.Mesh(this.tentGeo, this.tentMat);
-        this.scene.add(m);
-        this.tentacleMeshes.push(m);
-      }
-    }
+    this.filaments = []; // update() reconstruit au besoin, ancré sur la cellule
   }
 
   describe(): string[] {

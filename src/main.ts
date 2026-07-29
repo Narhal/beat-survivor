@@ -9,7 +9,7 @@ import { renderDemoTrack } from "./audio/demo";
 import { World, BG_STYLES, ARENA } from "./game/world";
 import { Ship } from "./game/ship";
 import { Enemies, ENEMY_DEFS, Enemy, EnemyKind } from "./game/enemies";
-import { Weapons, UPGRADE_INFO, UpgradeKind } from "./game/weapons";
+import { Weapons, UPGRADE_INFO, UpgradeKind, maxLevelOf } from "./game/weapons";
 import { renderMenuLoop, renderBubbles, renderDrop, speakTitle } from "./audio/menuAudio";
 import { META_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
 import { glowMaterial } from "./game/glow";
@@ -507,6 +507,7 @@ function startRun(buf: AudioBuffer) {
   weapons.metaMagnet = 2.5 * metaLvl("phago");
   weapons.bonusNukes = metaLvl("reserve");
   autopilot = metaLvl("symbiote") > 0;
+  rerollsLeft = metaLvl("reroll");
   xpEarned = 0;
   stopMenuMusic(0.4);
   // Spirales d'aspiration : 2-4 par run, réparties après 30 % du morceau
@@ -637,11 +638,24 @@ function openLevelUp() {
     return;
   }
   phase = "levelup";
-  cardIndex = 0;
   audioCtx.suspend();
+  buildLevelUpCards();
+  updateRerollUI();
+  show(levelupEl, true);
+}
+
+/** Construit les 3 cartes, avec la jauge de paliers (carrés) de chacune. */
+function buildLevelUpCards() {
+  cardIndex = 0;
   cardsEl.innerHTML = "";
   cards.forEach((c, i) => {
     const info = UPGRADE_INFO[c.kind];
+    const max = maxLevelOf(c.kind);
+    const cur = weapons.levels.get(c.kind) ?? 0;
+    let pips = "";
+    for (let s = 1; s <= max; s++) {
+      pips += `<span class="pip${s <= cur ? " filled" : s === c.level ? " next" : ""}"></span>`;
+    }
     const div = document.createElement("div");
     div.className = "card" + (i === 0 ? " sel" : "");
     div.dataset.cat = info.cat;
@@ -649,11 +663,28 @@ function openLevelUp() {
       `<span class="cat">${info.cat}</span>` +
       `<h3>${info.name}</h3>` +
       `<p>${info.desc}</p>` +
-      `<span class="lvl">${c.level === 1 ? "NOUVEAU" : "niveau " + c.level}</span>`;
+      `<div class="pips">${pips}<span class="pipnum">${c.level}/${max}</span></div>`;
     div.addEventListener("click", () => pickCard(i));
     cardsEl.appendChild(div);
   });
-  show(levelupEl, true);
+}
+
+// Relances (Pharmacie « Plasticité ») : R1 ou clic redistribue les 3 cartes
+let rerollsLeft = 0;
+
+function updateRerollUI() {
+  const btn = $("btn-reroll") as HTMLButtonElement;
+  btn.classList.toggle("hidden", metaLvl("reroll") === 0);
+  btn.textContent = `Relancer (R1) · ×${rerollsLeft}`;
+  btn.disabled = rerollsLeft <= 0;
+}
+
+function rerollCards() {
+  if (phase !== "levelup" || rerollsLeft <= 0) return;
+  rerollsLeft--;
+  cards = weapons.drawCards();
+  buildLevelUpCards();
+  updateRerollUI();
 }
 
 function pickCard(i: number) {
@@ -675,6 +706,7 @@ function updateLevelUp(dt: number) {
     cardStickCooldown = 0.25;
     [...cardsEl.children].forEach((c, i) => c.classList.toggle("sel", i === cardIndex));
   }
+  if (dashEdge) rerollCards(); // R1 : relance (Plasticité)
   if (confirmEdge) pickCard(cardIndex);
 }
 
@@ -1223,6 +1255,7 @@ $("btn-replay").addEventListener("click", () => {
 });
 $("btn-resume").addEventListener("click", resumeRun);
 $("btn-abort").addEventListener("click", () => endRun(false, true));
+$("btn-reroll").addEventListener("click", rerollCards);
 
 // Options : volume persistant, couches et rotation en direct
 const optVolume = $("opt-volume") as HTMLInputElement;

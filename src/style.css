@@ -240,6 +240,13 @@ button.sel {
 .card h3 { font-size: 19px; color: #7df9ff; margin-bottom: 8px; }
 .card p { font-size: 14px; color: #9fb8c6; }
 .card .lvl { display: block; margin-top: 10px; font-size: 13px; color: #b06cff; }
+.pips { display: flex; gap: 3px; justify-content: center; align-items: center; margin-top: 12px; }
+.pip { width: 9px; height: 9px; border: 1px solid #2b8fa8; border-radius: 2px; }
+.pip.filled { background: #7df9ff; border-color: #7df9ff; }
+.pip.next { border-color: #b06cff; box-shadow: 0 0 6px #b06cff; }
+.pipnum { font-size: 12px; color: #8ab6c6; margin-left: 6px; }
+#btn-reroll { pointer-events: auto; font-size: 14px; padding: 9px 20px; }
+#btn-reroll:disabled { opacity: 0.4; cursor: default; }
 .card.sel, .card:hover {
   transform: translateY(-6px) scale(1.04);
   border-color: #b06cff;
