@@ -508,6 +508,7 @@ function startRun(buf: AudioBuffer) {
   weapons.bonusNukes = metaLvl("reserve");
   autopilot = metaLvl("symbiote") > 0;
   rerollsLeft = metaLvl("reroll");
+  weapons.saccadeLevel = metaLvl("saccade");
   xpEarned = 0;
   stopMenuMusic(0.4);
   // Spirales d'aspiration : 2-4 par run, réparties après 30 % du morceau

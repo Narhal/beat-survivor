@@ -53,6 +53,14 @@ export const META_DEFS: MetaDef[] = [
     growth: 2,
   },
   {
+    id: "saccade",
+    name: "Saccade",
+    desc: "Dash (R1) plus prompt par palier ; palier 3 : invulnérable pendant ; palier 5 : il déchire sur son passage.",
+    max: 5,
+    baseCost: 100,
+    growth: 1.8,
+  },
+  {
     id: "reroll",
     name: "Plasticité",
     desc: "+1 relance des choix d'évolution par run, par palier (R1 sur l'écran de choix).",

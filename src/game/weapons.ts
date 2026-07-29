@@ -12,7 +12,7 @@ export type UpgradeCategory = "Arme" | "Atout" | "Passif";
 export type UpgradeKind =
   | "blaster" | "eventail" | "orbes" | "onde" | "tentacule" | "apoptose" // armes
   | "flagelles" | "membrane" // atouts
-  | "mitose" | "enzymes" | "phagocytose" | "saccade"; // passifs
+  | "mitose" | "enzymes" | "phagocytose"; // passifs
 
 export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat: UpgradeCategory }> = {
   blaster: { name: "Anticorps", desc: "Tire sur le pathogène le plus proche.", cat: "Arme" },
@@ -26,11 +26,14 @@ export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat
   mitose: { name: "Mitose", desc: "Régulièrement, un pathogène détruit laisse un cœur — plus souvent par palier.", cat: "Passif" },
   enzymes: { name: "Enzymes", desc: "+15 % de dégâts pour toutes les armes par palier.", cat: "Passif" },
   phagocytose: { name: "Phagocytose", desc: "Attire les protéines des pathogènes de plus en plus loin.", cat: "Passif" },
-  saccade: { name: "Saccade", desc: "Dash (R1) plus prompt ; palier 3 : invulnérable pendant ; palier 5 : il déchire sur son passage.", cat: "Passif" },
 };
 
 const MAX_LEVEL = 5;
-const FILAMENT_SEGS = 10;
+// Filament TRÈS fin (N4) : beaucoup de perles minuscules = sensation de
+// filament, pas de queue. L'hitbox est découplée du visuel pour ne pas
+// affaiblir l'arme.
+const FILAMENT_SEGS = 22;
+const FILAMENT_HIT_R = 0.5;
 /** Nombre maximum d'ARMES simultanées : il faut faire des choix (N4). */
 const MAX_WEAPONS = 5;
 
@@ -69,6 +72,8 @@ export class Weapons {
   metaDamageMul = 1;
   metaMagnet = 0;
   bonusNukes = 0;
+  /** Saccade (Pharmacie, décision N4 2026-07-29) : le dash est un acquis de pilote. */
+  saccadeLevel = 0;
   private shieldTimer = 0;
 
   private scene: THREE.Scene;
@@ -138,19 +143,19 @@ export class Weapons {
     return 6 + 4 * (this.levels.get("phagocytose") ?? 0) + this.metaMagnet;
   }
 
-  /** Récupération du dash — la Saccade le rend plus prompt. */
+  /** Récupération du dash — la Saccade (Pharmacie) le rend plus prompt. */
   get dashCooldown(): number {
-    return 2.4 * (1 - 0.09 * (this.levels.get("saccade") ?? 0));
+    return 2.4 * (1 - 0.09 * this.saccadeLevel);
   }
 
   /** Palier 3 de la Saccade : invulnérable pendant le dash. */
   get dashInvuln(): boolean {
-    return (this.levels.get("saccade") ?? 0) >= 3;
+    return this.saccadeLevel >= 3;
   }
 
   /** Palier 5 de la Saccade : le dash blesse sur son passage. */
   get dashDamage(): number {
-    return (this.levels.get("saccade") ?? 0) >= 5 ? 2 * this.damageMul : 0;
+    return this.saccadeLevel >= 5 ? 2 * this.damageMul : 0;
   }
 
   /** Déclenche l'Apoptose : réserve de la Pharmacie d'abord, puis la charge. */
@@ -414,13 +419,13 @@ export class Weapons {
         }
         for (let i = 0; i < FILAMENT_SEGS; i++) {
           const m = this.tentacleMeshes[f * FILAMENT_SEGS + i];
-          const segR = 0.85 * (1 - (i / FILAMENT_SEGS) * 0.55); // s'affine vers le bout
+          const segR = 0.24 * (1 - (i / FILAMENT_SEGS) * 0.5); // perles minuscules, effilées
           m.position.set(pts[i].x, pts[i].y, 1.4);
           m.scale.setScalar(segR);
           for (let j = enemies.list.length - 1; j >= 0; j--) {
             const e = enemies.list[j];
             if (e.tentHitCd > 0) continue;
-            if (pts[i].distanceTo(e.pos) < e.radius + segR) {
+            if (pts[i].distanceTo(e.pos) < e.radius + FILAMENT_HIT_R) {
               e.tentHitCd = 0.3;
               e.hp -= filDmg;
               if (e.hp <= 0) {
