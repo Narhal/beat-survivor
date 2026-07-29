@@ -68,13 +68,48 @@ export const META_DEFS: MetaDef[] = [
     baseCost: 90,
     growth: 1.8,
   },
+];
+
+// ---------- Personnages jouables (décision N4 2026-07-30) ----------
+// Achetables en Pharmacie, puis SÉLECTIONNABLES (le Symbiote forcé n'était
+// pas top) — chacun a une identité mécanique forte. Skins Midjourney à venir.
+export interface PersoDef {
+  id: string;
+  name: string;
+  desc: string;
+  cost: number;
+}
+
+export const PERSO_DEFS: PersoDef[] = [
+  {
+    id: "reguliere",
+    name: "La Régulière",
+    desc: "La cellule de base — équilibrée, fiable.",
+    cost: 0,
+  },
   {
     id: "symbiote",
-    name: "Pilote symbiote",
-    desc: "Choisit les évolutions à ta place — la run ne s'interrompt plus.",
-    max: 1,
-    baseCost: 500,
-    growth: 1,
+    name: "Le Symbiote",
+    desc: "Les évolutions se choisissent toutes seules : la run ne s'interrompt jamais.",
+    cost: 500,
+  },
+  {
+    id: "tardigrade",
+    name: "Le Tardigrade",
+    desc: "Ne meurt jamais. Chaque coup encaissé disperse ta jauge et te coûte de l'XP.",
+    cost: 800,
+  },
+  {
+    id: "phage",
+    name: "Le Phage",
+    desc: "1 PV. Dégâts ×1,5 et +10 % de vitesse — tout dans l'attaque.",
+    cost: 400,
+  },
+  {
+    id: "amibe",
+    name: "L'Amibe",
+    desc: "Aimant énorme et +50 % d'XP collectée, mais lente et fragile.",
+    cost: 350,
   },
 ];
 
@@ -85,6 +120,9 @@ export function costOf(def: MetaDef, level: number): number {
 export interface MetaState {
   xp: number;
   upgrades: Record<string, number>;
+  /** Personnage sélectionné ("reguliere" par défaut). L'achat du Symbiote
+   *  d'avant la refonte (upgrades.symbiote = 1) vaut possession du perso. */
+  selected?: string;
 }
 
 const KEY = "bs-meta";
@@ -94,10 +132,13 @@ export function loadMeta(): MetaState {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const m = JSON.parse(raw);
-      if (typeof m.xp === "number" && m.upgrades) return m;
+      if (typeof m.xp === "number" && m.upgrades) {
+        if (!m.selected) m.selected = "reguliere";
+        return m;
+      }
     }
   } catch {}
-  return { xp: 0, upgrades: {} };
+  return { xp: 0, upgrades: {}, selected: "reguliere" };
 }
 
 export function saveMeta(m: MetaState) {

@@ -11,7 +11,7 @@ import { Ship } from "./game/ship";
 import { Enemies, ENEMY_DEFS, Enemy, EnemyKind } from "./game/enemies";
 import { Weapons, UPGRADE_INFO, UpgradeKind, maxLevelOf } from "./game/weapons";
 import { renderMenuLoop, renderBubbles, renderDrop, speakTitle } from "./audio/menuAudio";
-import { META_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
+import { META_DEFS, PERSO_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
 import { glowMaterial } from "./game/glow";
 
 // ---------- DOM ----------
@@ -462,8 +462,12 @@ let trackName = "";
 // ---------- Pharmacie : méta-progression persistante ----------
 const meta = loadMeta();
 const metaLvl = (id: string) => meta.upgrades[id] ?? 0;
+const persoOwned = (id: string) => id === "reguliere" || metaLvl(id) > 0;
+const persoActif = () => PERSO_DEFS.find((p) => p.id === (meta.selected ?? "reguliere")) ?? PERSO_DEFS[0];
 let metaSpeedMul = 1;
 let autopilot = false;
+let tardigrade = false;
+let charXpMul = 1;
 let xpEarned = 0;
 const GAUGE_BASE = 15; // +50 % de lenteur demandé par N4 (2026-07-26)
 const SPAWN_DENSITY = 0.8; // −20 % de densité d'ennemis (N4)
@@ -527,10 +531,25 @@ function startRun(buf: AudioBuffer) {
   weapons.metaDamageMul = 1 + 0.08 * metaLvl("concentres");
   weapons.metaMagnet = 2.5 * metaLvl("phago");
   weapons.bonusNukes = metaLvl("reserve");
-  autopilot = metaLvl("symbiote") > 0;
   rerollsLeft = metaLvl("reroll");
   weapons.saccadeLevel = metaLvl("saccade");
   xpEarned = 0;
+  // Le personnage sélectionné imprime son identité
+  const perso = persoOwned(meta.selected ?? "reguliere") ? (meta.selected ?? "reguliere") : "reguliere";
+  autopilot = perso === "symbiote";
+  tardigrade = perso === "tardigrade";
+  charXpMul = 1;
+  if (perso === "phage") {
+    ship.hp = 1 + metaLvl("vacuole");
+    weapons.metaDamageMul *= 1.5;
+    metaSpeedMul *= 1.1;
+  }
+  if (perso === "amibe") {
+    ship.hp = Math.max(1, ship.hp - 1);
+    weapons.metaMagnet += 8;
+    charXpMul = 1.5;
+    metaSpeedMul *= 0.92;
+  }
   stopMenuMusic(0.4);
   // Spirales d'aspiration : 2-4 par run, réparties après 30 % du morceau
   const dur = analysis?.duration ?? 60;
@@ -595,8 +614,8 @@ function endRun(victory: boolean, aborted = false) {
   saveMeta(meta);
   $("end-title").textContent = aborted ? "RUN INTERROMPUE" : victory ? "MORCEAU SURVÉCU" : "SUBMERGÉ";
   $("end-stats").textContent =
-    `${trackName} — score ${score} · ${formatTime(songTime())} · niveau ${gaugeLevel + 1}` +
-    ` · +${xpEarned} XP (banque : ${meta.xp})`;
+    `${trackName} — ${persoActif().name} — score ${score} · ${formatTime(songTime())} · niveau ${gaugeLevel + 1}` +
+    ` · +${Math.round(xpEarned)} XP (banque : ${meta.xp})`;
   show(endEl, true);
   setMenu([$("btn-replay"), $("btn-restart")], "x");
 }
@@ -1009,8 +1028,8 @@ function tick(now: number) {
       p.pos.addScaledVector(p.vel, dt);
       p.mesh.position.set(p.pos.x, p.pos.y, 1.1);
       if (d < 2.2) {
-        gauge += p.value;
-        xpEarned += p.value;
+        gauge += p.value * charXpMul; // l'Amibe digère mieux
+        xpEarned += Math.round(p.value * charXpMul);
         world.scene.remove(p.mesh);
         proteins.splice(i, 1);
       }
@@ -1034,13 +1053,23 @@ function tick(now: number) {
       }
     }
 
-    // Contact ennemi → membrane d'abord, sinon dégâts
+    // Contact ennemi → membrane d'abord, puis Tardigrade (immortel mais
+    // taxé), sinon dégâts classiques
     for (const e of enemies.list) {
       if (e.pos.distanceTo(ship.pos) < e.radius + 1.6) {
         if (ship.invuln <= 0 && weapons.absorbHit()) {
           ship.invuln = 1.2;
           burst(ship.pos, 0x7df9ff); // la membrane éclate
           rumble(0.4, 0.3, 120);
+        } else if (tardigrade) {
+          if (ship.invuln <= 0) {
+            ship.invuln = 1.2;
+            gauge = Math.max(0, gauge - gaugeMax * 0.5);
+            xpEarned = Math.max(0, xpEarned - 12);
+            rumble(0.6, 0.5, 200);
+            flashEl.classList.add("on");
+            setTimeout(() => flashEl.classList.remove("on"), 120);
+          }
         } else if (ship.hit()) {
           rumble(0.9, 0.6, 220);
           flashEl.classList.add("on");
@@ -1263,6 +1292,43 @@ function renderPharmacie() {
     list.appendChild(card);
     navEls.push(card);
   }
+
+  // Les personnages : acheter, puis SÉLECTIONNER (décision N4 2026-07-30)
+  const persos = $("pharma-persos");
+  persos.innerHTML = "";
+  for (const p of PERSO_DEFS) {
+    const owned = persoOwned(p.id);
+    const active = (meta.selected ?? "reguliere") === p.id;
+    const card = document.createElement("button");
+    card.className = "pharma-card" + (active ? " active" : "");
+    card.disabled = active || (!owned && meta.xp < p.cost);
+    card.innerHTML =
+      `<span class="pc-name">${p.name}</span>` +
+      `<span class="pc-desc">${p.desc}</span>` +
+      `<span class="pc-cost${active ? " active-label" : ""}">${
+        active ? "ACTIF" : owned ? "Sélectionner" : `${p.cost} XP`
+      }</span>`;
+    card.addEventListener("click", () => {
+      if (!owned) {
+        if (meta.xp >= p.cost) {
+          meta.xp -= p.cost;
+          meta.upgrades[p.id] = 1;
+          meta.selected = p.id;
+          saveMeta(meta);
+          showToast(`Personnage débloqué : ${p.name}`);
+          renderPharmacie();
+        }
+      } else if (!active) {
+        meta.selected = p.id;
+        saveMeta(meta);
+        showToast(`Personnage : ${p.name}`);
+        renderPharmacie();
+      }
+    });
+    persos.appendChild(card);
+    navEls.push(card);
+  }
+
   navEls.push($("btn-pharma-back"));
   setMenu(navEls, "y", 4);
 }

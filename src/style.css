@@ -120,6 +120,19 @@ button.pharma-card:hover:not(:disabled), button.pharma-card.sel {
   border-color: #b06cff; box-shadow: 0 0 18px rgba(160, 90, 255, 0.5);
   transform: none; filter: none;
 }
+.pharma-section {
+  margin-top: 10px; font-size: 13px; letter-spacing: 0.22em; color: #4a8fa8;
+}
+#pharma-persos {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(130px, 148px));
+  gap: 12px; justify-content: center; padding: 4px;
+}
+button.pharma-card.active {
+  border-color: #8effc0; box-shadow: 0 0 16px rgba(110, 240, 170, 0.4);
+  opacity: 1; filter: none;
+}
+.pharma-card .pc-cost.active-label { color: #8effc0; }
 
 h2 { font-size: 34px; letter-spacing: 0.1em; color: #ffb0f0; text-shadow: 0 0 18px #c239a8; }
 
