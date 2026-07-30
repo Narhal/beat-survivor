@@ -76,6 +76,9 @@ export class Weapons {
   bonusNukes = 0;
   /** Saccade (Pharmacie, décision N4 2026-07-29) : le dash est un acquis de pilote. */
   saccadeLevel = 0;
+  /** Vrai sur les frames où un beat de basse tombe (poussé par main). */
+  beatNow = false;
+  private ondeWait = 0;
   private shieldTimer = 0;
 
   private scene: THREE.Scene;
@@ -289,6 +292,14 @@ export class Weapons {
           break;
         }
         case "onde": {
+          // Recharge finie → l'onde part SUR le prochain beat de basse
+          // (N4 : alignement musical sans changer la cadence des paliers) ;
+          // repli à 0,6 s si la musique ne bat pas
+          if (!this.beatNow && this.ondeWait < 0.6) {
+            this.ondeWait += dt;
+            break;
+          }
+          this.ondeWait = 0;
           const wave: Shockwave = {
             radius: 2,
             maxRadius: 14 + lvl * 4,

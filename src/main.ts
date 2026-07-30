@@ -613,7 +613,7 @@ function endRun(victory: boolean, aborted = false) {
   // L'XP de la run rejoint la banque de la Pharmacie
   meta.xp += xpEarned;
   saveMeta(meta);
-  $("end-title").textContent = aborted ? "RUN INTERROMPUE" : victory ? "MORCEAU SURVÉCU" : "SUBMERGÉ";
+  $("end-title").textContent = aborted ? "RUN INTERROMPUE" : victory ? "Victoire !" : "Tu es contaminé";
   $("end-stats").textContent =
     `${trackName} — ${persoActif().name} — score ${score} · ${formatTime(songTime())} · niveau ${gaugeLevel + 1}` +
     ` · +${Math.round(xpEarned)} XP (banque : ${meta.xp})`;
@@ -765,6 +765,16 @@ function updateLevelUp(dt: number) {
 // L'ÉNERGIE est le chef d'orchestre (décision N4 2026-07-26) : les onsets par
 // bande donnent le TIMING des spawns, l'intensité lissée du morceau donne la
 // QUANTITÉ et la vitesse. Période calme = accalmie réelle ; drop = déferlante.
+// Vrai sur les frames où un onset de basse vient de tomber (sync au beat)
+let bassBeatFrame = false;
+
+/** Premier onset de basse dans une fenêtre temporelle du morceau. */
+function beatInWindow(from: number, to: number): number | null {
+  if (!analysis) return null;
+  const o = analysis.bass.onsets.find((on) => on.t >= from && on.t <= to);
+  return o ? o.t : null;
+}
+
 function updateSpawns(t: number) {
   if (!analysis) return;
   const difficulty = 1 + (t / 60) * 0.4;
@@ -798,10 +808,14 @@ function updateSpawns(t: number) {
   // La progression débloque les ESPÈCES (note N4 : les coriaces arrivent tard)
   while (spawnIdx.bass < analysis.bass.onsets.length && analysis.bass.onsets[spawnIdx.bass].t <= t) {
     const o = analysis.bass.onsets[spawnIdx.bass++];
+    bassBeatFrame = true; // le beat a eu lieu, quoi qu'il spawne
     if (inten < 0.12) continue; // quasi-silence : la soupe se calme vraiment
     if (Math.random() > density) continue;
     if (progress > 0.6 && Math.random() < 0.16) {
       enemies.spawn("colosse", ship.pos, o.s, difficulty, speedScale);
+      // Son explosion tombera SUR un beat de la fenêtre 11-14 s (N4)
+      const c = enemies.list[enemies.list.length - 1];
+      if (c && c.kind === "colosse") c.deadline = beatInWindow(t + 11, t + 14) ?? t + 12;
     } else {
       enemies.spawn("globule", ship.pos, o.s, difficulty, speedScale);
     }
@@ -980,7 +994,9 @@ function tick(now: number) {
     // Apoptose (L2) si chargée
     if (nukeEdge && weapons.fireNuke()) fireApoptose();
 
+    bassBeatFrame = false;
     updateSpawns(t);
+    weapons.beatNow = bassBeatFrame; // l'Onde se cale sur la basse
     enemies.update(dt, t, ship.pos, {
       onKill: (e) => onKill(e),
       onPop: (pos, kind) => {

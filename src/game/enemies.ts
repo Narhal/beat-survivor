@@ -42,6 +42,9 @@ export interface Enemy {
   baseScale: number;
   spriteRot: number; // offset d'angle du sprite Midjourney (0 en vectoriel)
   telegraph: number; // kyste : compte à rebours avant éclatement
+  /** Colosse : instant (temps-morceau) de l'auto-explosion, calé sur un beat
+   *  par main. 0 = repli sur COLOSSE_LIFE. */
+  deadline: number;
   mesh: THREE.Mesh;
   orbHitCd: number; // anti-spam dégâts de contact des orbes
   tentHitCd: number; // idem pour le tentacule
@@ -340,6 +343,7 @@ export class Enemies {
       baseScale,
       spriteRot,
       telegraph: 0,
+      deadline: 0,
       mesh,
       orbHitCd: 0,
       tentHitCd: 0,
@@ -363,10 +367,12 @@ export class Enemies {
         }
         case "colosse": {
           // Le mastodonte trace sa route, imperturbable — mais il est
-          // instable : passé COLOSSE_LIFE, il explose de lui-même
+          // instable : il explose SUR UN BEAT (deadline calée par main sur
+          // un onset de basse ; N4 : « ce sera du plus bel effet »)
           e.pos.addScaledVector(e.dir, e.speed * dt);
           e.telegraph += dt;
-          if (e.telegraph >= COLOSSE_LIFE) expired.push(e);
+          const boom = e.deadline > 0 ? time >= e.deadline : e.telegraph >= COLOSSE_LIFE;
+          if (boom) expired.push(e);
           break;
         }
         case "meduse": {
@@ -414,8 +420,11 @@ export class Enemies {
       } else {
         e.mesh.rotation.z = time * 0.6 + e.phase;
         // Le mastodonte proche de l'explosion pulse de plus en plus fort
-        const urgency =
-          e.kind === "colosse" ? Math.max(0, e.telegraph - (COLOSSE_LIFE - 3)) / 3 : 0;
+        const timeLeft =
+          e.kind === "colosse"
+            ? (e.deadline > 0 ? e.deadline - time : COLOSSE_LIFE - e.telegraph)
+            : Infinity;
+        const urgency = Math.min(1, Math.max(0, (3 - timeLeft) / 3));
         e.mesh.scale.setScalar(
           e.baseScale * (1 + (0.06 + urgency * 0.2) * Math.sin(time * (2.8 + urgency * 14) + e.phase))
         );
