@@ -14,6 +14,9 @@ import { renderMenuLoop, renderBubbles, renderDrop, speakTitle } from "./audio/m
 import { META_DEFS, PERSO_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
 import { glowMaterial } from "./game/glow";
 
+// Racine des assets : "/" en dev, "./" en build (site sous /play-beat-survivor/)
+const ASSET_BASE = import.meta.env.BASE_URL;
+
 // ---------- DOM ----------
 const $ = (id: string) => document.getElementById(id)!;
 const canvas = $("scene") as HTMLCanvasElement;
@@ -93,7 +96,7 @@ function loadLayer(slot: 0 | 1, silent = false) {
   }
   const idx = slot === 0 ? nearIdx : farIdx;
   const entry = texPool[((idx % texPool.length) + texPool.length) % texPool.length];
-  const url = `/textures/${entry.piste}/${entry.file}`;
+  const url = `${ASSET_BASE}textures/${entry.piste}/${entry.file}`;
   let tex = texCache.get(url);
   if (!tex) {
     tex = texLoader.load(url);
@@ -129,7 +132,7 @@ function updateTextureRotation(dt: number) {
   }
 }
 
-fetch("/textures/manifest.json")
+fetch(`${ASSET_BASE}textures/manifest.json`)
   .then((r) => (r.ok ? r.json() : null))
   .then((m) => {
     texManifest = m;
@@ -152,7 +155,7 @@ function loadSpriteTex(url: string): THREE.Texture {
   return tex;
 }
 
-fetch("/sprites/manifest.json")
+fetch(`${ASSET_BASE}sprites/manifest.json`)
   .then((r) => (r.ok ? r.json() : null))
   .then((m: Record<string, string[]> | null) => {
     if (!m) return;
@@ -170,7 +173,7 @@ fetch("/sprites/manifest.json")
       const files = m[kind];
       if (!files || files.length === 0) continue;
       enemies.setSprites(kind, {
-        textures: files.map((f) => loadSpriteTex(`/sprites/${kind}/${f}`)),
+        textures: files.map((f) => loadSpriteTex(`${ASSET_BASE}sprites/${kind}/${f}`)),
         additive: cfg[kind].additive,
         scale: cfg[kind].scale,
         rotOffset: cfg[kind].rot,
@@ -181,8 +184,8 @@ fetch("/sprites/manifest.json")
       const mito = m.joueur.find((f) => f.includes("mito"));
       if (mem && mito) {
         ship.setSprites(
-          loadSpriteTex(`/sprites/joueur/${mem}`),
-          loadSpriteTex(`/sprites/joueur/${mito}`)
+          loadSpriteTex(`${ASSET_BASE}sprites/joueur/${mem}`),
+          loadSpriteTex(`${ASSET_BASE}sprites/joueur/${mito}`)
         );
       }
     }
@@ -191,7 +194,7 @@ fetch("/sprites/manifest.json")
       const prot = m.pickups.find((f) => f.includes("prot"));
       const mk = (f: string) =>
         new THREE.MeshBasicMaterial({
-          map: loadSpriteTex(`/sprites/pickups/${f}`),
+          map: loadSpriteTex(`${ASSET_BASE}sprites/pickups/${f}`),
           transparent: true,
           depthWrite: false,
           blending: THREE.AdditiveBlending,
@@ -1296,7 +1299,7 @@ let pendingAction: PendingAction = null;
 interface MusicTrack { file: string; title: string; }
 let musicTracks: MusicTrack[] = [];
 
-fetch("/music/manifest.json")
+fetch(`${ASSET_BASE}music/manifest.json`)
   .then((r) => (r.ok ? r.json() : null))
   .then((m) => {
     if (m?.tracks) musicTracks = m.tracks;
@@ -1312,7 +1315,7 @@ async function loadTrack(track: MusicTrack) {
   loading = true;
   setStatus(`Chargement de « ${track.title} »…`);
   try {
-    const resp = await fetch(`/music/${track.file}`);
+    const resp = await fetch(`${ASSET_BASE}music/${encodeURIComponent(track.file)}`);
     const buf = await audioCtx.decodeAudioData(await resp.arrayBuffer());
     trackName = track.title;
     currentTrackFile = track.file;

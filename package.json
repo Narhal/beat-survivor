@@ -6,13 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "vite build && gh-pages -d dist --dotfiles -b main -r https://github.com/Narhal/play-beat-survivor.git -m \"deploy\""
   },
   "dependencies": {
     "three": "^0.166.1"
   },
   "devDependencies": {
     "@types/three": "^0.166.0",
+    "gh-pages": "^6.3.0",
     "sharp": "^0.35.3",
     "typescript": "^5.5.4",
     "vite": "^5.4.0"
