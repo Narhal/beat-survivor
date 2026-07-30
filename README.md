@@ -1,5 +1,8 @@
 # Beat Survivor
 
+**🎮 Jouer à l'alpha : https://narhal.github.io/play-beat-survivor/**
+(manette recommandée · Chrome/Edge/Firefox récents)
+
 **Geometry Survivor × Beat Hazard, dans une soupe cellulaire.** Ta musique génère
 l'assaut : la basse fait naître les globules, les médiums les méduses, les aigus
 les dards. Toi, tu conduis — stick gauche, jamais à l'arrêt — et ton build tire
