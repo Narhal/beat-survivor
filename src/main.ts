@@ -216,25 +216,23 @@ function gamepad(): Gamepad | null {
   return null;
 }
 
-// Fronts montants lus UNE fois par frame. N'importe quel bouton de façade
-// valide (les mappings manette varient : ✕/A/B selon les pads), Start ou
-// Échap interrompt la run en cours.
-const FACE_BUTTONS = [0, 1, 2, 3];
+// Fronts montants lus UNE fois par frame. Convention console (N4 2026-07-30,
+// mémoire musculaire) : ✕/A (bouton 0) = valider, ◯/B (bouton 1) = retour.
 let confirmWas = false;
+let cancelWas = false;
 let startWas = false;
 let dashWas = false;
 let nukeWas = false;
 let confirmEdge = false;
+let cancelEdge = false;
 let startEdge = false;
 let dashEdge = false;
 let nukeEdge = false;
 
 function readInputEdges() {
   const gp = gamepad();
-  const face =
-    FACE_BUTTONS.some((i) => gp?.buttons[i]?.pressed ?? false) ||
-    keys.has("Enter") ||
-    keys.has("Space");
+  const face = (gp?.buttons[0]?.pressed ?? false) || keys.has("Enter") || keys.has("Space");
+  const cancel = (gp?.buttons[1]?.pressed ?? false) || keys.has("Backspace");
   const start = (gp?.buttons[9]?.pressed ?? false) || keys.has("Escape");
   // R1/RB = dash ; L2/LT (gâchette analogique) = Apoptose
   const dash = (gp?.buttons[5]?.pressed ?? false) || keys.has("ShiftLeft") || keys.has("ShiftRight");
@@ -242,6 +240,8 @@ function readInputEdges() {
   const nuke = (nukeBtn ? nukeBtn.pressed || nukeBtn.value > 0.5 : false) || keys.has("KeyE");
   confirmEdge = face && !confirmWas;
   confirmWas = face;
+  cancelEdge = cancel && !cancelWas;
+  cancelWas = cancel;
   startEdge = start && !startWas;
   startWas = start;
   dashEdge = dash && !dashWas;
@@ -462,7 +462,14 @@ let trackName = "";
 // ---------- Pharmacie : méta-progression persistante ----------
 const meta = loadMeta();
 const metaLvl = (id: string) => meta.upgrades[id] ?? 0;
-const persoOwned = (id: string) => id === "reguliere" || metaLvl(id) > 0;
+// Un perso se débloque en RÉUSSISSANT son morceau de bibliothèque (N4) ;
+// les anciens achats Pharmacie (upgrades) restent honorés.
+const persoOwned = (id: string) => {
+  const def = PERSO_DEFS.find((p) => p.id === id);
+  if (!def) return false;
+  if (!def.unlockFile) return true;
+  return (meta.cleared ?? []).includes(def.unlockFile) || metaLvl(id) > 0;
+};
 const persoActif = () => PERSO_DEFS.find((p) => p.id === (meta.selected ?? "reguliere")) ?? PERSO_DEFS[0];
 let metaSpeedMul = 1;
 let autopilot = false;
@@ -490,6 +497,7 @@ function show(el: HTMLElement, on: boolean) {
 async function loadFile(file: File) {
   if (loading) return;
   loading = true;
+  currentTrackFile = null;
   statusEl.textContent = `Décodage de « ${file.name} »…`;
   try {
     const buf = await audioCtx.decodeAudioData(await file.arrayBuffer());
@@ -505,6 +513,7 @@ async function loadFile(file: File) {
 async function loadDemo() {
   if (loading) return;
   loading = true;
+  currentTrackFile = null;
   statusEl.textContent = "Synthèse de la piste démo…";
   trackName = "Piste démo";
   const buf = await renderDemoTrack();
@@ -584,6 +593,7 @@ function startRun(buf: AudioBuffer) {
   phase = "run";
   show(titleEl, false);
   show($("survie"), false);
+  show($("perso"), false);
   show(customEl, false);
   show(pharmacieEl, false);
   show(controlesEl, false);
@@ -612,6 +622,16 @@ function endRun(victory: boolean, aborted = false) {
   stopMusic(victory ? 2.5 : 1.0);
   // L'XP de la run rejoint la banque de la Pharmacie
   meta.xp += xpEarned;
+  // Victoire sur un morceau de la bibliothèque → il est « réussi », et
+  // peut débloquer son personnage (décision N4 2026-07-30)
+  if (victory && currentTrackFile) {
+    meta.cleared = meta.cleared ?? [];
+    if (!meta.cleared.includes(currentTrackFile)) {
+      meta.cleared.push(currentTrackFile);
+      const unlocked = PERSO_DEFS.find((p) => p.unlockFile === currentTrackFile);
+      if (unlocked) showToast(`Personnage débloqué : ${unlocked.name} !`);
+    }
+  }
   saveMeta(meta);
   $("end-title").textContent = aborted ? "RUN INTERROMPUE" : victory ? "Victoire !" : "Tu es contaminé";
   $("end-stats").textContent =
@@ -923,8 +943,8 @@ function tick(now: number) {
   }
 
   if (phase === "pause") {
-    if (startEdge) {
-      resumeRun();
+    if (startEdge || cancelEdge) {
+      resumeRun(); // ◯/B = annuler la pause aussi
       return;
     }
     updateMenuNav(dt);
@@ -941,9 +961,17 @@ function tick(now: number) {
   const midEnv = !ambient && analysis ? envAt(analysis.mid.env, analysis.fps, t) : 0.45;
 
   if (!introDone) {
-    if (confirmEdge || startEdge) advanceIntro();
+    if (confirmEdge || startEdge || cancelEdge) advanceIntro();
   } else {
-    if (phase === "title" && !optionsOpen && !loading) updateMenuNav(dt);
+    if (phase === "title" && !loading) {
+      if (optionsOpen) {
+        if (cancelEdge) $("btn-options-close").click();
+      } else if (cancelEdge && titleScreen !== "home") {
+        backFromTitleScreen(); // ◯/B = retour dans les menus
+      } else {
+        updateMenuNav(dt);
+      }
+    }
     if (phase === "end") updateMenuNav(dt);
   }
 
@@ -1257,7 +1285,12 @@ addEventListener("keydown", () => {
 });
 
 // ---------- Écrans du titre : Accueil / Custom / Pharmacie ----------
-type TitleScreen = "home" | "survie" | "custom" | "pharmacie" | "controles";
+type TitleScreen = "home" | "survie" | "perso" | "custom" | "pharmacie" | "controles";
+let titleScreen: TitleScreen = "home";
+
+// Ce qui se lancera une fois le personnage choisi (écran PERSONNAGE pré-run)
+type PendingAction = { type: "track"; track: MusicTrack } | { type: "demo" } | { type: "custom" } | null;
+let pendingAction: PendingAction = null;
 
 // ---------- Morceaux du mode Survie (public/music + manifest) ----------
 interface MusicTrack { file: string; title: string; }
@@ -1270,6 +1303,10 @@ fetch("/music/manifest.json")
   })
   .catch(() => {}); // pas de manifest = la piste démo synthétique fait le travail
 
+// Morceau de bibliothèque en cours (null = démo ou custom) — la victoire
+// dessus débloque son personnage
+let currentTrackFile: string | null = null;
+
 async function loadTrack(track: MusicTrack) {
   if (loading) return;
   loading = true;
@@ -1278,6 +1315,7 @@ async function loadTrack(track: MusicTrack) {
     const resp = await fetch(`/music/${track.file}`);
     const buf = await audioCtx.decodeAudioData(await resp.arrayBuffer());
     trackName = track.title;
+    currentTrackFile = track.file;
     await startFromBuffer(buf);
   } catch (err) {
     setStatus("Impossible de charger ce morceau.");
@@ -1296,10 +1334,12 @@ function renderTrackList() {
   const navEls: HTMLElement[] = [];
   for (const track of musicTracks) {
     const btn = document.createElement("button");
-    btn.textContent = track.title;
+    const cleared = (meta.cleared ?? []).includes(track.file);
+    btn.textContent = `${track.title}${cleared ? " ✓" : ""}`;
     btn.addEventListener("click", () => {
       audioCtx.resume();
-      loadTrack(track);
+      pendingAction = { type: "track", track };
+      showTitleScreen("perso");
     });
     list.appendChild(btn);
     navEls.push(btn);
@@ -1309,12 +1349,56 @@ function renderTrackList() {
   demoBtn.textContent = "Piste démo synthétique";
   demoBtn.addEventListener("click", () => {
     audioCtx.resume();
-    loadDemo();
+    pendingAction = { type: "demo" };
+    showTitleScreen("perso");
   });
   list.appendChild(demoBtn);
   navEls.push(demoBtn);
   navEls.push($("btn-survie-back"));
   setMenu(navEls, "y");
+}
+
+// ---------- Écran PERSONNAGE : qui plonge ? (avant chaque run) ----------
+function renderPersoSelect() {
+  const list = $("perso-list");
+  list.innerHTML = "";
+  const navEls: HTMLElement[] = [];
+  for (const p of PERSO_DEFS) {
+    const owned = persoOwned(p.id);
+    const active = (meta.selected ?? "reguliere") === p.id;
+    const unlockTitle = p.unlockFile
+      ? musicTracks.find((t) => t.file === p.unlockFile)?.title ?? p.unlockFile.replace(/\.[^.]+$/, "")
+      : null;
+    const card = document.createElement("button");
+    card.className = "pharma-card" + (active && owned ? " active" : "");
+    card.disabled = !owned;
+    card.innerHTML =
+      `<span class="pc-name">${p.name}</span>` +
+      `<span class="pc-desc">${p.desc}</span>` +
+      `<span class="pc-cost${active && owned ? " active-label" : ""}">${
+        owned ? (active ? "Plonger (actif)" : "Plonger") : `Réussis « ${unlockTitle} »`
+      }</span>`;
+    if (owned) {
+      card.addEventListener("click", () => {
+        meta.selected = p.id;
+        saveMeta(meta);
+        proceedAfterPerso();
+      });
+    }
+    list.appendChild(card);
+    navEls.push(card);
+  }
+  navEls.push($("btn-perso-back"));
+  setMenu(navEls, "y", 5);
+}
+
+function proceedAfterPerso() {
+  const action = pendingAction;
+  pendingAction = null;
+  if (!action) return showTitleScreen("home");
+  if (action.type === "track") loadTrack(action.track);
+  else if (action.type === "demo") loadDemo();
+  else showTitleScreen("custom");
 }
 
 function homeMenu() {
@@ -1325,16 +1409,31 @@ function homeMenu() {
 }
 
 function showTitleScreen(which: TitleScreen) {
+  titleScreen = which;
   show(titleEl, which === "home");
   show($("survie"), which === "survie");
+  show($("perso"), which === "perso");
   show(customEl, which === "custom");
   show(pharmacieEl, which === "pharmacie");
   show(controlesEl, which === "controles");
   if (which === "home") homeMenu();
   if (which === "survie") renderTrackList();
+  if (which === "perso") renderPersoSelect();
   if (which === "custom") setMenu([$("btn-custom-back")], "y");
   if (which === "pharmacie") renderPharmacie();
   if (which === "controles") setMenu([$("btn-controles-back")], "y");
+}
+
+/** ◯/B : revenir en arrière depuis un sous-écran du titre. */
+function backFromTitleScreen() {
+  if (titleScreen === "perso") {
+    // Retour logique : vers la liste Survie si on venait d'un morceau
+    const backToSurvie = pendingAction?.type === "track" || pendingAction?.type === "demo";
+    pendingAction = null;
+    showTitleScreen(backToSurvie ? "survie" : "home");
+  } else if (titleScreen !== "home") {
+    showTitleScreen("home");
+  }
 }
 
 function renderPharmacie() {
@@ -1370,43 +1469,6 @@ function renderPharmacie() {
     list.appendChild(card);
     navEls.push(card);
   }
-
-  // Les personnages : acheter, puis SÉLECTIONNER (décision N4 2026-07-30)
-  const persos = $("pharma-persos");
-  persos.innerHTML = "";
-  for (const p of PERSO_DEFS) {
-    const owned = persoOwned(p.id);
-    const active = (meta.selected ?? "reguliere") === p.id;
-    const card = document.createElement("button");
-    card.className = "pharma-card" + (active ? " active" : "");
-    card.disabled = active || (!owned && meta.xp < p.cost);
-    card.innerHTML =
-      `<span class="pc-name">${p.name}</span>` +
-      `<span class="pc-desc">${p.desc}</span>` +
-      `<span class="pc-cost${active ? " active-label" : ""}">${
-        active ? "ACTIF" : owned ? "Sélectionner" : `${p.cost} XP`
-      }</span>`;
-    card.addEventListener("click", () => {
-      if (!owned) {
-        if (meta.xp >= p.cost) {
-          meta.xp -= p.cost;
-          meta.upgrades[p.id] = 1;
-          meta.selected = p.id;
-          saveMeta(meta);
-          showToast(`Personnage débloqué : ${p.name}`);
-          renderPharmacie();
-        }
-      } else if (!active) {
-        meta.selected = p.id;
-        saveMeta(meta);
-        showToast(`Personnage : ${p.name}`);
-        renderPharmacie();
-      }
-    });
-    persos.appendChild(card);
-    navEls.push(card);
-  }
-
   navEls.push($("btn-pharma-back"));
   setMenu(navEls, "y", 4);
 }
@@ -1418,7 +1480,12 @@ $("btn-survie").addEventListener("click", () => {
   else loadDemo();
 });
 $("btn-survie-back").addEventListener("click", () => showTitleScreen("home"));
-$("btn-custom").addEventListener("click", () => showTitleScreen("custom"));
+$("btn-custom").addEventListener("click", () => {
+  // Le perso d'abord, la dropzone ensuite (décision N4 2026-07-30)
+  pendingAction = { type: "custom" };
+  showTitleScreen("perso");
+});
+$("btn-perso-back").addEventListener("click", backFromTitleScreen);
 $("btn-pharmacie").addEventListener("click", () => showTitleScreen("pharmacie"));
 $("btn-controles").addEventListener("click", () => showTitleScreen("controles"));
 $("btn-custom-back").addEventListener("click", () => showTitleScreen("home"));

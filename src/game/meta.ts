@@ -70,14 +70,16 @@ export const META_DEFS: MetaDef[] = [
   },
 ];
 
-// ---------- Personnages jouables (décision N4 2026-07-30) ----------
-// Achetables en Pharmacie, puis SÉLECTIONNABLES (le Symbiote forcé n'était
-// pas top) — chacun a une identité mécanique forte. Skins Midjourney à venir.
+// ---------- Personnages jouables ----------
+// Débloqués par la RÉUSSITE des morceaux de la bibliothèque (décision N4
+// 2026-07-30) — un personnage par morceau, plus d'achat à l'XP. La sélection
+// se fait sur un écran dédié avant la run. Skins Midjourney à venir.
 export interface PersoDef {
   id: string;
   name: string;
   desc: string;
-  cost: number;
+  /** Fichier du morceau à réussir pour débloquer (null = toujours possédé). */
+  unlockFile: string | null;
 }
 
 export const PERSO_DEFS: PersoDef[] = [
@@ -85,31 +87,31 @@ export const PERSO_DEFS: PersoDef[] = [
     id: "reguliere",
     name: "La Régulière",
     desc: "La cellule de base — équilibrée, fiable.",
-    cost: 0,
-  },
-  {
-    id: "symbiote",
-    name: "Le Symbiote",
-    desc: "Les évolutions se choisissent toutes seules : la run ne s'interrompt jamais.",
-    cost: 500,
-  },
-  {
-    id: "tardigrade",
-    name: "Le Tardigrade",
-    desc: "Ne meurt jamais. Chaque coup encaissé disperse ta jauge et te coûte de l'XP.",
-    cost: 800,
+    unlockFile: null,
   },
   {
     id: "phage",
     name: "Le Phage",
     desc: "1 PV. Dégâts ×1,5 et +10 % de vitesse — tout dans l'attaque.",
-    cost: 400,
+    unlockFile: "Anxious pathogene.mp3",
+  },
+  {
+    id: "tardigrade",
+    name: "Le Tardigrade",
+    desc: "Ne meurt jamais. Chaque coup encaissé disperse ta jauge et te coûte de l'XP.",
+    unlockFile: "Beyond abyss.mp3",
   },
   {
     id: "amibe",
     name: "L'Amibe",
     desc: "Aimant énorme et +50 % d'XP collectée, mais lente et fragile.",
-    cost: 350,
+    unlockFile: "Dreamy Dive.mp3",
+  },
+  {
+    id: "symbiote",
+    name: "Le Symbiote",
+    desc: "Les évolutions se choisissent toutes seules : la run ne s'interrompt jamais.",
+    unlockFile: "Never see the light again.mp3",
   },
 ];
 
@@ -123,6 +125,8 @@ export interface MetaState {
   /** Personnage sélectionné ("reguliere" par défaut). L'achat du Symbiote
    *  d'avant la refonte (upgrades.symbiote = 1) vaut possession du perso. */
   selected?: string;
+  /** Morceaux de la bibliothèque terminés en victoire (fichiers). */
+  cleared?: string[];
 }
 
 const KEY = "bs-meta";
@@ -134,11 +138,12 @@ export function loadMeta(): MetaState {
       const m = JSON.parse(raw);
       if (typeof m.xp === "number" && m.upgrades) {
         if (!m.selected) m.selected = "reguliere";
+        if (!m.cleared) m.cleared = [];
         return m;
       }
     }
   } catch {}
-  return { xp: 0, upgrades: {}, selected: "reguliere" };
+  return { xp: 0, upgrades: {}, selected: "reguliere", cleared: [] };
 }
 
 export function saveMeta(m: MetaState) {

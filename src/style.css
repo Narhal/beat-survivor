@@ -123,9 +123,9 @@ button.pharma-card:hover:not(:disabled), button.pharma-card.sel {
 .pharma-section {
   margin-top: 10px; font-size: 13px; letter-spacing: 0.22em; color: #4a8fa8;
 }
-#pharma-persos {
+#perso-list {
   display: grid;
-  grid-template-columns: repeat(5, minmax(130px, 148px));
+  grid-template-columns: repeat(5, minmax(130px, 152px));
   gap: 12px; justify-content: center; padding: 4px;
 }
 button.pharma-card.active {

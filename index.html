@@ -37,7 +37,7 @@
         <button id="btn-controles" class="secondary">Contrôles</button>
         <button id="btn-options" class="secondary">Options</button>
       </div>
-      <p class="hint">🎮 Stick gauche = conduite · R1 = dash · L2 = Apoptose · Start = pause · ✕/A = valider.<br />
+      <p class="hint">🎮 Stick gauche = conduite · R1 = dash · L2 = Apoptose · Start = pause · ✕/A = valider · ◯/B = retour.<br />
       Clavier : ZQSD / flèches · Maj = dash · E = Apoptose · Échap = pause.</p>
       <p id="analyse-status" class="dim"></p>
     </div>
@@ -47,6 +47,13 @@
       <p class="tagline">Choisis ton morceau</p>
       <div id="track-list" class="menu-btns vertical"></div>
       <button id="btn-survie-back" class="secondary">Retour</button>
+    </div>
+
+    <div id="perso" class="screen hidden">
+      <h2>PERSONNAGE</h2>
+      <p class="tagline">Qui plonge ?</p>
+      <div id="perso-list"></div>
+      <button id="btn-perso-back" class="secondary">Retour</button>
     </div>
 
     <div id="custom" class="screen hidden">
@@ -62,8 +69,6 @@
       <h2>PHARMACIE</h2>
       <p id="pharma-xp" class="tagline"></p>
       <div id="pharma-list"></div>
-      <p class="pharma-section">PERSONNAGES</p>
-      <div id="pharma-persos"></div>
       <button id="btn-pharma-back" class="secondary">Retour</button>
     </div>
 
@@ -145,7 +150,7 @@
 
     <div id="levelup" class="screen hidden">
       <h2>ÉVOLUTION</h2>
-      <p class="dim">Choisis ton évolution — stick + n'importe quel bouton (✕ / A), ou clic</p>
+      <p class="dim">Choisis ton évolution — stick + ✕/A, ou clic</p>
       <div id="cards"></div>
       <button id="btn-reroll" class="secondary hidden">Relancer (R1)</button>
     </div>
