@@ -583,6 +583,7 @@ function startRun(buf: AudioBuffer) {
 
   phase = "run";
   show(titleEl, false);
+  show($("survie"), false);
   show(customEl, false);
   show(pharmacieEl, false);
   show(controlesEl, false);
@@ -1083,7 +1084,8 @@ function tick(now: number) {
 
     hpEl.textContent = "♥".repeat(Math.max(0, ship.hp));
     scoreEl.textContent = String(score);
-    timeEl.textContent = formatTime(t);
+    // Compte à rebours (N4) : le temps qu'il RESTE à survivre
+    timeEl.textContent = formatTime((analysis?.duration ?? 0) - t);
     gaugeFill.style.width = `${Math.min(100, (gauge / gaugeMax) * 100)}%`;
     // La charge d'Apoptose vit en continu dans le HUD
     weaponsHudTimer -= dt;
@@ -1239,7 +1241,65 @@ addEventListener("keydown", () => {
 });
 
 // ---------- Écrans du titre : Accueil / Custom / Pharmacie ----------
-type TitleScreen = "home" | "custom" | "pharmacie" | "controles";
+type TitleScreen = "home" | "survie" | "custom" | "pharmacie" | "controles";
+
+// ---------- Morceaux du mode Survie (public/music + manifest) ----------
+interface MusicTrack { file: string; title: string; }
+let musicTracks: MusicTrack[] = [];
+
+fetch("/music/manifest.json")
+  .then((r) => (r.ok ? r.json() : null))
+  .then((m) => {
+    if (m?.tracks) musicTracks = m.tracks;
+  })
+  .catch(() => {}); // pas de manifest = la piste démo synthétique fait le travail
+
+async function loadTrack(track: MusicTrack) {
+  if (loading) return;
+  loading = true;
+  setStatus(`Chargement de « ${track.title} »…`);
+  try {
+    const resp = await fetch(`/music/${track.file}`);
+    const buf = await audioCtx.decodeAudioData(await resp.arrayBuffer());
+    trackName = track.title;
+    await startFromBuffer(buf);
+  } catch (err) {
+    setStatus("Impossible de charger ce morceau.");
+    loading = false;
+    console.error(err);
+  }
+}
+
+function setStatus(text: string) {
+  statusEl.textContent = text;
+}
+
+function renderTrackList() {
+  const list = $("track-list");
+  list.innerHTML = "";
+  const navEls: HTMLElement[] = [];
+  for (const track of musicTracks) {
+    const btn = document.createElement("button");
+    btn.textContent = track.title;
+    btn.addEventListener("click", () => {
+      audioCtx.resume();
+      loadTrack(track);
+    });
+    list.appendChild(btn);
+    navEls.push(btn);
+  }
+  const demoBtn = document.createElement("button");
+  demoBtn.className = "secondary";
+  demoBtn.textContent = "Piste démo synthétique";
+  demoBtn.addEventListener("click", () => {
+    audioCtx.resume();
+    loadDemo();
+  });
+  list.appendChild(demoBtn);
+  navEls.push(demoBtn);
+  navEls.push($("btn-survie-back"));
+  setMenu(navEls, "y");
+}
 
 function homeMenu() {
   setMenu(
@@ -1250,10 +1310,12 @@ function homeMenu() {
 
 function showTitleScreen(which: TitleScreen) {
   show(titleEl, which === "home");
+  show($("survie"), which === "survie");
   show(customEl, which === "custom");
   show(pharmacieEl, which === "pharmacie");
   show(controlesEl, which === "controles");
   if (which === "home") homeMenu();
+  if (which === "survie") renderTrackList();
   if (which === "custom") setMenu([$("btn-custom-back")], "y");
   if (which === "pharmacie") renderPharmacie();
   if (which === "controles") setMenu([$("btn-controles-back")], "y");
@@ -1335,8 +1397,11 @@ function renderPharmacie() {
 
 $("btn-survie").addEventListener("click", () => {
   audioCtx.resume();
-  loadDemo();
+  // Des morceaux officiels ? → écran de sélection. Sinon : démo directe.
+  if (musicTracks.length > 0) showTitleScreen("survie");
+  else loadDemo();
 });
+$("btn-survie-back").addEventListener("click", () => showTitleScreen("home"));
 $("btn-custom").addEventListener("click", () => showTitleScreen("custom"));
 $("btn-pharmacie").addEventListener("click", () => showTitleScreen("pharmacie"));
 $("btn-controles").addEventListener("click", () => showTitleScreen("controles"));
