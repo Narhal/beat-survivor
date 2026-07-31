@@ -338,6 +338,12 @@ const MAX_PROTEINS = 350;
 const dashHits = new Set<Enemy>();
 let dashWasCooling = false;
 
+// ---------- Bus SFX (volume réglable dans les options) ----------
+let sfxVolume = Number(localStorage.getItem("bs-sfx") ?? "0.8");
+const sfxBus = audioCtx.createGain();
+sfxBus.gain.value = sfxVolume;
+sfxBus.connect(audioCtx.destination);
+
 /** Le dash est de nouveau prêt : anneau cyan sur la cellule + blip. */
 function dashReadyCue() {
   burst(ship.pos, 0x7df9ff);
@@ -352,9 +358,44 @@ function dashReadyCue() {
     g.gain.exponentialRampToValueAtTime(0.13, now + 0.015);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
     o.connect(g);
-    g.connect(audioCtx.destination);
+    g.connect(sfxBus);
     o.start(now);
     o.stop(now + 0.12);
+  } catch {}
+}
+
+/**
+ * Dégât : buzz grave façon NES (onde carrée qui chute) + la musique
+ * FLÉCHIT une fraction de seconde (N4 : « un son grave qui abîme un petit
+ * peu la musique ») — le coup se sent dans le morceau, pas seulement à l'écran.
+ */
+function damageCue() {
+  try {
+    const now = audioCtx.currentTime;
+    // Le buzz : carré descendant, plus le grésillement d'une quinte basse
+    for (const [f0, f1, amp, dur] of [
+      [220, 55, 0.5, 0.26],
+      [146, 41, 0.32, 0.3],
+    ] as const) {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = "square";
+      o.frequency.setValueAtTime(f0, now);
+      o.frequency.exponentialRampToValueAtTime(f1, now + dur);
+      g.gain.setValueAtTime(amp, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      o.connect(g);
+      g.connect(sfxBus);
+      o.start(now);
+      o.stop(now + dur + 0.02);
+    }
+    // La musique plie sous le coup puis se relève
+    if (musicGain) {
+      musicGain.gain.cancelScheduledValues(now);
+      musicGain.gain.setValueAtTime(musicVolume, now);
+      musicGain.gain.linearRampToValueAtTime(musicVolume * 0.25, now + 0.04);
+      musicGain.gain.linearRampToValueAtTime(musicVolume, now + 0.5);
+    }
   } catch {}
 }
 
@@ -637,8 +678,10 @@ function endRun(victory: boolean, aborted = false) {
   }
   saveMeta(meta);
   $("end-title").textContent = aborted ? "RUN INTERROMPUE" : victory ? "Victoire !" : "Tu es contaminé";
-  $("end-stats").textContent =
-    `${trackName} — ${persoActif().name} — score ${score} · ${formatTime(songTime())} · niveau ${gaugeLevel + 1}` +
+  // Le score, gardé secret pendant la run, se dévoile ici (N4)
+  $("end-stats").innerHTML =
+    `<span class="end-score">${score}</span> points<br />` +
+    `${trackName} — ${persoActif().name} · ${formatTime(songTime())} · niveau ${gaugeLevel + 1}` +
     ` · +${Math.round(xpEarned)} XP (banque : ${meta.xp})`;
   show(endEl, true);
   setMenu([$("btn-replay"), $("btn-restart")], "x");
@@ -1115,11 +1158,13 @@ function tick(now: number) {
             gauge = Math.max(0, gauge - gaugeMax * 0.5);
             xpEarned = Math.max(0, xpEarned - 12);
             rumble(0.6, 0.5, 200);
+            damageCue();
             flashEl.classList.add("on");
             setTimeout(() => flashEl.classList.remove("on"), 120);
           }
         } else if (ship.hit()) {
           rumble(0.9, 0.6, 220);
+          damageCue();
           flashEl.classList.add("on");
           setTimeout(() => flashEl.classList.remove("on"), 120);
           if (ship.hp <= 0) endRun(false);
@@ -1215,7 +1260,7 @@ function playOneShot(buf: AudioBuffer, vol: number) {
   const g = audioCtx.createGain();
   g.gain.value = vol;
   src.connect(g);
-  g.connect(audioCtx.destination);
+  g.connect(sfxBus); // barbotage, goutte… suivent le volume des effets
   src.start();
 }
 
@@ -1347,16 +1392,8 @@ function renderTrackList() {
     list.appendChild(btn);
     navEls.push(btn);
   }
-  const demoBtn = document.createElement("button");
-  demoBtn.className = "secondary";
-  demoBtn.textContent = "Piste démo synthétique";
-  demoBtn.addEventListener("click", () => {
-    audioCtx.resume();
-    pendingAction = { type: "demo" };
-    showTitleScreen("perso");
-  });
-  list.appendChild(demoBtn);
-  navEls.push(demoBtn);
+  // (La piste de synthèse a quitté le menu — N4 2026-07-30. loadDemo reste
+  // le repli automatique si la bibliothèque est vide.)
   navEls.push($("btn-survie-back"));
   setMenu(navEls, "y");
 }
@@ -1516,9 +1553,17 @@ $("btn-reroll").addEventListener("click", rerollCards);
 
 // Options : volume persistant, couches et rotation en direct
 const optVolume = $("opt-volume") as HTMLInputElement;
+const optSfx = $("opt-sfx") as HTMLInputElement;
 const optLayers = $("opt-layers") as HTMLInputElement;
 const optRotate = $("opt-rotate") as HTMLInputElement;
 optVolume.value = String(musicVolume);
+optSfx.value = String(sfxVolume);
+
+optSfx.addEventListener("input", () => {
+  sfxVolume = Number(optSfx.value);
+  localStorage.setItem("bs-sfx", optSfx.value);
+  sfxBus.gain.value = sfxVolume;
+});
 
 $("btn-options").addEventListener("click", () => {
   optionsOpen = true;

@@ -137,6 +137,11 @@ button.pharma-card.active {
 h2 { font-size: 34px; letter-spacing: 0.1em; color: #ffb0f0; text-shadow: 0 0 18px #c239a8; }
 
 .tagline { font-size: 18px; color: #9fd8e8; }
+/* La révélation du score en fin de run */
+.end-score {
+  font-size: 46px; color: #ffe28a; letter-spacing: 0.04em;
+  text-shadow: 0 0 18px rgba(255, 200, 60, 0.55);
+}
 .dim { color: #6d8a99; font-size: 14px; }
 .hint { color: #8ab6c6; font-size: 14px; }
 .or { color: #557; margin: 8px 0; }
@@ -190,12 +195,18 @@ button.sel {
 
 #hud-top {
   position: absolute; top: 14px; left: 20px; right: 20px;
-  display: flex; justify-content: space-between; align-items: baseline;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;
   font-size: 22px;
 }
-#hp { color: #ff5c7a; letter-spacing: 4px; text-shadow: 0 0 10px #a01030; }
-#score { color: #ffe28a; text-shadow: 0 0 10px #806010; font-variant-numeric: tabular-nums; }
-#time { color: #9fd8e8; font-variant-numeric: tabular-nums; }
+#hp { color: #ff5c7a; letter-spacing: 4px; text-shadow: 0 0 10px #a01030; justify-self: start; }
+/* Le score reste secret pendant la run — révélé à la fin (N4) */
+#score { visibility: hidden; justify-self: end; }
+/* Le compte à rebours est l'info capitale : au centre, en grand */
+#time {
+  color: #9fd8e8; font-variant-numeric: tabular-nums;
+  font-size: 32px; letter-spacing: 0.06em;
+  text-shadow: 0 0 14px rgba(45, 200, 230, 0.5);
+}
 
 #gauge {
   position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
