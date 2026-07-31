@@ -239,6 +239,21 @@ button.sel {
   background: radial-gradient(ellipse at center, rgba(215, 255, 255, 0.75), rgba(120, 230, 255, 0.3) 55%, transparent);
 }
 
+/* Liste des morceaux : difficulté à gauche, titre, ✓ de réussite */
+button.track-btn {
+  display: grid; grid-template-columns: 76px 1fr 24px;
+  align-items: center; gap: 12px; text-align: left;
+  min-width: min(420px, 84vw);
+}
+.tk-diff {
+  font-size: 11px; letter-spacing: 0.12em; text-align: center;
+  padding: 3px 0; border-radius: 6px; background: rgba(4, 18, 26, 0.55);
+}
+.tk-diff[data-diff="easy"] { color: #8effc0; }
+.tk-diff[data-diff="normal"] { color: #ffe28a; }
+.tk-diff[data-diff="hard"] { color: #ff8fa6; }
+.tk-done { color: #8effc0; text-align: right; }
+
 #toast {
   position: absolute; right: 22px; bottom: 46px; z-index: 7;
   padding: 8px 16px; border-radius: 10px;
@@ -266,6 +281,13 @@ button.sel {
 }
 .card[data-cat="Atout"] .cat { background: rgba(90, 230, 150, 0.15); color: #8effc0; }
 .card[data-cat="Passif"] .cat { background: rgba(176, 108, 255, 0.18); color: #cfa4ff; }
+.card-icon {
+  display: block; width: 46px; height: 46px; margin: 4px auto 8px;
+  color: #7df9ff;
+  filter: drop-shadow(0 0 8px rgba(45, 200, 230, 0.5));
+}
+.card[data-cat="Atout"] .card-icon { color: #8effc0; filter: drop-shadow(0 0 8px rgba(110, 240, 170, 0.45)); }
+.card[data-cat="Passif"] .card-icon { color: #cfa4ff; filter: drop-shadow(0 0 8px rgba(176, 108, 255, 0.45)); }
 .card h3 { font-size: 19px; color: #7df9ff; margin-bottom: 8px; }
 .card p { font-size: 14px; color: #9fb8c6; }
 .card .lvl { display: block; margin-top: 10px; font-size: 13px; color: #b06cff; }

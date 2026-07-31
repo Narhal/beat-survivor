@@ -80,6 +80,11 @@ export interface PersoDef {
   desc: string;
   /** Fichier du morceau à réussir pour débloquer (null = toujours possédé). */
   unlockFile: string | null;
+  /**
+   * Personnage EXIGÉ pour que la victoire compte (N4 2026-07-31) : sans ça,
+   * le Tardigrade immortel débloquerait tout le roster sans effort.
+   */
+  unlockWith?: string;
 }
 
 export const PERSO_DEFS: PersoDef[] = [
@@ -94,24 +99,28 @@ export const PERSO_DEFS: PersoDef[] = [
     name: "Le Phage",
     desc: "1 PV. Dégâts ×1,5 et +10 % de vitesse — tout dans l'attaque.",
     unlockFile: "Anxious pathogene.mp3",
+    unlockWith: "reguliere",
   },
   {
     id: "tardigrade",
     name: "Le Tardigrade",
     desc: "Ne meurt jamais. Chaque coup encaissé disperse ta jauge et te coûte de l'XP.",
     unlockFile: "Beyond abyss.mp3",
+    unlockWith: "phage", // l'épreuve du roster : ce morceau avec 1 PV
   },
   {
     id: "amibe",
     name: "L'Amibe",
     desc: "Aimant énorme et +50 % d'XP collectée, mais lente et fragile.",
     unlockFile: "Dreamy Dive.mp3",
+    unlockWith: "reguliere",
   },
   {
     id: "symbiote",
     name: "Le Symbiote",
     desc: "Les évolutions se choisissent toutes seules : la run ne s'interrompt jamais.",
     unlockFile: "Never see the light again.mp3",
+    unlockWith: "reguliere",
   },
 ];
 
@@ -127,6 +136,8 @@ export interface MetaState {
   selected?: string;
   /** Morceaux de la bibliothèque terminés en victoire (fichiers). */
   cleared?: string[];
+  /** Personnages débloqués (les conditions de perso ont été remplies). */
+  unlocked?: string[];
 }
 
 const KEY = "bs-meta";
@@ -139,11 +150,12 @@ export function loadMeta(): MetaState {
       if (typeof m.xp === "number" && m.upgrades) {
         if (!m.selected) m.selected = "reguliere";
         if (!m.cleared) m.cleared = [];
+        if (!m.unlocked) m.unlocked = [];
         return m;
       }
     }
   } catch {}
-  return { xp: 0, upgrades: {}, selected: "reguliere", cleared: [] };
+  return { xp: 0, upgrades: {}, selected: "reguliere", cleared: [], unlocked: [] };
 }
 
 export function saveMeta(m: MetaState) {

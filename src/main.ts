@@ -13,6 +13,7 @@ import { Weapons, UPGRADE_INFO, UpgradeKind, maxLevelOf } from "./game/weapons";
 import { renderMenuLoop, renderBubbles, renderDrop, speakTitle } from "./audio/menuAudio";
 import { META_DEFS, PERSO_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
 import { glowMaterial } from "./game/glow";
+import { UPGRADE_ICONS } from "./game/icons";
 
 // Racine des assets : "/" en dev, "./" en build (site sous /play-beat-survivor/)
 const ASSET_BASE = import.meta.env.BASE_URL;
@@ -496,7 +497,7 @@ function burst(pos: THREE.Vector2, color: number) {
 }
 
 // ---------- État de partie ----------
-type Phase = "title" | "run" | "levelup" | "pause" | "end";
+type Phase = "title" | "run" | "levelup" | "pause" | "victory" | "end";
 let phase: Phase = "title";
 let analysis: TrackAnalysis | null = null;
 let lastBuffer: AudioBuffer | null = null; // pour « Rejouer ce morceau »
@@ -512,14 +513,28 @@ const persoOwned = (id: string) => {
   const def = PERSO_DEFS.find((p) => p.id === id);
   if (!def) return false;
   if (!def.unlockFile) return true;
-  return (meta.cleared ?? []).includes(def.unlockFile) || metaLvl(id) > 0;
+  return (meta.unlocked ?? []).includes(id) || metaLvl(id) > 0;
 };
+
+/** Condition de déblocage, en clair, pour l'écran PERSONNAGE. */
+function unlockHint(def: (typeof PERSO_DEFS)[number]): string {
+  if (!def.unlockFile) return "";
+  const titre =
+    musicTracks.find((t) => t.file === def.unlockFile)?.title ??
+    def.unlockFile.replace(/\.[^.]+$/, "");
+  const avec = PERSO_DEFS.find((p) => p.id === def.unlockWith);
+  return avec && avec.id !== "reguliere"
+    ? `Réussis « ${titre} » avec ${avec.name}`
+    : `Réussis « ${titre} » avec la Régulière`;
+}
 const persoActif = () => PERSO_DEFS.find((p) => p.id === (meta.selected ?? "reguliere")) ?? PERSO_DEFS[0];
 let metaSpeedMul = 1;
 let autopilot = false;
 let tardigrade = false;
 let charXpMul = 1;
 let xpEarned = 0;
+/** Personnage effectivement utilisé dans la run en cours (conditions de déblocage). */
+let runPerso = "reguliere";
 const GAUGE_BASE = 15; // +50 % de lenteur demandé par N4 (2026-07-26)
 const SPAWN_DENSITY = 0.8; // −20 % de densité d'ennemis (N4)
 let score = 0;
@@ -589,6 +604,7 @@ function startRun(buf: AudioBuffer) {
   xpEarned = 0;
   // Le personnage sélectionné imprime son identité
   const perso = persoOwned(meta.selected ?? "reguliere") ? (meta.selected ?? "reguliere") : "reguliere";
+  runPerso = perso;
   autopilot = perso === "symbiote";
   tardigrade = perso === "tardigrade";
   charXpMul = 1;
@@ -670,10 +686,16 @@ function endRun(victory: boolean, aborted = false) {
   // peut débloquer son personnage (décision N4 2026-07-30)
   if (victory && currentTrackFile) {
     meta.cleared = meta.cleared ?? [];
-    if (!meta.cleared.includes(currentTrackFile)) {
-      meta.cleared.push(currentTrackFile);
-      const unlocked = PERSO_DEFS.find((p) => p.unlockFile === currentTrackFile);
-      if (unlocked) showToast(`Personnage débloqué : ${unlocked.name} !`);
+    meta.unlocked = meta.unlocked ?? [];
+    if (!meta.cleared.includes(currentTrackFile)) meta.cleared.push(currentTrackFile);
+    // Le perso ne tombe QUE si la victoire a été obtenue avec le bon
+    // personnage (N4) — sinon le Tardigrade immortel raflerait tout
+    const prize = PERSO_DEFS.find((p) => p.unlockFile === currentTrackFile);
+    if (prize && !meta.unlocked.includes(prize.id)) {
+      if ((prize.unlockWith ?? "reguliere") === runPerso) {
+        meta.unlocked.push(prize.id);
+        showToast(`Personnage débloqué : ${prize.name} !`);
+      }
     }
   }
   saveMeta(meta);
@@ -685,6 +707,36 @@ function endRun(victory: boolean, aborted = false) {
     ` · +${Math.round(xpEarned)} XP (banque : ${meta.xp})`;
   show(endEl, true);
   setMenu([$("btn-replay"), $("btn-restart")], "x");
+}
+
+/**
+ * Victoire : avant l'écran de fin, tous les pathogènes encore en vie
+ * explosent en cascade (idée N4, boîte à idées) — le morceau tenu jusqu'au
+ * bout purge l'organisme.
+ */
+function triggerVictory() {
+  if (phase !== "run") return;
+  // Phase dédiée : la simulation s'arrête mais le RENDU continue —
+  // c'est indispensable pour que la cascade d'explosions se voie.
+  phase = "victory";
+  const victims = [...enemies.list];
+  let i = 0;
+  const pop = () => {
+    // Trois par salve pour que la cascade reste vive même en fin dense
+    for (let k = 0; k < 3 && i < victims.length; k++, i++) {
+      const e = victims[i];
+      const idx = enemies.list.indexOf(e);
+      if (idx >= 0) {
+        burst(e.pos, ENEMY_DEFS[e.kind].color);
+        enemies.remove(idx);
+      }
+    }
+    if (i < victims.length) setTimeout(pop, 55);
+    else setTimeout(() => endRun(true), 700);
+  };
+  world.kick(1.6);
+  rumble(0.5, 0.8, 400);
+  pop();
 }
 
 // ---------- Pause ----------
@@ -778,6 +830,7 @@ function buildLevelUpCards() {
     div.dataset.cat = info.cat;
     div.innerHTML =
       `<span class="cat">${info.cat}</span>` +
+      `${UPGRADE_ICONS[c.kind]}` +
       `<h3>${info.name}</h3>` +
       `<p>${info.desc}</p>` +
       `<div class="pips">${pips}<span class="pipnum">${c.level}/${max}</span></div>`;
@@ -1172,7 +1225,7 @@ function tick(now: number) {
       }
     }
 
-    if (analysis && t >= analysis.duration - 0.05) endRun(true);
+    if (analysis && t >= analysis.duration - 0.05) triggerVictory();
 
     hpEl.textContent = "♥".repeat(Math.max(0, ship.hp));
     scoreEl.textContent = String(score);
@@ -1341,7 +1394,8 @@ type PendingAction = { type: "track"; track: MusicTrack } | { type: "demo" } | {
 let pendingAction: PendingAction = null;
 
 // ---------- Morceaux du mode Survie (public/music + manifest) ----------
-interface MusicTrack { file: string; title: string; }
+interface MusicTrack { file: string; title: string; difficulty?: "easy" | "normal" | "hard"; }
+const DIFF_LABEL = { easy: "EASY", normal: "NORMAL", hard: "HARD" } as const;
 let musicTracks: MusicTrack[] = [];
 
 fetch(`${ASSET_BASE}music/manifest.json`)
@@ -1383,7 +1437,12 @@ function renderTrackList() {
   for (const track of musicTracks) {
     const btn = document.createElement("button");
     const cleared = (meta.cleared ?? []).includes(track.file);
-    btn.textContent = `${track.title}${cleared ? " ✓" : ""}`;
+    const diff = track.difficulty ?? "normal";
+    btn.classList.add("track-btn");
+    btn.innerHTML =
+      `<span class="tk-diff" data-diff="${diff}">${DIFF_LABEL[diff]}</span>` +
+      `<span class="tk-title">${track.title}</span>` +
+      `<span class="tk-done">${cleared ? "✓" : ""}</span>`;
     btn.addEventListener("click", () => {
       audioCtx.resume();
       pendingAction = { type: "track", track };
@@ -1406,9 +1465,6 @@ function renderPersoSelect() {
   for (const p of PERSO_DEFS) {
     const owned = persoOwned(p.id);
     const active = (meta.selected ?? "reguliere") === p.id;
-    const unlockTitle = p.unlockFile
-      ? musicTracks.find((t) => t.file === p.unlockFile)?.title ?? p.unlockFile.replace(/\.[^.]+$/, "")
-      : null;
     const card = document.createElement("button");
     card.className = "pharma-card" + (active && owned ? " active" : "");
     card.disabled = !owned;
@@ -1416,7 +1472,7 @@ function renderPersoSelect() {
       `<span class="pc-name">${p.name}</span>` +
       `<span class="pc-desc">${p.desc}</span>` +
       `<span class="pc-cost${active && owned ? " active-label" : ""}">${
-        owned ? (active ? "Plonger (actif)" : "Plonger") : `Réussis « ${unlockTitle} »`
+        owned ? (active ? "Plonger (actif)" : "Plonger") : unlockHint(p)
       }</span>`;
     if (owned) {
       card.addEventListener("click", () => {

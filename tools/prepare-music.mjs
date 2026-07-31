@@ -18,10 +18,27 @@ try {
   process.exit(1);
 }
 
-const tracks = files.sort().map((file) => ({
-  file,
-  title: file.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim(),
-}));
+// Difficulté par morceau (verdicts N4). Les inconnus passent en "normal".
+// La bibliothèque est TRIÉE par difficulté croissante : elle se lit comme
+// une campagne, du plus accessible au plus exigeant.
+const DIFFICULTES = {
+  "Never see the light again.mp3": "easy",
+  "Beyond abyss.mp3": "normal",
+  "Dreamy Dive.mp3": "normal",
+  "Anxious pathogene.mp3": "hard",
+};
+const ORDRE = { easy: 0, normal: 1, hard: 2 };
+
+const tracks = files
+  .map((file) => ({
+    file,
+    title: file.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim(),
+    difficulty: DIFFICULTES[file] ?? "normal",
+  }))
+  .sort((a, b) => ORDRE[a.difficulty] - ORDRE[b.difficulty] || a.title.localeCompare(b.title));
 
 await writeFile(path.join(DIR, "manifest.json"), JSON.stringify({ tracks }, null, 2));
-console.log(`manifest.json : ${tracks.length} morceau(x) — ${tracks.map((t) => t.title).join(", ") || "aucun"}`);
+console.log(
+  `manifest.json : ${tracks.length} morceau(x) — ` +
+    (tracks.map((t) => `${t.title} [${t.difficulty}]`).join(", ") || "aucun")
+);

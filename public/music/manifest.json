@@ -1,20 +1,24 @@
 {
   "tracks": [
     {
-      "file": "Anxious pathogene.mp3",
-      "title": "Anxious pathogene"
+      "file": "Never see the light again.mp3",
+      "title": "Never see the light again",
+      "difficulty": "easy"
     },
     {
       "file": "Beyond abyss.mp3",
-      "title": "Beyond abyss"
+      "title": "Beyond abyss",
+      "difficulty": "normal"
     },
     {
       "file": "Dreamy Dive.mp3",
-      "title": "Dreamy Dive"
+      "title": "Dreamy Dive",
+      "difficulty": "normal"
     },
     {
-      "file": "Never see the light again.mp3",
-      "title": "Never see the light again"
+      "file": "Anxious pathogene.mp3",
+      "title": "Anxious pathogene",
+      "difficulty": "hard"
     }
   ]
 }
