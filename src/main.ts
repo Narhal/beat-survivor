@@ -784,10 +784,11 @@ function resumeRun() {
 let menuEls: HTMLElement[] = [];
 let menuIdx = 0;
 let menuCooldown = 0;
-let menuAxis: "x" | "y" = "x";
+/** "any" : les deux axes naviguent (menu circulaire du titre). */
+let menuAxis: "x" | "y" | "any" = "x";
 let menuCols = 0; // > 0 : navigation en grille (Pharmacie)
 
-function setMenu(els: HTMLElement[], axis: "x" | "y" = "x", cols = 0) {
+function setMenu(els: HTMLElement[], axis: "x" | "y" | "any" = "x", cols = 0) {
   menuEls.forEach((el) => el.classList.remove("sel"));
   menuEls = els;
   menuAxis = axis;
@@ -809,6 +810,11 @@ function updateMenuNav(dt: number) {
   if (menuCols > 0) {
     if (Math.abs(v.x) > 0.5) delta = Math.sign(v.x);
     else if (Math.abs(v.y) > 0.5) delta = v.y > 0 ? -menuCols : menuCols;
+  } else if (menuAxis === "any") {
+    // Menu circulaire : haut/bas ET gauche/droite font tourner la grappe
+    // (N4 : c'est plus instinctif). Droite/bas = suivant.
+    const val = Math.abs(v.x) > Math.abs(v.y) ? v.x : -v.y;
+    if (Math.abs(val) > 0.5) delta = Math.sign(val);
   } else {
     const val = menuAxis === "x" ? v.x : -v.y;
     if (Math.abs(val) > 0.5) delta = Math.sign(val);
@@ -1630,7 +1636,7 @@ const organism = new Organism($("organism"), $("filaments") as unknown as SVGSVG
 
 function homeMenu() {
   const els = [$("btn-survie"), $("btn-custom"), $("btn-pharmacie"), $("btn-controles"), $("btn-options")];
-  setMenu(els, "y");
+  setMenu(els, "any");
   organism.setEntries(els);
 }
 
@@ -1639,17 +1645,33 @@ function homeMenu() {
  * l'arène. Elle NE DOIT PAS rester pendant la run (verdict N4 : elle
  * pollue) — c'est une transition, pas un décor.
  */
+const DIVE_MS = 2000;
+
 function diveTransition() {
+  // La fiche d'immersion : ce qu'on s'apprête à traverser
+  const dive = $("dive");
+  $("dive-title").textContent = trackName;
+  $("dive-sub").textContent = persoActif().name.toUpperCase();
+  dive.classList.remove("hidden");
+  // Relance les animations CSS (une plongée peut suivre une autre)
+  dive.querySelectorAll<HTMLElement>("#dive-veil, #dive-card").forEach((el) => {
+    el.style.animation = "none";
+    void el.offsetWidth;
+    el.style.animation = "";
+  });
+  setTimeout(() => dive.classList.add("hidden"), DIVE_MS);
+
   const bg = $("menu-bg") as HTMLVideoElement;
   if (!bg.src) return;
-  bg.classList.remove("hidden");
+  bg.classList.remove("hidden", "dive");
+  void bg.offsetWidth;
   bg.classList.add("dive");
   bg.play().catch(() => {});
   setTimeout(() => {
     bg.classList.add("hidden");
     bg.classList.remove("dive");
     bg.pause();
-  }, 750);
+  }, DIVE_MS);
 }
 
 /**

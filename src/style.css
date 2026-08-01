@@ -48,17 +48,57 @@ h1 {
   mask-image: radial-gradient(ellipse at center, #000 30%, transparent 78%);
   pointer-events: none;
 }
-/* Transition de plongée : le milieu fond sur nous puis disparaît */
+/* Transition de plongée : le milieu fond sur nous puis disparaît (2 s) */
 #menu-bg.dive {
   z-index: 9;
-  opacity: 0.75;
-  animation: dive 0.75s ease-in forwards;
+  animation: dive 2s cubic-bezier(0.35, 0, 0.3, 1) forwards;
 }
 @keyframes dive {
-  0% { transform: scale(1); opacity: 0.75; }
-  60% { opacity: 0.5; }
-  100% { transform: scale(2.4); opacity: 0; }
+  0% { transform: scale(1); opacity: 0.35; }
+  22% { opacity: 0.8; }
+  70% { opacity: 0.55; }
+  100% { transform: scale(2.6); opacity: 0; }
 }
+
+/* Le voile et la fiche d'immersion (titre du morceau) */
+#dive {
+  position: absolute; inset: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+#dive-veil {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, rgba(2, 12, 8, 0.55), rgba(1, 5, 4, 0.92));
+  animation: veil 2s ease-in-out forwards;
+}
+@keyframes veil {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  70% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+#dive-card {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  animation: diveCard 2s ease-out forwards;
+}
+@keyframes diveCard {
+  0% { opacity: 0; transform: scale(0.94); }
+  22% { opacity: 1; transform: scale(1); }
+  72% { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 0; transform: scale(1.14); }
+}
+#dive-label {
+  font-size: 12px; letter-spacing: 0.42em; color: #6fae8a;
+  padding-left: 0.42em;
+}
+#dive-title {
+  font-size: clamp(26px, 4.4vw, 46px); letter-spacing: 0.06em;
+  color: #d8ffe6;
+  text-shadow: 0 0 22px rgba(90, 230, 140, 0.6), 0 0 60px rgba(40, 160, 90, 0.35);
+  text-align: center; max-width: 84vw;
+}
+#dive-sub { font-size: 13px; letter-spacing: 0.2em; color: #7fc79a; }
 
 /* Les écrans hors-jeu observent : ils sont verts. Le jeu (level-up, pause,
    HUD) reste cyan/violet — c'est la frontière dehors/dedans. */
