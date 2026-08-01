@@ -4,7 +4,7 @@
 // On conduit au stick gauche (clavier en secours).
 
 import * as THREE from "three";
-import { analyseBuffer, envAt, TrackAnalysis } from "./audio/analysis";
+import { analyseBuffer, envAt, estimateDifficulty, TrackAnalysis } from "./audio/analysis";
 import { renderDemoTrack } from "./audio/demo";
 import { World, BG_STYLES, ARENA } from "./game/world";
 import { Ship } from "./game/ship";
@@ -14,6 +14,7 @@ import { renderMenuLoop, renderBubbles, renderDrop, speakTitle } from "./audio/m
 import { META_DEFS, PERSO_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
 import { glowMaterial } from "./game/glow";
 import { UPGRADE_ICONS } from "./game/icons";
+import { listCustom, rememberCustom, CustomEntry, CUSTOM_MAX } from "./game/customLib";
 
 // Racine des assets : "/" en dev, "./" en build (site sous /play-beat-survivor/)
 const ASSET_BASE = import.meta.env.BASE_URL;
@@ -553,7 +554,7 @@ function show(el: HTMLElement, on: boolean) {
   el.classList.toggle("hidden", !on);
 }
 
-async function loadFile(file: File) {
+async function loadFile(file: File, remember = true) {
   if (loading) return;
   loading = true;
   currentTrackFile = null;
@@ -561,7 +562,13 @@ async function loadFile(file: File) {
   try {
     const buf = await audioCtx.decodeAudioData(await file.arrayBuffer());
     trackName = file.name.replace(/\.[^.]+$/, "");
+    // Les customs ont leur propre clé de score, stable d'un dépôt à l'autre
+    currentScoreKey = `custom:${file.name}:${file.size}`;
     await startFromBuffer(buf);
+    // Mémorise le morceau pour la bibliothèque custom (idée N4)
+    if (remember && analysis) {
+      await rememberCustom(file, trackName, estimateDifficulty(analysis));
+    }
   } catch (err) {
     statusEl.textContent = "Impossible de décoder ce fichier — un autre format ?";
     loading = false;
@@ -573,6 +580,7 @@ async function loadDemo() {
   if (loading) return;
   loading = true;
   currentTrackFile = null;
+  currentScoreKey = null;
   statusEl.textContent = "Synthèse de la piste démo…";
   trackName = "Piste démo";
   const buf = await renderDemoTrack();
@@ -599,6 +607,7 @@ function startRun(buf: AudioBuffer) {
   weapons.metaDamageMul = 1 + 0.08 * metaLvl("concentres");
   weapons.metaMagnet = 2.5 * metaLvl("phago");
   weapons.bonusNukes = metaLvl("reserve");
+  enemies.kysteRadiusMul = 1 + 0.18 * metaLvl("virulence");
   rerollsLeft = metaLvl("reroll");
   weapons.saccadeLevel = metaLvl("saccade");
   xpEarned = 0;
@@ -700,9 +709,25 @@ function endRun(victory: boolean, aborted = false) {
   }
   saveMeta(meta);
   $("end-title").textContent = aborted ? "RUN INTERROMPUE" : victory ? "Victoire !" : "Tu es contaminé";
+  // Meilleur score par morceau (idée N4 : revenir battre son propre score)
+  let bestLine = "";
+  if (currentScoreKey) {
+    meta.scores = meta.scores ?? {};
+    const best = meta.scores[currentScoreKey] ?? 0;
+    bestBeaten = score > best;
+    if (bestBeaten) {
+      meta.scores[currentScoreKey] = score;
+      saveMeta(meta); // le record est établi ici, après la sauvegarde de l'XP
+    }
+    bestLine = bestBeaten
+      ? `<span class="record">NOUVEAU RECORD</span>`
+      : best > 0
+        ? `<span class="dim">record : ${best}</span>`
+        : "";
+  }
   // Le score, gardé secret pendant la run, se dévoile ici (N4)
   $("end-stats").innerHTML =
-    `<span class="end-score">${score}</span> points<br />` +
+    `<span class="end-score">${score}</span> points ${bestLine}<br />` +
     `${trackName} — ${persoActif().name} · ${formatTime(songTime())} · niveau ${gaugeLevel + 1}` +
     ` · +${Math.round(xpEarned)} XP (banque : ${meta.xp})`;
   show(endEl, true);
@@ -1408,6 +1433,9 @@ fetch(`${ASSET_BASE}music/manifest.json`)
 // Morceau de bibliothèque en cours (null = démo ou custom) — la victoire
 // dessus débloque son personnage
 let currentTrackFile: string | null = null;
+/** Clé du meilleur score (fichier officiel ou id custom ; null = démo). */
+let currentScoreKey: string | null = null;
+let bestBeaten = false;
 
 async function loadTrack(track: MusicTrack) {
   if (loading) return;
@@ -1418,6 +1446,7 @@ async function loadTrack(track: MusicTrack) {
     const buf = await audioCtx.decodeAudioData(await resp.arrayBuffer());
     trackName = track.title;
     currentTrackFile = track.file;
+    currentScoreKey = track.file;
     await startFromBuffer(buf);
   } catch (err) {
     setStatus("Impossible de charger ce morceau.");
@@ -1439,10 +1468,12 @@ function renderTrackList() {
     const cleared = (meta.cleared ?? []).includes(track.file);
     const diff = track.difficulty ?? "normal";
     btn.classList.add("track-btn");
-    btn.innerHTML =
-      `<span class="tk-diff" data-diff="${diff}">${DIFF_LABEL[diff]}</span>` +
-      `<span class="tk-title">${track.title}</span>` +
-      `<span class="tk-done">${cleared ? "✓" : ""}</span>`;
+    const best = meta.scores?.[track.file] ?? 0;
+    btn.innerHTML = trackButtonHTML(
+      track.title,
+      diff,
+      `${best > 0 ? best + " " : ""}${cleared ? "✓" : ""}`
+    );
     btn.addEventListener("click", () => {
       audioCtx.resume();
       pendingAction = { type: "track", track };
@@ -1455,6 +1486,55 @@ function renderTrackList() {
   // le repli automatique si la bibliothèque est vide.)
   navEls.push($("btn-survie-back"));
   setMenu(navEls, "y");
+}
+
+/** Ligne de bouton d'un morceau : difficulté, titre, record ou ✓. */
+function trackButtonHTML(title: string, diff: string, right: string) {
+  return (
+    `<span class="tk-diff" data-diff="${diff}">${DIFF_LABEL[diff as keyof typeof DIFF_LABEL]}</span>` +
+    `<span class="tk-title">${title}</span>` +
+    `<span class="tk-done">${right}</span>`
+  );
+}
+
+/**
+ * Bibliothèque custom : les derniers morceaux déposés, rejouables sans
+ * re-glisser le fichier (idée N4). Leur difficulté est ESTIMÉE à l'analyse.
+ */
+function renderCustomList() {
+  const list = $("custom-list");
+  list.innerHTML = "";
+  setMenu([$("btn-custom-back")], "y"); // en attendant l'IndexedDB
+  listCustom().then((entries) => {
+    if (titleScreen !== "custom") return;
+    list.innerHTML = "";
+    const navEls: HTMLElement[] = [];
+    if (entries.length > 0) {
+      const hint = document.createElement("p");
+      hint.className = "dim";
+      hint.textContent = `Tes ${CUSTOM_MAX} derniers morceaux :`;
+      list.appendChild(hint);
+    }
+    for (const e of entries) {
+      const btn = document.createElement("button");
+      btn.className = "secondary track-btn";
+      const best = meta.scores?.[`custom:${e.id}`] ?? 0;
+      btn.innerHTML = trackButtonHTML(e.title, e.difficulty, best > 0 ? `${best}` : "");
+      btn.addEventListener("click", () => {
+        audioCtx.resume();
+        playCustomEntry(e);
+      });
+      list.appendChild(btn);
+      navEls.push(btn);
+    }
+    navEls.push($("btn-custom-back"));
+    setMenu(navEls, "y");
+  });
+}
+
+function playCustomEntry(entry: CustomEntry) {
+  const file = new File([entry.blob], entry.id.split(":")[0], { type: entry.blob.type });
+  loadFile(file, false); // déjà mémorisé : inutile de le réécrire
 }
 
 // ---------- Écran PERSONNAGE : qui plonge ? (avant chaque run) ----------
@@ -1515,7 +1595,7 @@ function showTitleScreen(which: TitleScreen) {
   if (which === "home") homeMenu();
   if (which === "survie") renderTrackList();
   if (which === "perso") renderPersoSelect();
-  if (which === "custom") setMenu([$("btn-custom-back")], "y");
+  if (which === "custom") renderCustomList();
   if (which === "pharmacie") renderPharmacie();
   if (which === "controles") setMenu([$("btn-controles-back")], "y");
 }

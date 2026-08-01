@@ -252,7 +252,12 @@ button.track-btn {
 .tk-diff[data-diff="easy"] { color: #8effc0; }
 .tk-diff[data-diff="normal"] { color: #ffe28a; }
 .tk-diff[data-diff="hard"] { color: #ff8fa6; }
-.tk-done { color: #8effc0; text-align: right; }
+.tk-done { color: #8effc0; text-align: right; font-size: 13px; white-space: nowrap; }
+button.track-btn { grid-template-columns: 76px 1fr 72px; }
+.record {
+  color: #ffe28a; font-size: 15px; letter-spacing: 0.1em;
+  text-shadow: 0 0 12px rgba(255, 200, 60, 0.6);
+}
 
 #toast {
   position: absolute; right: 22px; bottom: 46px; z-index: 7;

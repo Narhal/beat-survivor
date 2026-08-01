@@ -146,6 +146,8 @@ export class Enemies {
   list: Enemy[] = [];
   /** true = sprites Midjourney (si fournis), false = silhouettes vectorielles. */
   spritesEnabled = true;
+  /** Multiplicateur de rayon d'explosion des kystes (Pharmacie « Virulence »). */
+  kysteRadiusMul = 1;
   private sprites: Partial<Record<EnemyKind, SpriteSet>> = {};
   private spriteGeo = new THREE.PlaneGeometry(2, 2);
   private spriteMats = new Map<THREE.Texture, THREE.MeshBasicMaterial>();
@@ -437,9 +439,10 @@ export class Enemies {
       if (i < 0) continue;
       this.remove(i);
       fx?.onPop?.(e.pos, "kyste");
+      const aoe = KYSTE_AOE_RADIUS * this.kysteRadiusMul;
       for (let j = this.list.length - 1; j >= 0; j--) {
         const o = this.list[j];
-        if (o.pos.distanceTo(e.pos) < KYSTE_AOE_RADIUS) {
+        if (o.pos.distanceTo(e.pos) < aoe) {
           o.hp -= KYSTE_AOE_DMG;
           if (o.hp <= 0) {
             fx?.onKill?.(o);

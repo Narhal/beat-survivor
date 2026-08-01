@@ -53,6 +53,14 @@ export const META_DEFS: MetaDef[] = [
     growth: 2,
   },
   {
+    id: "virulence",
+    name: "Virulence",
+    desc: "+18 % de rayon d'explosion des kystes par palier — ils nettoient plus large.",
+    max: 5,
+    baseCost: 70,
+    growth: 1.7,
+  },
+  {
     id: "saccade",
     name: "Saccade",
     desc: "Dash (R1) plus prompt par palier ; palier 3 : invulnérable pendant ; palier 5 : il déchire sur son passage.",
@@ -138,6 +146,8 @@ export interface MetaState {
   cleared?: string[];
   /** Personnages débloqués (les conditions de perso ont été remplies). */
   unlocked?: string[];
+  /** Meilleur score par morceau (clé = fichier officiel ou id custom). */
+  scores?: Record<string, number>;
 }
 
 const KEY = "bs-meta";
@@ -151,11 +161,12 @@ export function loadMeta(): MetaState {
         if (!m.selected) m.selected = "reguliere";
         if (!m.cleared) m.cleared = [];
         if (!m.unlocked) m.unlocked = [];
+        if (!m.scores) m.scores = {};
         return m;
       }
     }
   } catch {}
-  return { xp: 0, upgrades: {}, selected: "reguliere", cleared: [], unlocked: [] };
+  return { xp: 0, upgrades: {}, selected: "reguliere", cleared: [], unlocked: [], scores: {} };
 }
 
 export function saveMeta(m: MetaState) {

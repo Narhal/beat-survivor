@@ -91,6 +91,31 @@ function detectDrops(intensity: Float32Array, fps: number): number[] {
   return drops;
 }
 
+export type Difficulty = "easy" | "normal" | "hard";
+
+/**
+ * Difficulté ESTIMÉE d'un morceau (pour la bibliothèque custom, idée N4).
+ * Deux facteurs, exactement ceux qui pilotent les spawns : la densité
+ * d'onsets (combien d'ennemis naissent) et l'intensité moyenne (combien
+ * de temps les vannes restent ouvertes).
+ *
+ * Seuils CALIBRÉS (2026-07-31) sur la bibliothèque officielle, dont N4 a
+ * jugé les difficultés à l'oreille — la métrique retrouve exactement son
+ * classement : Never see the light again 5,00 (easy) · Dreamy Dive 6,57 et
+ * Beyond abyss 6,75 (normal) · Anxious pathogene 7,11 (hard).
+ * (Corpus d'un seul style : à revérifier si des customs très différents
+ * — ambient, métal — donnent des verdicts surprenants.)
+ */
+export function estimateDifficulty(a: TrackAnalysis): Difficulty {
+  const dur = Math.max(1, a.duration);
+  const onsetsPerSec = (a.bass.onsets.length + a.mid.onsets.length + a.high.onsets.length) / dur;
+  let sum = 0;
+  for (let i = 0; i < a.intensity.length; i++) sum += a.intensity[i];
+  const meanIntensity = sum / Math.max(1, a.intensity.length);
+  const score = onsetsPerSec * 0.55 + meanIntensity * 3.2;
+  return score < 5.8 ? "easy" : score < 6.95 ? "normal" : "hard";
+}
+
 /** Échantillonne une enveloppe au temps t (secondes). */
 export function envAt(env: Float32Array, fps: number, t: number): number {
   const i = Math.floor(t * fps);
