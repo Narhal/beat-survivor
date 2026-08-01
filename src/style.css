@@ -105,42 +105,52 @@ h1 {
 .screen.lab { background: rgba(2, 10, 6, 0.55); }
 .screen.lab h2 { color: #b9ffd2; text-shadow: 0 0 18px rgba(90, 230, 140, 0.7); }
 .screen.lab .tagline, .screen.lab .dim { color: #7fc79a; }
+/* Même grammaire technique que le menu circulaire : bords droits, trait
+   fin, aplat uni — la sélection allume le trait, jamais un dégradé. */
 .screen.lab button {
-  color: #d8ffe6;
-  background: rgba(10, 34, 22, 0.85);
-  border: 1.5px solid rgba(126, 240, 160, 0.4);
+  color: #a8e8c4;
+  background: #072016;
+  border: 1px solid rgba(126, 240, 160, 0.38);
+  border-radius: 0;
   box-shadow: none;
+  letter-spacing: 0.08em;
 }
 .screen.lab button.sel, .screen.lab button:hover:not(:disabled) {
-  color: #061a10;
-  background: linear-gradient(180deg, #b9ffd2, #5fe0a0);
+  color: #eafff2;
+  background: #0c3323;
   border-color: #b9ffd2;
-  box-shadow: 0 0 22px rgba(120, 255, 170, 0.45);
+  box-shadow: 0 0 10px rgba(120, 255, 170, 0.3);
+  filter: none;
 }
 .screen.lab button:disabled { opacity: 0.4; }
-.screen.lab .pharma-card { background: rgba(8, 28, 18, 0.88); border-color: rgba(126, 240, 160, 0.3); }
+
+.screen.lab .pharma-card {
+  background: #061c13;
+  border: 1px solid rgba(126, 240, 160, 0.28);
+  border-radius: 0;
+}
 .screen.lab .pc-name { color: #b9ffd2; }
 .screen.lab .pc-desc { color: #6fae8a; }
 .screen.lab .pc-lvl { color: #8effc0; }
-.screen.lab .pc-cost { color: #d8ffe6; }
-.screen.lab .pharma-card.active { border-color: #8effc0; }
-/* Carte survolée/choisie : fond clair → tout le texte passe en sombre */
+.screen.lab .pc-cost { color: #d8ffe6; letter-spacing: 0.06em; }
 .screen.lab .pharma-card.sel,
 .screen.lab .pharma-card.active,
-.screen.lab .pharma-card:hover:not(:disabled) { color: #061a10; }
-.screen.lab .pharma-card.sel .pc-name,
-.screen.lab .pharma-card.sel .pc-desc,
-.screen.lab .pharma-card.sel .pc-cost,
-.screen.lab .pharma-card.sel .pc-lvl,
-.screen.lab .pharma-card.active .pc-name,
-.screen.lab .pharma-card.active .pc-desc,
-.screen.lab .pharma-card.active .pc-cost,
-.screen.lab .pharma-card.active .pc-lvl,
-.screen.lab .pharma-card:hover:not(:disabled) .pc-name,
-.screen.lab .pharma-card:hover:not(:disabled) .pc-desc,
-.screen.lab .pharma-card:hover:not(:disabled) .pc-cost,
-.screen.lab .pharma-card:hover:not(:disabled) .pc-lvl {
-  color: #072415;
+.screen.lab .pharma-card:hover:not(:disabled) {
+  background: #0c3323;
+  border-color: #b9ffd2;
+  box-shadow: 0 0 12px rgba(120, 255, 170, 0.28);
+  transform: none;
+}
+.screen.lab .pharma-card.active .pc-cost { color: #b9ffd2; }
+
+/* Cadres techniques : panneaux d'options et blueprint à angles vifs */
+.screen.lab #pad-panel, .screen.lab #options-panel {
+  border-radius: 0; border-color: rgba(126, 240, 160, 0.3);
+}
+.screen.lab #dropzone {
+  border-radius: 0;
+  border: 1px dashed rgba(126, 240, 160, 0.45);
+  background: rgba(6, 24, 16, 0.5);
 }
 
 /* Les morceaux sont des COLONIES : leur agitation dit leur difficulté */
@@ -475,14 +485,8 @@ button.track-btn {
 .tk-diff[data-diff="normal"] { color: #ffe28a; }
 .tk-diff[data-diff="hard"] { color: #ff8fa6; }
 .tk-done { color: #8effc0; text-align: right; font-size: 13px; white-space: nowrap; }
-button.track-btn { grid-template-columns: 62px 1fr 72px; padding: 10px 20px; }
-/* La colonie garde ses couleurs même quand le bouton est sélectionné */
-.screen.lab button.sel .tk-diff[data-diff="easy"],
-.screen.lab button:hover .tk-diff[data-diff="easy"] { color: #1c5c3a; }
-.screen.lab button.sel .tk-diff[data-diff="normal"],
-.screen.lab button:hover .tk-diff[data-diff="normal"] { color: #6b5410; }
-.screen.lab button.sel .tk-diff[data-diff="hard"],
-.screen.lab button:hover .tk-diff[data-diff="hard"] { color: #7a2438; }
+button.track-btn { grid-template-columns: 62px 1fr 72px; padding: 9px 18px; }
+/* L'aplat reste sombre à la sélection : les colonies gardent leurs teintes */
 .record {
   color: #ffe28a; font-size: 15px; letter-spacing: 0.1em;
   text-shadow: 0 0 12px rgba(255, 200, 60, 0.6);

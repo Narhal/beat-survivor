@@ -27,10 +27,15 @@ const manifest = [];
 
 for (const file of files.sort()) {
   const out = file.replace(/\.[^.]+$/, ".webm");
+  // Boucle ALLER-RETOUR (N4 : le retour au début se voyait) : la vidéo est
+  // suivie de sa version inversée, donc la fin rejoint exactement le début.
+  // La 1re image du retour est retirée, sinon l'image de bascule est doublée.
   await run("ffmpeg", [
     "-v", "error", "-i", path.join(SRC, file),
+    "-filter_complex",
+    `[0:v]scale=${SIZE}:${SIZE},split[a][b];[b]reverse,trim=start_frame=1,setpts=PTS-STARTPTS[r];[a][r]concat=n=2:v=1[out]`,
+    "-map", "[out]",
     "-c:v", "libvpx-vp9", "-crf", "40", "-b:v", "0",
-    "-vf", `scale=${SIZE}:${SIZE}`,
     "-an", "-deadline", "good", "-cpu-used", "4",
     "-y", path.join(DST, out),
   ]);
