@@ -153,6 +153,39 @@ h1 {
   background: rgba(6, 24, 16, 0.5);
 }
 
+/* Les cartes d'évolution suivent la même grammaire (N4 : tous les menus).
+   Seuls la pastille de catégorie et le symbole gardent leur teinte — c'est
+   l'information, pas la décoration. */
+.screen.lab .card {
+  border-radius: 0;
+  border: 1px solid rgba(126, 240, 160, 0.3);
+  background: #061c13;
+}
+.screen.lab .card h3 { color: #b9ffd2; }
+.screen.lab .card p { color: #6fae8a; }
+.screen.lab .card.sel, .screen.lab .card:hover {
+  border-color: #b9ffd2;
+  background: #0c3323;
+  box-shadow: 0 0 14px rgba(120, 255, 170, 0.3);
+  transform: translateY(-4px);
+}
+.screen.lab .card .cat {
+  border-radius: 0;
+  background: transparent;
+  border: 1px solid currentColor;
+  padding: 1px 7px;
+}
+.screen.lab .pip { border-color: rgba(126, 240, 160, 0.45); border-radius: 0; }
+.screen.lab .pip.filled { background: #8effc0; border-color: #8effc0; }
+.screen.lab .pip.next { border-color: #eafff2; box-shadow: 0 0 6px rgba(200, 255, 220, 0.7); }
+.screen.lab .pipnum { color: #7fc79a; }
+.screen.lab #end-stats { color: #7fc79a; }
+.screen.lab .end-score { color: #d8ffe6; text-shadow: 0 0 20px rgba(120, 255, 170, 0.55); }
+.screen.lab .record { color: #b9ffd2; text-shadow: 0 0 12px rgba(120, 255, 170, 0.6); }
+.screen.lab #options-panel label { color: #a8e8c4; }
+.screen.lab #options-panel input[type="range"] { accent-color: #5fe0a0; }
+.screen.lab #options-panel input[type="checkbox"] { accent-color: #8effc0; }
+
 /* Les morceaux sont des COLONIES : leur agitation dit leur difficulté */
 .colony {
   position: relative; width: 54px; height: 26px;
