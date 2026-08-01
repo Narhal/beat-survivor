@@ -191,11 +191,15 @@ h1 {
   position: absolute; inset: 0; width: 100%; height: 100%;
   pointer-events: none;
 }
+/* Renvois : trait unique très fin, jamais adouci (rendu technique) */
 #filaments path {
-  stroke: rgba(126, 240, 160, 0.3);
-  stroke-width: 0.35; fill: none;
+  stroke: rgba(126, 240, 160, 0.28);
+  stroke-width: 0.18; fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: miter; stroke-linecap: butt;
+  shape-rendering: crispEdges;
 }
-#filaments path.sel { stroke: rgba(160, 255, 190, 0.85); stroke-width: 0.7; }
+#filaments path.sel { stroke: rgba(170, 255, 200, 0.9); stroke-width: 0.3; }
 
 #organism h1 {
   position: relative; z-index: 2;
@@ -211,19 +215,23 @@ h1 {
   position: absolute; inset: 0;
   display: block; min-width: 0;
 }
+/* Étiquettes techniques (N4) : bords droits, trait fin, aplat vert foncé —
+   aucun effet de volume, on est sur un relevé d'observation. */
 #title-menu button {
   position: absolute;
   /* Le battement passe par l'échelle : la position, elle, ne bouge pas */
   transform: translate(-50%, -50%) scale(var(--pulse, 1));
   white-space: nowrap;
-  padding: 10px 20px;
-  border-radius: 999px;
-  font-size: 15px;
-  color: #d8ffe6;
-  background: rgba(10, 34, 22, 0.82);
-  border: 1.5px solid rgba(126, 240, 160, 0.45);
-  box-shadow: 0 0 16px rgba(60, 200, 120, 0.18);
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  padding: 7px 16px;
+  border-radius: 0;
+  font-size: 13.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #a8e8c4;
+  background: #072016;
+  border: 1px solid rgba(126, 240, 160, 0.42);
+  box-shadow: none;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
 }
 #title-menu button:hover { filter: none; }
 /* Absorption : la vésicule s'ouvre et nous avale (entrée dans un menu) */
@@ -245,12 +253,13 @@ h1 {
   transition: opacity 0.3s;
   opacity: 0;
 }
+/* Sélection : le trait s'allume, l'aplat reste sombre (pas de volume) */
 #title-menu button.sel {
-  color: #061a10;
-  background: linear-gradient(180deg, #b9ffd2, #5fe0a0);
+  color: #eafff2;
+  background: #0c3323;
   border-color: #b9ffd2;
-  box-shadow: 0 0 calc(20px + var(--glow, 0) * 22px) rgba(120, 255, 170, 0.6);
-  transform: translate(-50%, -50%) scale(calc(var(--pulse, 1) * 1.06));
+  box-shadow: 0 0 calc(6px + var(--glow, 0) * 12px) rgba(120, 255, 170, 0.45);
+  transform: translate(-50%, -50%) scale(calc(var(--pulse, 1) * 1.04));
 }
 
 /* ---------- Intro Narhal's Gaming ---------- */

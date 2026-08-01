@@ -77,12 +77,15 @@ export class Organism {
       v.el.style.setProperty("--pulse", pulse.toFixed(3));
       v.el.style.setProperty("--glow", (beat * (isSel ? 1 : 0.6)).toFixed(3));
 
-      // Filament : une courbe molle du centre vers la vésicule
+      // Renvoi technique (N4) : deux segments DROITS, un seul coude, comme
+      // les lignes d'annotation des HUD scientifiques — la diagonale part du
+      // centre, le palier horizontal rejoint l'étiquette.
       const path = paths[i];
       if (path) {
-        const cx = 50 + Math.cos(v.angle + 0.35) * r * 46;
-        const cy = 50 + Math.sin(v.angle + 0.35) * r * 46;
-        path.setAttribute("d", `M50 50 Q${cx} ${cy} ${x} ${y}`);
+        const lead = 9; // longueur du palier horizontal
+        const side = x >= 50 ? -1 : 1; // le palier arrive par l'intérieur
+        const kx = x + lead * side;
+        path.setAttribute("d", `M50 50 L${kx.toFixed(2)} ${y.toFixed(2)} L${x.toFixed(2)} ${y.toFixed(2)}`);
         path.classList.toggle("sel", isSel);
       }
     }
