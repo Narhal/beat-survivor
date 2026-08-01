@@ -9,12 +9,12 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
-// Arène ×2 (N4 2026-07-30) : mêmes proportions à l'écran (VIEW_HH inchangé),
-// la caméra voyage — l'arène devient un territoire, plus un écran.
-export const ARENA = { hw: 220, hh: 140 }; // demi-largeur / demi-hauteur
+// Arène doublée le 2026-07-30, puis réduite de 30 % le 2026-08-02 (N4) :
+// assez vaste pour voyager, assez resserrée pour que l'action se croise.
+export const ARENA = { hw: 154, hh: 98 }; // demi-largeur / demi-hauteur
 
 // Zoom out demandé par N4 (2026-07-26, puis +20 %) : anticiper les attaques prime
-const VIEW_HH = 72; // demi-hauteur de la vue en unités monde
+export const VIEW_HH = 72; // demi-hauteur de la vue en unités monde
 
 // Abysses écartée par N4 (2026-07-28) : pas assez de variance ni de texture
 export const BG_STYLES = ["Plasma", "Tissu"] as const;

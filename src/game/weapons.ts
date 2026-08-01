@@ -9,25 +9,26 @@ import { Enemies, Enemy } from "./enemies";
 import { Ship } from "./ship";
 
 export type UpgradeCategory = "Arme" | "Atout" | "Passif";
+// L'Apoptose a quitté les cartes de run : ses charges s'achètent désormais
+// en Pharmacie (décision N4 2026-08-02).
 export type UpgradeKind =
-  | "blaster" | "eventail" | "orbes" | "onde" | "tentacule" | "apoptose" | "mine" | "arc" // armes
+  | "blaster" | "eventail" | "orbes" | "onde" | "tentacule" | "mine" | "arc" // armes
   | "flagelles" | "membrane" // atouts
   | "mitose" | "enzymes" | "phagocytose"; // passifs
 
 export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat: UpgradeCategory }> = {
   blaster: { name: "Anticorps", desc: "Tire sur le pathogène le plus proche.", cat: "Arme" },
-  eventail: { name: "Éventail", desc: "Gerbe de projectiles vers l'arrière — couvre ta fuite.", cat: "Arme" },
+  eventail: { name: "Éventail", desc: "Gerbe de projectiles vers l'arrière.", cat: "Arme" },
   mine: { name: "Mine", desc: "Pond régulièrement une mine qui explose à l'approche des pathogènes.", cat: "Arme" },
-  arc: { name: "Arc voltaïque", desc: "Un cône électrique foudroie tout devant toi. Bref, puis plus large.", cat: "Arme" },
+  arc: { name: "Arc voltaïque", desc: "Un cône électrique foudroie tout devant toi.", cat: "Arme" },
   orbes: { name: "Orbes", desc: "Satellites en orbite, dégâts de contact.", cat: "Arme" },
   onde: { name: "Onde de choc", desc: "Anneau périodique qui balaie autour de toi.", cat: "Arme" },
   tentacule: { name: "Filament", desc: "Un filament urticant traîne derrière toi. Jusqu'à 3.", cat: "Arme" },
-  apoptose: { name: "Apoptose", desc: "L2 : purge tout l'écran une fois chargée — se charge plus vite par palier.", cat: "Arme" },
-  flagelles: { name: "Flagelles", desc: "Vitesse de nage augmentée à chaque palier.", cat: "Atout" },
+  flagelles: { name: "Flagelles", desc: "Vitesse de nage augmentée.", cat: "Atout" },
   membrane: { name: "Membrane", desc: "Absorbe un coup, puis se recharge — de plus en plus vite par palier.", cat: "Atout" },
-  mitose: { name: "Mitose", desc: "Régulièrement, un pathogène détruit laisse un cœur — plus souvent par palier.", cat: "Passif" },
+  mitose: { name: "Mitose", desc: "Régulièrement, un pathogène détruit laisse un cœur.", cat: "Passif" },
   enzymes: { name: "Enzymes", desc: "+15 % de dégâts pour toutes les armes par palier.", cat: "Passif" },
-  phagocytose: { name: "Phagocytose", desc: "Attire les protéines des pathogènes de plus en plus loin.", cat: "Passif" },
+  phagocytose: { name: "Phagocytose", desc: "Augmente la distance d'aspiration des protéines.", cat: "Passif" },
 };
 
 const MAX_LEVEL = 5;
@@ -68,8 +69,6 @@ export class Weapons {
   levels = new Map<UpgradeKind, number>();
   /** Bouclier : chargé = le prochain coup est absorbé. */
   shieldCharged = false;
-  /** Charge de l'Apoptose, 0..1. */
-  nukeCharge = 0;
   // Bonus permanents de la Pharmacie (réassignés par main à chaque run)
   metaDamageMul = 1;
   metaMagnet = 0;
@@ -91,7 +90,7 @@ export class Weapons {
   private filaments: THREE.Vector2[][] = [];
   private mines: { pos: THREE.Vector2; mesh: THREE.Mesh; age: number }[] = [];
   private explosions: { mesh: THREE.Mesh; life: number; max: number }[] = [];
-  private arcMesh: THREE.Mesh | null = null;
+  private boltLines: THREE.Mesh[] = [];
   private arcTimer = 0;
   private arcParams = { len: 0, half: 0 };
   private shieldMesh: THREE.Mesh;
@@ -129,16 +128,11 @@ export class Weapons {
     this.waves = [];
     this.shieldCharged = false;
     this.shieldTimer = 0;
-    this.nukeCharge = 0;
     for (const mn of this.mines) this.scene.remove(mn.mesh);
     this.mines = [];
     for (const ex of this.explosions) this.scene.remove(ex.mesh);
     this.explosions = [];
-    if (this.arcMesh) {
-      this.scene.remove(this.arcMesh);
-      this.arcMesh.geometry.dispose();
-      this.arcMesh = null;
-    }
+    this.clearBolts();
     this.arcTimer = 0;
     this.syncOrbs();
     this.syncTentacle();
@@ -180,14 +174,10 @@ export class Weapons {
     return this.saccadeLevel >= 5 ? 2 * this.damageMul : 0;
   }
 
-  /** Déclenche l'Apoptose : réserve de la Pharmacie d'abord, puis la charge. */
+  /** Déclenche l'Apoptose : uniquement sur les charges de la Pharmacie. */
   fireNuke(): boolean {
     if (this.bonusNukes > 0) {
       this.bonusNukes--;
-      return true;
-    }
-    if ((this.levels.get("apoptose") ?? 0) > 0 && this.nukeCharge >= 1) {
-      this.nukeCharge = 0;
       return true;
     }
     return false;
@@ -251,12 +241,6 @@ export class Weapons {
       if (this.shieldTimer <= 0) this.shieldCharged = true;
     }
 
-    // Charge de l'Apoptose : 45 s au palier 1, de plus en plus vite ensuite
-    const nukeLvl = this.levels.get("apoptose") ?? 0;
-    if (nukeLvl > 0 && this.nukeCharge < 1) {
-      const chargeTime = 45 * Math.pow(0.8, nukeLvl - 1);
-      this.nukeCharge = Math.min(1, this.nukeCharge + dt / chargeTime);
-    }
     this.shieldMesh.visible = this.shieldCharged;
     if (this.shieldMesh.visible) {
       this.shieldMesh.position.set(ship.pos.x, ship.pos.y, 1.9);
@@ -326,35 +310,11 @@ export class Weapons {
           break;
         }
         case "arc": {
-          // Active le cône électrique devant la cellule — bref mais létal
+          // Active la décharge devant la cellule — brève mais létale
           const len = 14 + lvl * 3;
           const half = 0.35 + lvl * 0.06;
           this.arcParams = { len, half };
           this.arcTimer = 0.7 + lvl * 0.25;
-          if (this.arcMesh) {
-            this.scene.remove(this.arcMesh);
-            this.arcMesh.geometry.dispose();
-          }
-          const shape = new THREE.Shape();
-          shape.moveTo(0, 0);
-          const STEPS = 14;
-          for (let i = 0; i <= STEPS; i++) {
-            const a = -half + (2 * half * i) / STEPS;
-            shape.lineTo(Math.cos(a), Math.sin(a));
-          }
-          shape.closePath();
-          this.arcMesh = new THREE.Mesh(
-            new THREE.ShapeGeometry(shape),
-            new THREE.MeshBasicMaterial({
-              color: 0xbef3ff,
-              transparent: true,
-              opacity: 0.35,
-              blending: THREE.AdditiveBlending,
-              depthWrite: false,
-            })
-          );
-          this.arcMesh.scale.setScalar(len);
-          this.scene.add(this.arcMesh);
           this.cooldowns.set(kind, 6.5);
           break;
         }
@@ -415,14 +375,12 @@ export class Weapons {
       }
     }
 
-    // Arc voltaïque actif : suit la cellule, grésille, foudroie ce qui entre
-    if (this.arcTimer > 0 && this.arcMesh) {
+    // Arc voltaïque actif : de vraies décharges redessinées à chaque frame
+    if (this.arcTimer > 0) {
       this.arcTimer -= dt;
       const heading = Math.atan2(ship.lastDir.y, ship.lastDir.x);
-      this.arcMesh.position.set(ship.pos.x, ship.pos.y, 1.45);
-      this.arcMesh.rotation.z = heading;
-      (this.arcMesh.material as THREE.MeshBasicMaterial).opacity = 0.2 + Math.random() * 0.28;
       const { len, half } = this.arcParams;
+      this.drawBolts(ship.pos, heading, len, half);
       for (let j = enemies.list.length - 1; j >= 0; j--) {
         const e = enemies.list[j];
         const to = new THREE.Vector2().subVectors(e.pos, ship.pos);
@@ -438,11 +396,7 @@ export class Weapons {
           }
         }
       }
-      if (this.arcTimer <= 0) {
-        this.scene.remove(this.arcMesh);
-        this.arcMesh.geometry.dispose();
-        this.arcMesh = null;
-      }
+      if (this.arcTimer <= 0) this.clearBolts();
     }
 
     // Projectiles
@@ -505,7 +459,8 @@ export class Weapons {
     const orbLvl = this.levels.get("orbes") ?? 0;
     if (orbLvl > 0) {
       this.orbAngle += dt * 2.6;
-      const r = 8.5;
+      // Les paliers écartent les orbes du joueur en plus d'en ajouter (N4)
+      const r = 8.5 + (orbLvl - 1) * 3.2;
       for (let k = 0; k < this.orbMeshes.length; k++) {
         const a = this.orbAngle + (k * Math.PI * 2) / this.orbMeshes.length;
         const ox = ship.pos.x + Math.cos(a) * r;
@@ -517,7 +472,9 @@ export class Weapons {
           if (e.orbHitCd > 0) continue;
           if (opos.distanceTo(e.pos) < e.radius + 1.15) {
             e.orbHitCd = 0.5;
-            e.hp -= (1 + Math.floor(orbLvl / 2)) * mul;
+            // Un contact = une destruction pour le tout-venant (N4) ; seuls
+            // les colosses encaissent plus d'un passage
+            e.hp -= (9 + orbLvl * 2) * mul;
             if (e.hp <= 0) {
               onKill({ enemy: e });
               enemies.remove(j);
@@ -634,6 +591,74 @@ export class Weapons {
     }
   }
 
+  /**
+   * Décharges électriques : des éclairs brisés redessinés à chaque frame,
+   * du corps de la cellule vers des points du cône (refonte N4 : le cône
+   * plat faisait placeholder). Chaque éclair zigzague, perd de l'intensité
+   * vers la pointe, et quelques-uns bifurquent — c'est le désordre qui fait
+   * lire « électricité », pas la forme.
+   */
+  private drawBolts(origin: THREE.Vector2, heading: number, len: number, half: number) {
+    const BOLTS = 7;
+    const SEGS = 9;
+    while (this.boltLines.length < BOLTS) {
+      const mesh = new THREE.Mesh(
+        new THREE.BufferGeometry(),
+        new THREE.MeshBasicMaterial({
+          color: 0xdffcff,
+          transparent: true,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      mesh.position.z = 1.6;
+      this.scene.add(mesh);
+      this.boltLines.push(mesh);
+    }
+    for (let b = 0; b < BOLTS; b++) {
+      const mesh = this.boltLines[b];
+      mesh.visible = true;
+      // Chaque éclair vise un angle du cône, avec sa propre longueur
+      const a = heading + (Math.random() * 2 - 1) * half;
+      const reach = len * (0.55 + Math.random() * 0.45);
+      const nx = Math.cos(a + Math.PI / 2);
+      const ny = Math.sin(a + Math.PI / 2);
+      // Les départs sont dispersés sur un court arc devant la cellule :
+      // sinon les sept éclairs empilent leur lumière en un point unique
+      const spread = (b / (BOLTS - 1) - 0.5) * 3.4;
+      const ox = origin.x + Math.cos(heading) * 1.6 + nx * spread;
+      const oy = origin.y + Math.sin(heading) * 1.6 + ny * spread;
+      // Ruban : deux sommets par point, écartés perpendiculairement — une
+      // ligne WebGL fait 1 px et disparaît sous le bloom, un ruban non.
+      const verts: number[] = [];
+      const idx: number[] = [];
+      for (let i = 0; i <= SEGS; i++) {
+        const t = i / SEGS;
+        const jitter = Math.sin(t * Math.PI) * (Math.random() * 2 - 1) * 2.8;
+        const d = reach * t;
+        const cx = ox + Math.cos(a) * d + nx * jitter;
+        const cy = oy + Math.sin(a) * d + ny * jitter;
+        const w = 0.42 * (1 - t * 0.7); // s'affine vers la pointe
+        verts.push(cx + nx * w, cy + ny * w, 0, cx - nx * w, cy - ny * w, 0);
+        if (i < SEGS) {
+          const o = i * 2;
+          idx.push(o, o + 1, o + 2, o + 1, o + 3, o + 2);
+        }
+      }
+      mesh.geometry.dispose();
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+      g.setIndex(idx);
+      mesh.geometry = g;
+      (mesh.material as THREE.MeshBasicMaterial).opacity = 0.35 + Math.random() * 0.4;
+    }
+  }
+
+  private clearBolts() {
+    for (const l of this.boltLines) l.visible = false;
+  }
+
   private syncTentacle() {
     for (const m of this.tentacleMeshes) this.scene.remove(m);
     this.tentacleMeshes = [];
@@ -644,12 +669,7 @@ export class Weapons {
     const out: string[] = [];
     if (this.bonusNukes > 0) out.push(`Réserve d'Apoptose ×${this.bonusNukes} (L2)`);
     for (const [kind, lvl] of this.levels) {
-      if (kind === "apoptose") {
-        const state = this.nukeCharge >= 1 ? "PRÊTE — L2 !" : `${Math.floor(this.nukeCharge * 100)} %`;
-        out.push(`Apoptose · niv ${lvl} · ${state}`);
-      } else {
-        out.push(`${UPGRADE_INFO[kind].name} · niv ${lvl}`);
-      }
+      out.push(`${UPGRADE_INFO[kind].name} · niv ${lvl}`);
     }
     return out;
   }

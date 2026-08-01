@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { analyseBuffer, envAt, estimateDifficulty, TrackAnalysis } from "./audio/analysis";
 import { renderDemoTrack } from "./audio/demo";
-import { World, BG_STYLES, ARENA } from "./game/world";
+import { World, BG_STYLES, ARENA, VIEW_HH } from "./game/world";
 import { Ship } from "./game/ship";
 import { Enemies, ENEMY_DEFS, Enemy, EnemyKind } from "./game/enemies";
 import { Weapons, UPGRADE_INFO, UpgradeKind, maxLevelOf } from "./game/weapons";
@@ -1041,19 +1041,36 @@ function checkGauge() {
   }
 }
 
-/** L'Apoptose : purge de l'écran, pluie de protéines. */
+/**
+ * L'Apoptose : purge un DISQUE centré sur la cellule, couvrant 80 % de la
+ * hauteur visible (N4) — plus une purge d'arène, un souffle local. Ce qui
+ * est hors du cercle survit et revient.
+ */
+const APOPTOSE_RADIUS = VIEW_HH * 0.8;
+
 function fireApoptose() {
   world.kick(2);
   rumble(1, 1, 500);
   flashEl.classList.add("on", "nuke");
   setTimeout(() => flashEl.classList.remove("on", "nuke"), 220);
+  // L'onde visible dit exactement ce qui a été purgé
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.92, 1, 64),
+    new THREE.MeshBasicMaterial({ color: 0xd7ffff, transparent: true, opacity: 0.9 })
+  );
+  ring.position.set(ship.pos.x, ship.pos.y, 3);
+  world.scene.add(ring);
+  apoptoseRings.push({ mesh: ring, life: 0.5, max: APOPTOSE_RADIUS });
   for (let j = enemies.list.length - 1; j >= 0; j--) {
     const e = enemies.list[j];
+    if (e.pos.distanceTo(ship.pos) > APOPTOSE_RADIUS) continue;
     e.hp = 0;
     onKill(e);
     enemies.remove(j);
   }
 }
+
+const apoptoseRings: { mesh: THREE.Mesh; life: number; max: number }[] = [];
 
 // ---------- Boucle ----------
 let lastFrame = performance.now();
@@ -1274,6 +1291,21 @@ function tick(now: number) {
     if (weaponsHudTimer <= 0) {
       refreshWeaponsHud();
       weaponsHudTimer = 0.3;
+    }
+  }
+
+  // L'onde d'Apoptose s'étend jusqu'à sa portée réelle puis s'éteint
+  for (let i = apoptoseRings.length - 1; i >= 0; i--) {
+    const r = apoptoseRings[i];
+    r.life -= dt;
+    const k = 1 - r.life / 0.5;
+    r.mesh.scale.setScalar(Math.max(0.01, r.max * k));
+    (r.mesh.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - k);
+    if (r.life <= 0) {
+      world.scene.remove(r.mesh);
+      (r.mesh.material as THREE.Material).dispose();
+      r.mesh.geometry.dispose();
+      apoptoseRings.splice(i, 1);
     }
   }
 

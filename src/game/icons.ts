@@ -23,9 +23,6 @@ export const UPGRADE_ICONS: Record<UpgradeKind, string> = {
   tentacule: S(`<circle cx="36" cy="16" r="4"/>
     <path d="M32 19c-6 2-4 8-9 10s-8-2-13 4"/>
     <circle cx="9" cy="35" r="2.2" fill="currentColor" stroke="none"/>`),
-  apoptose: S(`<circle cx="24" cy="24" r="6"/><path d="M24 12V5"/><path d="M24 43v-7"/>
-    <path d="M12 24H5"/><path d="M43 24h-7"/><path d="m15.5 15.5-5-5"/><path d="m37.5 37.5-5-5"/>
-    <path d="m32.5 15.5 5-5"/><path d="m10.5 37.5 5-5"/>`),
   mine: S(`<circle cx="24" cy="26" r="8"/><path d="M24 18v-5"/><path d="M32 26h5"/>
     <path d="M16 26h-5"/><path d="M24 34v5"/><path d="M20 9c2-3 6-3 8 0" opacity="0.6"/>`),
   arc: S(`<circle cx="10" cy="24" r="4"/><path d="M16 24h6"/>
