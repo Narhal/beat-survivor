@@ -669,6 +669,7 @@ function startRun(buf: AudioBuffer) {
   show(controlesEl, false);
   show(endEl, false);
   show(hudEl, true);
+  diveTransition(); // le milieu s'efface : on plonge dans le corps
   refreshWeaponsHud();
 }
 
@@ -1631,6 +1632,24 @@ function homeMenu() {
   const els = [$("btn-survie"), $("btn-custom"), $("btn-pharmacie"), $("btn-controles"), $("btn-options")];
   setMenu(els, "y");
   organism.setEntries(els);
+}
+
+/**
+ * Plongée : l'animation du milieu se rue vers nous puis s'efface, révélant
+ * l'arène. Elle NE DOIT PAS rester pendant la run (verdict N4 : elle
+ * pollue) — c'est une transition, pas un décor.
+ */
+function diveTransition() {
+  const bg = $("menu-bg") as HTMLVideoElement;
+  if (!bg.src) return;
+  bg.classList.remove("hidden");
+  bg.classList.add("dive");
+  bg.play().catch(() => {});
+  setTimeout(() => {
+    bg.classList.add("hidden");
+    bg.classList.remove("dive");
+    bg.pause();
+  }, 750);
 }
 
 /**
