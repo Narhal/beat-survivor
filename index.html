@@ -10,6 +10,9 @@
   <div id="app">
     <canvas id="scene"></canvas>
 
+    <!-- Le milieu des sous-menus : le champ large de N4 (animation 2) -->
+    <video id="menu-bg" class="hidden" muted loop playsinline preload="auto"></video>
+
     <div id="intro">
       <div id="intro-logo">NARHAL'S GAMING</div>
       <p id="intro-prompt">— appuyez sur une touche —</p>
@@ -45,21 +48,21 @@
       <p id="analyse-status" class="dim"></p>
     </div>
 
-    <div id="survie" class="screen hidden">
+    <div id="survie" class="screen lab hidden">
       <h2>SURVIE</h2>
       <p class="tagline">Choisis ton morceau</p>
       <div id="track-list" class="menu-btns vertical"></div>
       <button id="btn-survie-back" class="secondary">Retour</button>
     </div>
 
-    <div id="perso" class="screen hidden">
+    <div id="perso" class="screen lab hidden">
       <h2>PERSONNAGE</h2>
       <p class="tagline">Qui plonge ?</p>
       <div id="perso-list"></div>
       <button id="btn-perso-back" class="secondary">Retour</button>
     </div>
 
-    <div id="custom" class="screen hidden">
+    <div id="custom" class="screen lab hidden">
       <h2>CUSTOM</h2>
       <div id="dropzone">
         <p>Glisse ton morceau ici<br /><span class="dim">(mp3, wav, ogg, flac…)</span></p>
@@ -69,14 +72,14 @@
       <button id="btn-custom-back" class="secondary">Retour</button>
     </div>
 
-    <div id="pharmacie" class="screen hidden">
+    <div id="pharmacie" class="screen lab hidden">
       <h2>PHARMACIE</h2>
       <p id="pharma-xp" class="tagline"></p>
       <div id="pharma-list"></div>
       <button id="btn-pharma-back" class="secondary">Retour</button>
     </div>
 
-    <div id="controles" class="screen hidden">
+    <div id="controles" class="screen lab hidden">
       <h2>CONTRÔLES</h2>
       <div id="pad-panel">
         <svg id="pad-svg" viewBox="0 0 640 420" xmlns="http://www.w3.org/2000/svg">

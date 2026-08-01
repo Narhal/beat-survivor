@@ -1514,10 +1514,31 @@ function renderTrackList() {
   setMenu(navEls, "y");
 }
 
-/** Ligne de bouton d'un morceau : difficulté, titre, record ou ✓. */
+/**
+ * Ligne de bouton d'un morceau. La difficulté n'est plus un badge : c'est
+ * une COLONIE dont l'agitation la raconte (direction B, N4) — clairsemée et
+ * paisible en easy, grouillante en hard. Le libellé reste, en repli lisible.
+ */
 function trackButtonHTML(title: string, diff: string, right: string) {
+  const spec = { easy: [5, 7], normal: [9, 4.5], hard: [15, 2.4] } as const;
+  const [count, speed] = spec[diff as keyof typeof spec] ?? spec.normal;
+  let cells = "";
+  for (let i = 0; i < count; i++) {
+    const size = 2.2 + ((i * 37) % 5) * 0.5;
+    const x = 3 + ((i * 53) % 46);
+    const y = 3 + ((i * 29) % 19);
+    const dx = (((i * 17) % 9) - 4).toFixed(1);
+    const dy = (((i * 23) % 7) - 3).toFixed(1);
+    cells +=
+      `<i style="left:${x}px;top:${y}px;width:${size}px;height:${size}px;` +
+      `--sp:${(speed + ((i * 13) % 10) * 0.25).toFixed(2)}s;--dx:${dx}px;--dy:${dy}px;` +
+      `animation-delay:-${((i * 31) % 40) / 10}s"></i>`;
+  }
   return (
-    `<span class="tk-diff" data-diff="${diff}">${DIFF_LABEL[diff as keyof typeof DIFF_LABEL]}</span>` +
+    `<span class="tk-diff" data-diff="${diff}">` +
+    `<span class="colony">${cells}</span>` +
+    `<span class="tk-lab">${DIFF_LABEL[diff as keyof typeof DIFF_LABEL]}</span>` +
+    `</span>` +
     `<span class="tk-title">${title}</span>` +
     `<span class="tk-done">${right}</span>`
   );
@@ -1636,16 +1657,28 @@ function absorbThen(el: HTMLElement, action: () => void) {
 fetch(`${ASSET_BASE}video/manifest.json`)
   .then((r) => (r.ok ? r.json() : null))
   .then((m) => {
-    const clip = m?.clips?.[0];
-    if (!clip) return;
+    const clips: string[] = m?.clips ?? [];
+    if (clips.length === 0) return;
     const v = $("specimen") as HTMLVideoElement;
-    v.src = `${ASSET_BASE}video/${clip}`;
+    v.src = `${ASSET_BASE}video/${clips[0]}`;
     v.play().catch(() => {}); // l'autoplay muet est autorisé ; sinon au 1er geste
+    // Le champ large (2e clip s'il existe) sert de milieu aux sous-menus
+    const bg = $("menu-bg") as HTMLVideoElement;
+    bg.src = `${ASSET_BASE}video/${clips[1] ?? clips[0]}`;
   })
   .catch(() => {});
 
+/** Les écrans d'observation (hors-jeu) portent la palette verte du labo. */
+const LAB_SCREENS = ["survie", "perso", "custom", "pharmacie", "controles"] as const;
+
 function showTitleScreen(which: TitleScreen) {
   titleScreen = which;
+  // Le milieu vivant des sous-menus : le champ large, derrière tout
+  const bg = $("menu-bg") as HTMLVideoElement;
+  const inSub = which !== "home";
+  bg.classList.toggle("hidden", !inSub);
+  if (inSub) bg.play().catch(() => {});
+  else bg.pause();
   show(titleEl, which === "home");
   show($("survie"), which === "survie");
   show($("perso"), which === "perso");
