@@ -91,7 +91,8 @@ h1 {
 }
 #title-menu button {
   position: absolute;
-  transform: translate(-50%, -50%);
+  /* Le battement passe par l'échelle : la position, elle, ne bouge pas */
+  transform: translate(-50%, -50%) scale(var(--pulse, 1));
   white-space: nowrap;
   padding: 10px 20px;
   border-radius: 999px;
@@ -103,12 +104,31 @@ h1 {
   transition: color 0.2s, border-color 0.2s, background 0.2s;
 }
 #title-menu button:hover { filter: none; }
+/* Absorption : la vésicule s'ouvre et nous avale (entrée dans un menu) */
+#title-menu button.absorb {
+  transition: transform 0.5s cubic-bezier(0.5, 0, 0.75, 0), opacity 0.5s ease-in;
+  transform: translate(-50%, -50%) scale(26);
+  opacity: 0;
+  z-index: 5;
+}
+#organism.absorbing #specimen,
+#organism.absorbing #specimen-ring,
+#organism.absorbing #filaments,
+#organism.absorbing h1 {
+  transition: opacity 0.4s, transform 0.5s;
+  opacity: 0;
+  transform: scale(1.08);
+}
+#organism.absorbing #title-menu button:not(.absorb) {
+  transition: opacity 0.3s;
+  opacity: 0;
+}
 #title-menu button.sel {
   color: #061a10;
   background: linear-gradient(180deg, #b9ffd2, #5fe0a0);
   border-color: #b9ffd2;
-  box-shadow: 0 0 26px rgba(120, 255, 170, 0.55);
-  transform: translate(-50%, -50%) scale(1.06);
+  box-shadow: 0 0 calc(20px + var(--glow, 0) * 22px) rgba(120, 255, 170, 0.6);
+  transform: translate(-50%, -50%) scale(calc(var(--pulse, 1) * 1.06));
 }
 
 /* ---------- Intro Narhal's Gaming ---------- */

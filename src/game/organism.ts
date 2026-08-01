@@ -65,13 +65,17 @@ export class Organism {
       while (diff < -Math.PI) diff += Math.PI * 2;
       v.angle += diff * Math.min(1, dt * 6);
 
-      // Respiration : chaque vésicule bat sur la basse, avec sa phase propre
-      const breathe = 1 + Math.sin(this.t * 1.4 + v.phase) * 0.02 + beat * (isSel ? 0.09 : 0.05);
-      const r = (v.radius + (isSel ? 0.035 : 0) + beat * 0.012) * breathe;
+      // La POSITION reste stable — le battement ne doit jamais faire trembler
+      // un menu (verdict N4) : il vit dans l'échelle et la lueur, pas dans
+      // les coordonnées.
+      const r = v.radius + (isSel ? 0.035 : 0);
       const x = 50 + Math.cos(v.angle) * r * 100;
       const y = 50 + Math.sin(v.angle) * r * 100;
       v.el.style.left = `${x}%`;
       v.el.style.top = `${y}%`;
+      const pulse = 1 + Math.sin(this.t * 1.4 + v.phase) * 0.012 + beat * (isSel ? 0.07 : 0.035);
+      v.el.style.setProperty("--pulse", pulse.toFixed(3));
+      v.el.style.setProperty("--glow", (beat * (isSel ? 1 : 0.6)).toFixed(3));
 
       // Filament : une courbe molle du centre vers la vésicule
       const path = paths[i];

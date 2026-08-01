@@ -1089,10 +1089,10 @@ function tick(now: number) {
     if (confirmEdge || startEdge || cancelEdge) advanceIntro();
   } else {
     // L'organisme respire tant qu'on est sur l'écran titre
-    if (phase === "title" && titleScreen === "home") {
+    if (phase === "title" && titleScreen === "home" && !absorbing) {
       organism.update(dt, menuBeatNow(), menuIdx);
     }
-    if (phase === "title" && !loading) {
+    if (phase === "title" && !loading && !absorbing) {
       if (optionsOpen) {
         if (cancelEdge) $("btn-options-close").click();
       } else if (cancelEdge && titleScreen !== "home") {
@@ -1612,6 +1612,26 @@ function homeMenu() {
   organism.setEntries(els);
 }
 
+/**
+ * Absorption : la vésicule choisie s'ouvre et nous avale, puis l'action
+ * s'exécute (direction B, N4). Le retour au titre remet tout en place.
+ */
+let absorbing = false;
+
+function absorbThen(el: HTMLElement, action: () => void) {
+  if (absorbing) return;
+  absorbing = true;
+  const org = $("organism");
+  org.classList.add("absorbing");
+  el.classList.add("absorb");
+  setTimeout(() => {
+    org.classList.remove("absorbing");
+    el.classList.remove("absorb");
+    absorbing = false;
+    action();
+  }, 480);
+}
+
 /** Charge la première animation Midjourney dans le médaillon du titre. */
 fetch(`${ASSET_BASE}video/manifest.json`)
   .then((r) => (r.ok ? r.json() : null))
@@ -1689,21 +1709,29 @@ function renderPharmacie() {
   setMenu(navEls, "y", 4);
 }
 
-$("btn-survie").addEventListener("click", () => {
+$("btn-survie").addEventListener("click", (e) => {
   audioCtx.resume();
-  // Des morceaux officiels ? → écran de sélection. Sinon : démo directe.
-  if (musicTracks.length > 0) showTitleScreen("survie");
-  else loadDemo();
+  absorbThen(e.currentTarget as HTMLElement, () => {
+    // Des morceaux officiels ? → écran de sélection. Sinon : démo directe.
+    if (musicTracks.length > 0) showTitleScreen("survie");
+    else loadDemo();
+  });
 });
 $("btn-survie-back").addEventListener("click", () => showTitleScreen("home"));
-$("btn-custom").addEventListener("click", () => {
-  // Le perso d'abord, la dropzone ensuite (décision N4 2026-07-30)
-  pendingAction = { type: "custom" };
-  showTitleScreen("perso");
+$("btn-custom").addEventListener("click", (e) => {
+  absorbThen(e.currentTarget as HTMLElement, () => {
+    // Le perso d'abord, la dropzone ensuite (décision N4 2026-07-30)
+    pendingAction = { type: "custom" };
+    showTitleScreen("perso");
+  });
 });
 $("btn-perso-back").addEventListener("click", backFromTitleScreen);
-$("btn-pharmacie").addEventListener("click", () => showTitleScreen("pharmacie"));
-$("btn-controles").addEventListener("click", () => showTitleScreen("controles"));
+$("btn-pharmacie").addEventListener("click", (e) =>
+  absorbThen(e.currentTarget as HTMLElement, () => showTitleScreen("pharmacie"))
+);
+$("btn-controles").addEventListener("click", (e) =>
+  absorbThen(e.currentTarget as HTMLElement, () => showTitleScreen("controles"))
+);
 $("btn-custom-back").addEventListener("click", () => showTitleScreen("home"));
 $("btn-pharma-back").addEventListener("click", () => showTitleScreen("home"));
 $("btn-controles-back").addEventListener("click", () => showTitleScreen("home"));
@@ -1741,11 +1769,13 @@ optSfx.addEventListener("input", () => {
   sfxBus.gain.value = sfxVolume;
 });
 
-$("btn-options").addEventListener("click", () => {
-  optionsOpen = true;
-  optLayers.checked = world.layersEnabled;
-  optRotate.checked = autoRotate;
-  show(optionsEl, true);
+$("btn-options").addEventListener("click", (e) => {
+  absorbThen(e.currentTarget as HTMLElement, () => {
+    optionsOpen = true;
+    optLayers.checked = world.layersEnabled;
+    optRotate.checked = autoRotate;
+    show(optionsEl, true);
+  });
 });
 $("btn-options-close").addEventListener("click", () => {
   optionsOpen = false;
