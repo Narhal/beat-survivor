@@ -28,15 +28,21 @@
     <div id="toast" class="hidden"></div>
 
     <div id="title" class="screen">
-      <h1>BEAT SURVIVOR</h1>
-      <p class="tagline">Ta musique génère l'assaut. Survis-lui.</p>
-      <div class="menu-btns vertical">
-        <button id="btn-survie">Survie</button>
-        <button id="btn-custom" class="secondary">Custom</button>
-        <button id="btn-pharmacie" class="secondary">Pharmacie</button>
-        <button id="btn-controles" class="secondary">Contrôles</button>
-        <button id="btn-options" class="secondary">Options</button>
+      <!-- Le spécimen observé : médaillon vidéo + vésicules en orbite -->
+      <div id="organism">
+        <video id="specimen" muted loop playsinline preload="auto"></video>
+        <div id="specimen-ring"></div>
+        <svg id="filaments" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+        <h1>BEAT SURVIVOR</h1>
+        <div class="menu-btns vertical" id="title-menu">
+          <button id="btn-survie">Survie</button>
+          <button id="btn-custom" class="secondary">Custom</button>
+          <button id="btn-pharmacie" class="secondary">Pharmacie</button>
+          <button id="btn-controles" class="secondary">Contrôles</button>
+          <button id="btn-options" class="secondary">Options</button>
+        </div>
       </div>
+      <p class="tagline">Ta musique génère l'assaut. Survis-lui.</p>
       <p class="hint">🎮 Stick gauche = conduite · R1 = dash · L2 = Apoptose · Start = pause · ✕/A = valider · ◯/B = retour.<br />
       Clavier : ZQSD / flèches · Maj = dash · E = Apoptose · Échap = pause.</p>
       <p id="analyse-status" class="dim"></p>

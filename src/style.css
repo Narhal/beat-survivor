@@ -40,6 +40,77 @@ h1 {
   backdrop-filter: none;
 }
 
+/* ---------- Écran titre organique : le spécimen et sa grappe ---------- */
+/* Les menus sont VERTS (l'observation, le dehors) ; le jeu reste cyan/violet
+   (l'immersion, le dedans) — la plongée est un changement de palette. */
+#organism {
+  position: relative;
+  width: min(78vh, 92vw); aspect-ratio: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+#specimen {
+  position: absolute; inset: 12%;
+  width: 76%; height: 76%;
+  object-fit: cover;
+  border-radius: 50%;
+  opacity: 0.92;
+  /* Le champ du microscope : bords fondus, pas de découpe nette */
+  -webkit-mask-image: radial-gradient(circle, #000 55%, transparent 76%);
+  mask-image: radial-gradient(circle, #000 55%, transparent 76%);
+}
+#specimen-ring {
+  position: absolute; inset: 10%;
+  border-radius: 50%;
+  border: 1px solid rgba(126, 240, 160, 0.35);
+  box-shadow: 0 0 40px rgba(80, 220, 130, 0.18) inset, 0 0 24px rgba(80, 220, 130, 0.12);
+  pointer-events: none;
+}
+#filaments {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none;
+}
+#filaments path {
+  stroke: rgba(126, 240, 160, 0.3);
+  stroke-width: 0.35; fill: none;
+}
+#filaments path.sel { stroke: rgba(160, 255, 190, 0.85); stroke-width: 0.7; }
+
+#organism h1 {
+  position: relative; z-index: 2;
+  font-size: clamp(28px, 5.2vw, 60px);
+  color: #b9ffd2;
+  animation: none;
+  text-shadow: 0 0 18px rgba(90, 230, 140, 0.75), 0 0 60px rgba(40, 160, 90, 0.5);
+  pointer-events: none;
+}
+
+/* Les vésicules : posées en orbite autour du spécimen (positions en JS) */
+#title-menu {
+  position: absolute; inset: 0;
+  display: block; min-width: 0;
+}
+#title-menu button {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 15px;
+  color: #d8ffe6;
+  background: rgba(10, 34, 22, 0.82);
+  border: 1.5px solid rgba(126, 240, 160, 0.45);
+  box-shadow: 0 0 16px rgba(60, 200, 120, 0.18);
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+#title-menu button:hover { filter: none; }
+#title-menu button.sel {
+  color: #061a10;
+  background: linear-gradient(180deg, #b9ffd2, #5fe0a0);
+  border-color: #b9ffd2;
+  box-shadow: 0 0 26px rgba(120, 255, 170, 0.55);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
 /* ---------- Intro Narhal's Gaming ---------- */
 #intro {
   position: absolute; inset: 0; z-index: 20;

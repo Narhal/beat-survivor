@@ -15,6 +15,7 @@ import { META_DEFS, PERSO_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
 import { glowMaterial } from "./game/glow";
 import { UPGRADE_ICONS } from "./game/icons";
 import { listCustom, rememberCustom, CustomEntry, CUSTOM_MAX } from "./game/customLib";
+import { Organism } from "./game/organism";
 
 // Racine des assets : "/" en dev, "./" en build (site sous /play-beat-survivor/)
 const ASSET_BASE = import.meta.env.BASE_URL;
@@ -1087,6 +1088,10 @@ function tick(now: number) {
   if (!introDone) {
     if (confirmEdge || startEdge || cancelEdge) advanceIntro();
   } else {
+    // L'organisme respire tant qu'on est sur l'écran titre
+    if (phase === "title" && titleScreen === "home") {
+      organism.update(dt, menuBeatNow(), menuIdx);
+    }
     if (phase === "title" && !loading) {
       if (optionsOpen) {
         if (cancelEdge) $("btn-options-close").click();
@@ -1342,6 +1347,18 @@ function playOneShot(buf: AudioBuffer, vol: number) {
   src.start();
 }
 
+// Analyse de la boucle de menu : les vésicules pulsent sur SA basse, quelle
+// que soit la boucle (synthétique aujourd'hui, fichier de N4 demain).
+let menuAnalysis: TrackAnalysis | null = null;
+let menuStartedAt = 0;
+
+async function analyseMenuLoop(buf: AudioBuffer) {
+  if (menuAnalysis) return;
+  try {
+    menuAnalysis = await analyseBuffer(buf);
+  } catch {}
+}
+
 async function startMenuMusic() {
   if (menuSrc) return;
   if (!menuLoopBuf) menuLoopBuf = await renderMenuLoop();
@@ -1355,6 +1372,15 @@ async function startMenuMusic() {
   menuSrc.connect(menuGain);
   menuGain.connect(audioCtx.destination);
   menuSrc.start();
+  menuStartedAt = audioCtx.currentTime;
+  analyseMenuLoop(menuLoopBuf);
+}
+
+/** Enveloppe de basse de la boucle de menu, à l'instant présent. */
+function menuBeatNow(): number {
+  if (!menuAnalysis || !menuSrc) return 0;
+  const loopT = (audioCtx.currentTime - menuStartedAt) % menuAnalysis.duration;
+  return envAt(menuAnalysis.bass.env, menuAnalysis.fps, loopT);
 }
 
 function stopMenuMusic(fade: number) {
@@ -1577,12 +1603,26 @@ function proceedAfterPerso() {
   else showTitleScreen("custom");
 }
 
+// L'organisme de l'écran titre : le spécimen et ses vésicules
+const organism = new Organism($("organism"), $("filaments") as unknown as SVGSVGElement);
+
 function homeMenu() {
-  setMenu(
-    [$("btn-survie"), $("btn-custom"), $("btn-pharmacie"), $("btn-controles"), $("btn-options")],
-    "y"
-  );
+  const els = [$("btn-survie"), $("btn-custom"), $("btn-pharmacie"), $("btn-controles"), $("btn-options")];
+  setMenu(els, "y");
+  organism.setEntries(els);
 }
+
+/** Charge la première animation Midjourney dans le médaillon du titre. */
+fetch(`${ASSET_BASE}video/manifest.json`)
+  .then((r) => (r.ok ? r.json() : null))
+  .then((m) => {
+    const clip = m?.clips?.[0];
+    if (!clip) return;
+    const v = $("specimen") as HTMLVideoElement;
+    v.src = `${ASSET_BASE}video/${clip}`;
+    v.play().catch(() => {}); // l'autoplay muet est autorisé ; sinon au 1er geste
+  })
+  .catch(() => {});
 
 function showTitleScreen(which: TitleScreen) {
   titleScreen = which;
