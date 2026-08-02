@@ -54,7 +54,10 @@ const FRAG_LAYER = /* glsl */ `
   uniform vec3 uTint;
   void main() {
     vec2 uv = (vPos + uDrift * uParallax) / uTile;
-    float lum = texture2D(uMap, uv).g;
+    // La texture est encodée en sRGB ; un ShaderMaterial ne la décode pas tout
+    // seul. Lue telle quelle, un gris moyen valait 0.5 au lieu de 0.21 — la
+    // couche entière arrivait deux fois trop claire et blanchissait l'écran.
+    float lum = pow(texture2D(uMap, uv).g, 2.2);
     gl_FragColor = vec4(uTint, lum * uOpacity);
   }
 `;
@@ -64,7 +67,10 @@ const FRAG_PLASMA = FRAG_COMMON + /* glsl */ `
   float cells(vec2 p, float t) {
     vec2 g = fract(p) - 0.5;
     float d = length(g + 0.14 * vec2(sin(t + p.y), cos(t * 0.8 + p.x)));
-    return smoothstep(0.30, 0.10, d);
+    // Cellules resserrées : étalées, elles couvraient tout le cadre d'un
+    // treillis pâle — la « couche laiteuse ». Elles respirent, elles ne
+    // tapissent plus.
+    return smoothstep(0.26, 0.07, d);
   }
 
   void main() {
@@ -75,15 +81,21 @@ const FRAG_PLASMA = FRAG_COMMON + /* glsl */ `
     float c1 = cells(p, t);
     float c2 = cells(pFar, -t * 1.4);
 
-    vec3 deep = vec3(0.008, 0.018, 0.045);
+    // La soupe descend d'un cran (verdict N4 : « une couche laiteuse sur toute
+    // la surface, j'ai besoin de beaucoup plus de contraste »). Un fond qui
+    // vit à mi-gris écrase tout ce qui se joue devant : le socle est divisé
+    // par deux, les cellules et la pulsion de basse par presque autant. Le
+    // fond appartient à l'ambiance, la lueur appartient au gameplay.
+    vec3 deep = vec3(0.004, 0.009, 0.022);
     float j = 0.5 + 0.5 * sin(uJourney);
-    vec3 tint = mix(vec3(0.010, 0.045, 0.065), vec3(0.030, 0.022, 0.075), j);
-    tint = mix(tint, vec3(0.014, 0.052, 0.048), uEnergy * 0.5);
-    deep = mix(deep, vec3(0.042, 0.014, 0.010), uHeat * 0.75);
-    tint = mix(tint, vec3(0.085, 0.032, 0.016), uHeat * 0.7);
+    vec3 tint = mix(vec3(0.004, 0.017, 0.025), vec3(0.011, 0.008, 0.028), j);
+    tint = mix(tint, vec3(0.005, 0.020, 0.018), uEnergy * 0.5);
+    deep = mix(deep, vec3(0.021, 0.007, 0.005), uHeat * 0.75);
+    tint = mix(tint, vec3(0.032, 0.012, 0.006), uHeat * 0.7);
     vec3 col = deep + tint * (c1 * 0.6 + c2 * 0.3);
 
-    vec3 pulse = mix(vec3(0.02, 0.07, 0.09), vec3(0.09, 0.035, 0.02), uHeat);
+    // La basse ne doit pas relever TOUT l'écran à chaque temps fort
+    vec3 pulse = mix(vec3(0.010, 0.034, 0.044), vec3(0.044, 0.017, 0.010), uHeat);
     col += pulse * uBass * uBass * (c1 + 0.15);
 
     gl_FragColor = vec4(col, 1.0);
@@ -262,8 +274,14 @@ export class World {
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+    // Bloom SERRÉ (verdict N4 : « une couche laiteuse sur toute la surface,
+    // on y voit l'ombre des objets — j'ai besoin de beaucoup plus de
+    // contraste »). Un rayon large étale la copie floue de la scène sur tout
+    // l'écran : c'est ça, le voile et les silhouettes fantômes. Le seuil haut
+    // réserve la lueur aux pixels VRAIMENT chauds, le rayon court la garde
+    // collée à sa source. Une lueur appartient à l'objet, pas à l'écran.
     this.composer.addPass(
-      new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.5, 0.5)
+      new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.2, 0.75)
     );
     this.composer.addPass(new OutputPass());
 
@@ -358,10 +376,11 @@ export class World {
         l.fade = Math.min(1, l.fade + dt / 0.9);
       }
       (l.mat.uniforms.uTint.value as THREE.Color).copy(this.tintColor).multiplyScalar(breathe * (i === 0 ? 1 : 0.65));
-      // Légèrement en retrait depuis la couche de luminescence gameplay :
-      // le fond ne doit jamais concurrencer les entités (lisibilité, N4)
+      // En retrait (×2) : ces couches sont ADDITIVES, elles relèvent les noirs
+      // sur toute la surface — c'est du contraste perdu partout pour de
+      // l'ambiance nulle part. Le fond ne concurrence jamais les entités.
       l.mat.uniforms.uOpacity.value =
-        (i === 0 ? 0.24 + energy * 0.2 : 0.16 + energy * 0.12) * Math.max(0, l.fade);
+        (i === 0 ? 0.20 + energy * 0.16 : 0.13 + energy * 0.10) * Math.max(0, l.fade);
     }
 
     // Les bulles remontent, portées par l'intensité, et se rembobinent en bas

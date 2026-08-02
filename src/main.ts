@@ -152,9 +152,19 @@ const spriteQuad = new THREE.PlaneGeometry(2, 2);
 let heartSpriteMat: THREE.MeshBasicMaterial | null = null;
 let proteinSpriteMat: THREE.MeshBasicMaterial | null = null;
 
+/**
+ * Un sprite de 512 px rendu à ~70 px tombe sur un mip très flou : les
+ * filaments fins du dard y disparaissent. L'anisotropie maximale échantillonne
+ * le long de la diagonale du sujet au lieu de moyenner un carré — c'est ce qui
+ * rend la silhouette à nouveau nette (verdict N4 : « les dards sont blurry »).
+ */
+let maxAniso = 0; // paresseux : le renderer n'existe pas encore à ce point du module
+
 function loadSpriteTex(url: string): THREE.Texture {
+  if (maxAniso === 0) maxAniso = world.renderer.capabilities.getMaxAnisotropy();
   const tex = texLoader.load(url);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = maxAniso;
   return tex;
 }
 
