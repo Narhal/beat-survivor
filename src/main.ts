@@ -1115,10 +1115,13 @@ function tick(now: number) {
     // L'organisme respire tant qu'on est sur l'écran titre
     if (phase === "title" && titleScreen === "home" && !absorbing) {
       organism.update(dt, menuBeatNow(), menuIdx);
+      refreshDossier(menuIdx);
     }
+    show($("dossier"), phase === "title" && titleScreen === "home");
     if (phase === "title" && !loading && !absorbing) {
       if (optionsOpen) {
         if (cancelEdge) $("btn-options-close").click();
+        else updateOptionsNav(dt);
       } else if (cancelEdge && titleScreen !== "home") {
         backFromTitleScreen(); // ◯/B = retour dans les menus
       } else {
@@ -1623,6 +1626,53 @@ function playCustomEntry(entry: CustomEntry) {
   loadFile(file, false); // déjà mémorisé : inutile de le réécrire
 }
 
+/**
+ * Navigation manette des options (N4 : on ne pouvait pas s'y déplacer).
+ * Haut/bas choisit la ligne, gauche/droite règle un curseur, ✕ bascule une
+ * case ou ferme. Les lignes réglables ne sont pas des boutons : il leur
+ * fallait leur propre boucle.
+ */
+let optIdx = 0;
+let optCooldown = 0;
+
+function optionRows(): HTMLElement[] {
+  return [optVolume, optSfx, optLayers, optRotate, $("btn-options-close")];
+}
+
+function syncOptionsSel() {
+  optionRows().forEach((el, i) => {
+    const row = el.closest("label") ?? el;
+    row.classList.toggle("optsel", i === optIdx);
+  });
+}
+
+function updateOptionsNav(dt: number) {
+  const rows = optionRows();
+  optCooldown = Math.max(0, optCooldown - dt);
+  const v = inputVector();
+  if (optCooldown <= 0 && Math.abs(v.y) > 0.5) {
+    optIdx = THREE.MathUtils.euclideanModulo(optIdx + (v.y > 0 ? -1 : 1), rows.length);
+    optCooldown = 0.22;
+    syncOptionsSel();
+  }
+  const el = rows[optIdx];
+  if (el instanceof HTMLInputElement && el.type === "range") {
+    if (optCooldown <= 0 && Math.abs(v.x) > 0.4) {
+      el.value = String(Math.min(1, Math.max(0, Number(el.value) + Math.sign(v.x) * 0.05)));
+      el.dispatchEvent(new Event("input"));
+      optCooldown = 0.1;
+    }
+  }
+  if (confirmEdge) {
+    if (el instanceof HTMLInputElement && el.type === "checkbox") {
+      el.checked = !el.checked;
+      el.dispatchEvent(new Event("change"));
+    } else if (!(el instanceof HTMLInputElement)) {
+      el.click();
+    }
+  }
+}
+
 // ---------- Écran PERSONNAGE : qui plonge ? (avant chaque run) ----------
 function renderPersoSelect() {
   const list = $("perso-list");
@@ -1665,6 +1715,49 @@ function proceedAfterPerso() {
 
 // L'organisme de l'écran titre : le spécimen et ses vésicules
 const organism = new Organism($("organism"), $("filaments") as unknown as SVGSVGElement);
+
+/**
+ * Fiche d'observation : commente le menu pointé, dans le registre d'un
+ * relevé de laboratoire (proposition Claude, N4 tranchera les textes).
+ */
+const DOSSIERS: { code: string; titre: string; corps: string }[] = [
+  {
+    code: "ÉCH. 01-04",
+    titre: "SURVIE",
+    corps: "Souches répertoriées, classées par virulence. Tenir jusqu'au terme de l'échantillon sonore.",
+  },
+  {
+    code: "PROTOCOLE LIBRE",
+    titre: "CUSTOM",
+    corps: "Injection d'un signal extérieur. Le milieu se reconfigure d'après sa signature.",
+  },
+  {
+    code: "SYNTHÈSE",
+    titre: "PHARMACIE",
+    corps: "Adjuvants permanents. Les protéines prélevées financent la recherche.",
+  },
+  {
+    code: "INTERFACE",
+    titre: "CONTRÔLES",
+    corps: "Schéma de commande du sujet. Relevé des voies motrices.",
+  },
+  {
+    code: "CALIBRAGE",
+    titre: "OPTIONS",
+    corps: "Réglage de l'instrument d'observation.",
+  },
+];
+
+let dossierIdx = -1;
+
+function refreshDossier(i: number) {
+  if (i === dossierIdx) return;
+  dossierIdx = i;
+  const d = DOSSIERS[i];
+  if (!d) return;
+  $("dossier-head").textContent = `> DOSSIER ${d.code}`;
+  $("dossier-body").innerHTML = `<b>${d.titre}</b><i>${d.corps}</i>`;
+}
 
 function homeMenu() {
   const els = [$("btn-survie"), $("btn-custom"), $("btn-pharmacie"), $("btn-controles"), $("btn-options")];
@@ -1881,6 +1974,8 @@ $("btn-options").addEventListener("click", (e) => {
     optLayers.checked = world.layersEnabled;
     optRotate.checked = autoRotate;
     show(optionsEl, true);
+    optIdx = 0;
+    syncOptionsSel();
   });
 });
 $("btn-options-close").addEventListener("click", () => {

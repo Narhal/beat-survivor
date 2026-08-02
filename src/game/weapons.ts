@@ -92,7 +92,7 @@ export class Weapons {
   private explosions: { mesh: THREE.Mesh; life: number; max: number }[] = [];
   private boltLines: THREE.Mesh[] = [];
   private arcTimer = 0;
-  private arcParams = { len: 0, half: 0 };
+  private arcParams = { len: 0, half: 0, bolts: 3 };
   private shieldMesh: THREE.Mesh;
   private time = 0;
 
@@ -310,11 +310,13 @@ export class Weapons {
           break;
         }
         case "arc": {
-          // Active la décharge devant la cellule — brève mais létale
-          const len = 14 + lvl * 3;
-          const half = 0.35 + lvl * 0.06;
-          this.arcParams = { len, half };
-          this.arcTimer = 0.7 + lvl * 0.25;
+          // Progression voulue par N4 : au palier 1 une décharge quasi
+          // rectiligne, peu fournie mais LONGUE et tenue ; aux derniers,
+          // un large éventail. Le nombre d'éclairs compense l'ouverture.
+          const len = 24 + lvl * 2.5;
+          const half = 0.1 + lvl * 0.1;
+          this.arcParams = { len, half, bolts: Math.round(1 + lvl * 1.6) };
+          this.arcTimer = 1.15 + lvl * 0.18;
           this.cooldowns.set(kind, 6.5);
           break;
         }
@@ -379,8 +381,8 @@ export class Weapons {
     if (this.arcTimer > 0) {
       this.arcTimer -= dt;
       const heading = Math.atan2(ship.lastDir.y, ship.lastDir.x);
-      const { len, half } = this.arcParams;
-      this.drawBolts(ship.pos, heading, len, half);
+      const { len, half, bolts } = this.arcParams;
+      this.drawBolts(ship.pos, heading, len, half, bolts);
       for (let j = enemies.list.length - 1; j >= 0; j--) {
         const e = enemies.list[j];
         const to = new THREE.Vector2().subVectors(e.pos, ship.pos);
@@ -598,8 +600,8 @@ export class Weapons {
    * vers la pointe, et quelques-uns bifurquent — c'est le désordre qui fait
    * lire « électricité », pas la forme.
    */
-  private drawBolts(origin: THREE.Vector2, heading: number, len: number, half: number) {
-    const BOLTS = 7;
+  private drawBolts(origin: THREE.Vector2, heading: number, len: number, half: number, bolts: number) {
+    const BOLTS = Math.max(1, bolts);
     const SEGS = 9;
     while (this.boltLines.length < BOLTS) {
       const mesh = new THREE.Mesh(
@@ -616,6 +618,8 @@ export class Weapons {
       this.scene.add(mesh);
       this.boltLines.push(mesh);
     }
+    // Les rubans en trop (paliers précédents) restent muets
+    for (let i = BOLTS; i < this.boltLines.length; i++) this.boltLines[i].visible = false;
     for (let b = 0; b < BOLTS; b++) {
       const mesh = this.boltLines[b];
       mesh.visible = true;
@@ -626,7 +630,7 @@ export class Weapons {
       const ny = Math.sin(a + Math.PI / 2);
       // Les départs sont dispersés sur un court arc devant la cellule :
       // sinon les sept éclairs empilent leur lumière en un point unique
-      const spread = (b / (BOLTS - 1) - 0.5) * 3.4;
+      const spread = BOLTS > 1 ? (b / (BOLTS - 1) - 0.5) * 3.4 : 0;
       const ox = origin.x + Math.cos(heading) * 1.6 + nx * spread;
       const oy = origin.y + Math.sin(heading) * 1.6 + ny * spread;
       // Ruban : deux sommets par point, écartés perpendiculairement — une

@@ -41,6 +41,11 @@
     <div id="toast" class="hidden"></div>
 
     <div id="title" class="screen">
+      <!-- Fiche d'observation : commente le menu survolé (style terminal) -->
+      <div id="dossier">
+        <div id="dossier-head">&gt; DOSSIER</div>
+        <div id="dossier-body"></div>
+      </div>
       <!-- Le spécimen observé : médaillon vidéo + vésicules en orbite -->
       <div id="organism">
         <video id="specimen" muted loop playsinline preload="auto"></video>
@@ -122,24 +127,26 @@
             <text x="435" y="222">✕</text>
             <text x="417" y="204">▢</text>
           </g>
-          <!-- Renvois -->
+          <!-- Renvois : diagonale + palier, comme les menus -->
           <g class="bp-leads">
-            <path d="M 215 108 L 175 72" />
-            <path d="M 425 130 L 470 72" />
-            <path d="M 464 200 L 505 200" />
-            <path d="M 262 274 L 160 348" />
-            <path d="M 390 174 L 390 350" />
+            <path d="M 215 108 L 190 74 L 150 74" />
+            <path d="M 425 130 L 455 74 L 495 74" />
+            <path d="M 444 222 L 470 250 L 508 250" />
+            <path d="M 462 200 L 486 178 L 508 178" />
+            <path d="M 262 274 L 232 350 L 202 350" />
+            <path d="M 390 163 L 372 92 L 332 92" />
           </g>
           <g class="bp-labels">
-            <text x="40" y="62">L2 — APOPTOSE (quand chargée)</text>
-            <text x="475" y="62">R1 — DASH</text>
-            <text x="600" y="204" text-anchor="end">VALIDER (menus)</text>
-            <text x="40" y="366">STICK GAUCHE — CONDUITE</text>
-            <text x="390" y="368" text-anchor="middle">OPTIONS — PAUSE</text>
+            <text x="144" y="78" text-anchor="end">L2 — APOPTOSE</text>
+            <text x="501" y="78">R1 — DASH</text>
+            <text x="514" y="182">◯ — RETOUR</text>
+            <text x="514" y="254">✕ — VALIDER</text>
+            <text x="196" y="354" text-anchor="end">STICK GAUCHE — CONDUITE</text>
+            <text x="326" y="96" text-anchor="end">OPTIONS — PAUSE</text>
           </g>
         </svg>
       </div>
-      <p class="dim">Clavier : ZQSD / flèches · Maj = dash · E = Apoptose · Échap = pause · Entrée = valider</p>
+      <p class="dim">Clavier : ZQSD / flèches · Maj = dash · E = Apoptose · Échap = pause · Entrée = valider · Retour arr. = retour</p>
       <button id="btn-controles-back" class="secondary">Retour</button>
     </div>
 

@@ -182,7 +182,16 @@ h1 {
 .screen.lab #end-stats { color: #7fc79a; }
 .screen.lab .end-score { color: #d8ffe6; text-shadow: 0 0 20px rgba(120, 255, 170, 0.55); }
 .screen.lab .record { color: #b9ffd2; text-shadow: 0 0 12px rgba(120, 255, 170, 0.6); }
-.screen.lab #options-panel label { color: #a8e8c4; }
+.screen.lab #options-panel label { color: #a8e8c4; padding: 4px 8px; border-left: 2px solid transparent; }
+/* Ligne d'options choisie à la manette */
+.screen.lab #options-panel label.optsel {
+  border-left-color: #b9ffd2;
+  background: rgba(126, 240, 160, 0.14);
+  color: #eafff2;
+}
+.screen.lab #btn-options-close.optsel {
+  border-color: #b9ffd2; background: #0c3323; color: #eafff2;
+}
 .screen.lab #options-panel input[type="range"] { accent-color: #5fe0a0; }
 .screen.lab #options-panel input[type="checkbox"] { accent-color: #8effc0; }
 
@@ -204,6 +213,33 @@ h1 {
 .tk-diff[data-diff="easy"] .colony i { color: #8effc0; }
 .tk-diff[data-diff="normal"] .colony i { color: #ffe28a; }
 .tk-diff[data-diff="hard"] .colony i { color: #ff8fa6; }
+
+/* ---------- Fiche d'observation (écran titre) ---------- */
+#dossier {
+  position: absolute; top: 28px; left: 32px;
+  width: min(330px, 34vw);
+  font-family: "Courier New", Courier, monospace;
+  font-size: 12.5px; line-height: 1.5;
+  color: #6fae8a;
+  border: 1px solid rgba(126, 240, 160, 0.28);
+  background: rgba(4, 16, 11, 0.62);
+  padding: 10px 12px;
+  text-align: left;
+  z-index: 3;
+}
+#dossier-head {
+  color: #b9ffd2; letter-spacing: 0.14em;
+  border-bottom: 1px solid rgba(126, 240, 160, 0.22);
+  padding-bottom: 5px; margin-bottom: 7px;
+}
+#dossier-body b { display: block; color: #a8e8c4; font-weight: normal; margin-bottom: 3px; }
+#dossier-body i { color: #79b895; font-style: normal; }
+/* Curseur clignotant : la fiche s'écrit toujours */
+#dossier-body::after {
+  content: "_"; color: #8effc0;
+  animation: caret 1.1s steps(1) infinite;
+}
+@keyframes caret { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
 
 /* ---------- Écran titre organique : le spécimen et sa grappe ---------- */
 /* Les menus sont VERTS (l'observation, le dehors) ; le jeu reste cyan/violet

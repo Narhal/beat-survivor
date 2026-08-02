@@ -11,7 +11,9 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 // Arène doublée le 2026-07-30, puis réduite de 30 % le 2026-08-02 (N4) :
 // assez vaste pour voyager, assez resserrée pour que l'action se croise.
-export const ARENA = { hw: 154, hh: 98 }; // demi-largeur / demi-hauteur
+// (puis −10 % le 2026-08-02) — elle doit rester plus grande que la vue :
+// à 16/9 on en voit 128 × 72, il faut garder une marge hors champ.
+export const ARENA = { hw: 139, hh: 88 }; // demi-largeur / demi-hauteur
 
 // Zoom out demandé par N4 (2026-07-26, puis +20 %) : anticiper les attaques prime
 export const VIEW_HH = 72; // demi-hauteur de la vue en unités monde
