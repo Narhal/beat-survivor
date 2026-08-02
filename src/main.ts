@@ -1720,31 +1720,47 @@ const organism = new Organism($("organism"), $("filaments") as unknown as SVGSVG
  * Fiche d'observation : commente le menu pointé, dans le registre d'un
  * relevé de laboratoire (proposition Claude, N4 tranchera les textes).
  */
-const DOSSIERS: { code: string; titre: string; corps: string }[] = [
+const DOSSIERS: {
+  code: string;
+  titre: string;
+  corps: string;
+  poste: string;
+  etat: string;
+}[] = [
   {
     code: "ÉCH. 01-04",
     titre: "SURVIE",
     corps: "Souches répertoriées, classées par virulence. Tenir jusqu'au terme de l'échantillon sonore.",
+    poste: "CULTURE CONTINUE",
+    etat: "SOUCHES 04",
   },
   {
     code: "PROTOCOLE LIBRE",
     titre: "CUSTOM",
     corps: "Injection d'un signal extérieur. Le milieu se reconfigure d'après sa signature.",
+    poste: "INOCULATION",
+    etat: "SIGNAL EXTERNE",
   },
   {
     code: "SYNTHÈSE",
     titre: "PHARMACIE",
     corps: "Adjuvants permanents. Les protéines prélevées financent la recherche.",
+    poste: "PAILLASSE",
+    etat: "STOCK VIVANT",
   },
   {
     code: "INTERFACE",
     titre: "CONTRÔLES",
     corps: "Schéma de commande du sujet. Relevé des voies motrices.",
+    poste: "BANC MOTEUR",
+    etat: "VOIES 06",
   },
   {
     code: "CALIBRAGE",
     titre: "OPTIONS",
     corps: "Réglage de l'instrument d'observation.",
+    poste: "INSTRUMENT",
+    etat: "HORS MILIEU",
   },
 ];
 
@@ -1755,8 +1771,16 @@ function refreshDossier(i: number) {
   dossierIdx = i;
   const d = DOSSIERS[i];
   if (!d) return;
-  $("dossier-head").textContent = `> DOSSIER ${d.code}`;
+  $("dossier-code").textContent = d.code;
   $("dossier-body").innerHTML = `<b>${d.titre}</b><i>${d.corps}</i>`;
+  const n = String(i + 1).padStart(2, "0");
+  $("dossier-meta").innerHTML =
+    `<div><dt>POSTE</dt><dd>${d.poste}</dd></div>` +
+    `<div><dt>ÉTAT</dt><dd>${d.etat}</dd></div>` +
+    `<div><dt>RELEVÉ</dt><dd>${n} / ${String(DOSSIERS.length).padStart(2, "0")}</dd></div>`;
+  $("dossier-nav").innerHTML = DOSSIERS.map(
+    (_, k) => `<span class="${k === i ? "on" : ""}"></span>`,
+  ).join("");
 }
 
 function homeMenu() {
