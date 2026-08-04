@@ -27,7 +27,7 @@ export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat
   flagelles: { name: "Flagelles", desc: "Vitesse de nage augmentée.", cat: "Atout" },
   membrane: { name: "Membrane", desc: "Absorbe un coup, puis se recharge — de plus en plus vite par palier.", cat: "Atout" },
   mitose: { name: "Mitose", desc: "Régulièrement, un pathogène détruit laisse un cœur.", cat: "Passif" },
-  enzymes: { name: "Enzymes", desc: "+15 % de dégâts pour toutes les armes par palier.", cat: "Passif" },
+  enzymes: { name: "Enzymes", desc: "+15 % de dégâts pour toutes les armes.", cat: "Passif" },
   phagocytose: { name: "Phagocytose", desc: "Augmente la distance d'aspiration des protéines.", cat: "Passif" },
 };
 
