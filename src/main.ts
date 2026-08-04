@@ -777,11 +777,15 @@ function triggerVictory() {
 }
 
 // ---------- Pause ----------
+function pauseMenu() {
+  setMenu([$("btn-resume"), $("btn-options-pause"), $("btn-abort")], "y");
+}
+
 function openPause() {
   phase = "pause";
   audioCtx.suspend();
   show(pauseEl, true);
-  setMenu([$("btn-resume"), $("btn-abort")], "y");
+  pauseMenu();
 }
 
 function resumeRun() {
@@ -1102,6 +1106,15 @@ function tick(now: number) {
   }
 
   if (phase === "pause") {
+    // Les options s'ouvrent PAR-DESSUS la pause : ◯ y ferme le panneau et
+    // rend la main au menu de pause, il ne reprend pas la run d'un coup.
+    if (optionsOpen) {
+      // ◯ comme Start referment le panneau — Échap ne doit pas traverser
+      // jusqu'à la run derrière (il vaut Start).
+      if (cancelEdge || startEdge) $("btn-options-close").click();
+      else updateOptionsNav(dt);
+      return;
+    }
     if (startEdge || cancelEdge) {
       resumeRun(); // ◯/B = annuler la pause aussi
       return;
@@ -2002,28 +2015,42 @@ optSfx.addEventListener("input", () => {
   sfxBus.gain.value = sfxVolume;
 });
 
+/** D'où le panneau a été ouvert : c'est là qu'on rend la main en le fermant. */
+let optionsFrom: "home" | "pause" = "home";
+
+function openOptions(from: "home" | "pause") {
+  optionsFrom = from;
+  optionsOpen = true;
+  optLayers.checked = world.layersEnabled;
+  optRotate.checked = autoRotate;
+  show(optionsEl, true);
+  optIdx = 0;
+  syncOptionsSel();
+}
+
 $("btn-options").addEventListener("click", (e) => {
-  absorbThen(e.currentTarget as HTMLElement, () => {
-    optionsOpen = true;
-    optLayers.checked = world.layersEnabled;
-    optRotate.checked = autoRotate;
-    show(optionsEl, true);
-    optIdx = 0;
-    syncOptionsSel();
-  });
+  absorbThen(e.currentTarget as HTMLElement, () => openOptions("home"));
 });
+// Depuis la pause : pas d'absorption (elle appartient à la grappe du titre),
+// le panneau se pose directement sur l'écran de pause.
+$("btn-options-pause").addEventListener("click", () => openOptions("pause"));
 $("btn-options-close").addEventListener("click", () => {
   optionsOpen = false;
   show(optionsEl, false);
-  homeMenu();
+  if (optionsFrom === "pause") pauseMenu();
+  else homeMenu();
 });
 addEventListener("keydown", (e) => {
-  if (e.code === "Escape" && optionsOpen) $("btn-options-close").click();
+  // Depuis la pause, c'est la boucle qui ferme le panneau (Échap y vaut Start
+  // et rouvrirait la run) — ici on ne sert que l'écran titre.
+  if (e.code === "Escape" && optionsOpen && phase === "title") $("btn-options-close").click();
 });
 optVolume.addEventListener("input", () => {
   musicVolume = Number(optVolume.value);
   localStorage.setItem("bs-volume", optVolume.value);
-  if (musicGain && phase === "run") musicGain.gain.value = musicVolume;
+  // Aussi en pause : on règle le volume DEPUIS la pause, il doit être bon
+  // au moment où la musique repart.
+  if (musicGain && (phase === "run" || phase === "pause")) musicGain.gain.value = musicVolume;
   if (menuGain) menuGain.gain.value = 0.35 * musicVolume;
 });
 optLayers.addEventListener("change", () => {
