@@ -66,6 +66,12 @@ addEventListener("keydown", (e) => {
   if (e.code === "KeyV") {
     showToast(`Couches textures : ${world.toggleLayers() ? "ON" : "OFF"}`);
   }
+  // Outil de réglage : déclenche une évolution tout de suite, pour juger
+  // l'arrêt du vinyle sans avoir à remplir la jauge.
+  if (e.code === "KeyL" && phase === "run") {
+    gauge = gaugeMax;
+    checkGauge();
+  }
   if (e.code === "KeyB") {
     enemies.spritesEnabled = !enemies.spritesEnabled;
     showToast(`Sprites du bestiaire : ${enemies.spritesEnabled ? "ON" : "OFF (vectoriel)"} — nouveaux spawns`);
@@ -296,10 +302,58 @@ function rumble(strong: number, weak: number, ms: number) {
 const audioCtx = new AudioContext();
 let musicSource: AudioBufferSourceNode | null = null;
 let musicGain: GainNode | null = null;
-let songStart = 0; // en temps AudioContext
+/**
+ * La platine. À l'évolution, la musique ne se coupe pas net : elle RALENTIT
+ * comme un vinyle qu'on arrête, et le temps du jeu avec elle (idée N4). Après
+ * le choix, elle repart — la même rampe, en sens inverse.
+ *
+ * Conséquence : la position dans le morceau ne se lit plus à l'horloge du
+ * contexte audio, puisque la vitesse de lecture varie. On l'INTÈGRE, et
+ * comme la rampe est exponentielle, l'intégrale est analytique — pas
+ * d'accumulation frame par frame, donc pas de dérive.
+ */
+const SPIN_DOWN = 0.6; // durée de l'arrêt du vinyle
+const SPIN_UP = 0.5; // et de la relance
+const SPIN_FLOOR = 0.05; // une rampe exponentielle ne peut pas viser zéro
+
+let songAnchor = 0; // position dans le morceau au début du régime courant
+let anchorAt = 0; // temps AudioContext à ce moment
+let rateFrom = 1;
+let rateTo = 1;
+let rampDur = 0; // 0 = régime constant à rateTo
+
+/** Vitesse de lecture courante — 1 en marche normale. */
+function songRate(): number {
+  const e = Math.max(0, audioCtx.currentTime - anchorAt);
+  if (rampDur <= 0 || e >= rampDur) return rateTo;
+  return rateFrom * Math.exp((Math.log(rateTo / rateFrom) * e) / rampDur);
+}
 
 function songTime(): number {
-  return audioCtx.currentTime - songStart;
+  const e = Math.max(0, audioCtx.currentTime - anchorAt);
+  if (rampDur <= 0) return songAnchor + e * rateTo;
+  const k = Math.log(rateTo / rateFrom);
+  const x = Math.min(e, rampDur);
+  const swept = ((rateFrom * rampDur) / k) * (Math.exp((k * x) / rampDur) - 1);
+  return songAnchor + swept + Math.max(0, e - rampDur) * rateTo;
+}
+
+/** Change de régime : `over` = 0 pour un changement sec. */
+function spinTo(to: number, over: number) {
+  const from = songRate();
+  songAnchor = songTime();
+  anchorAt = audioCtx.currentTime;
+  rateFrom = from;
+  rateTo = to;
+  // Rampe de vitesse nulle : l'intégrale diviserait par ln(1) = 0. Régime
+  // constant, et songTime() reste fini.
+  rampDur = Math.abs(to - from) < 1e-4 ? 0 : over;
+  const p = musicSource?.playbackRate;
+  if (!p) return;
+  p.cancelScheduledValues(anchorAt);
+  p.setValueAtTime(from, anchorAt);
+  if (over > 0) p.exponentialRampToValueAtTime(to, anchorAt + over);
+  else p.setValueAtTime(to, anchorAt);
 }
 
 // ---------- Monde & entités ----------
@@ -667,8 +721,14 @@ function startRun(buf: AudioBuffer) {
   musicSource.connect(musicGain);
   musicGain.connect(audioCtx.destination);
   audioCtx.resume();
-  songStart = audioCtx.currentTime + 0.1;
-  musicSource.start(songStart);
+  // La platine repart à vitesse nominale pour chaque run
+  songAnchor = 0;
+  anchorAt = audioCtx.currentTime + 0.1;
+  rateFrom = 1;
+  rateTo = 1;
+  rampDur = 0;
+  pendingLevelUp = 0;
+  musicSource.start(anchorAt);
 
   phase = "run";
   show(titleEl, false);
@@ -698,6 +758,8 @@ function stopMusic(fade: number) {
 
 function endRun(victory: boolean, aborted = false) {
   phase = "end";
+  pendingLevelUp = 0; // mourir pendant l'arrêt du vinyle n'ouvre pas les cartes
+  spinTo(1, 0); // le fondu de fin se joue à vitesse nominale
   audioCtx.resume(); // si on arrive depuis la pause (contexte suspendu), le fondu doit se jouer
   show(pauseEl, false);
   stopMusic(victory ? 2.5 : 1.0);
@@ -756,6 +818,7 @@ function triggerVictory() {
   // Phase dédiée : la simulation s'arrête mais le RENDU continue —
   // c'est indispensable pour que la cascade d'explosions se voie.
   phase = "victory";
+  pendingLevelUp = 0; // une évolution en attente ne doit pas couper la cascade
   const victims = [...enemies.list];
   let i = 0;
   const pop = () => {
@@ -853,6 +916,14 @@ function openLevelUp() {
     showToast(`Symbiote : ${UPGRADE_INFO[c.kind].name}`);
     return;
   }
+  // La platine s'arrête : la musique et le temps ralentissent ensemble, les
+  // cartes n'arrivent qu'une fois le vinyle immobile.
+  spinTo(SPIN_FLOOR, SPIN_DOWN);
+  pendingLevelUp = SPIN_DOWN;
+}
+
+/** Le vinyle est à l'arrêt : on gèle tout et on présente les cartes. */
+function showLevelUpCards() {
   phase = "levelup";
   audioCtx.suspend();
   buildLevelUpCards();
@@ -909,6 +980,7 @@ function pickCard(i: number) {
   refreshWeaponsHud();
   show(levelupEl, false);
   audioCtx.resume();
+  spinTo(1, SPIN_UP); // la platine repart, le temps la suit
   phase = "run";
 }
 
@@ -1090,11 +1162,17 @@ const apoptoseRings: { mesh: THREE.Mesh; life: number; max: number }[] = [];
 let lastFrame = performance.now();
 let lastTick = 0;
 
+/** Secondes restantes avant les cartes — le temps que le vinyle s'immobilise. */
+let pendingLevelUp = 0;
+
 function tick(now: number) {
   lastTick = now;
-  const dt = Math.min(0.05, (now - lastFrame) / 1000);
+  const realDt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
   readInputEdges();
+  // Le temps du jeu se cale sur la platine (idée N4 : « et le temps aussi »).
+  // Hors rampe songRate() vaut 1 : en marche normale c'est un no-op.
+  const dt = phase === "run" ? realDt * songRate() : realDt;
 
   if (phase === "levelup") {
     if (startEdge) {
@@ -1158,6 +1236,16 @@ function tick(now: number) {
     if (startEdge) {
       openPause(); // Start / Échap : pause (Interrompre y coupe la musique)
       return;
+    }
+    // L'arrêt du vinyle se compte en temps RÉEL — sinon il s'arrêterait
+    // lui-même de plus en plus lentement et n'arriverait jamais au bout.
+    if (pendingLevelUp > 0) {
+      pendingLevelUp -= realDt;
+      if (pendingLevelUp <= 0) {
+        pendingLevelUp = 0;
+        showLevelUpCards();
+        return;
+      }
     }
     ship.speedBonus = weapons.speedBonus * metaSpeedMul;
     ship.beat = bassEnv;
