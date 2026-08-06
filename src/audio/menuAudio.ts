@@ -10,6 +10,37 @@ function aligned(freq: number, dur: number): number {
 }
 
 /**
+ * Recoud une boucle. Aligner les fréquences ne suffit pas : un filtre part de
+ * zéro et met un instant à s'établir, un bruit n'est jamais périodique — il
+ * reste un saut à la couture, donc un clic à chaque tour.
+ *
+ * On rend `dur + xf` secondes et on rabat la queue sur la tête. Le premier
+ * échantillon du résultat est alors le voisin immédiat du dernier : la
+ * jointure est continue par construction, quoi qu'on ait synthétisé.
+ *
+ * Fondu LINÉAIRE et pas d'égale puissance : les deux moitiés sont ici quasi
+ * identiques (les fréquences bouclent), et sin+cos d'un même signal donne
+ * +3 dB — une bouffée de volume à chaque tour. À signal corrélé, gain
+ * constant.
+ */
+function loopify(src: AudioBuffer, dur: number, xf: number): AudioBuffer {
+  const sr = src.sampleRate;
+  const n = Math.round(dur * sr);
+  const k = Math.round(xf * sr);
+  const out = new AudioBuffer({ length: n, sampleRate: sr, numberOfChannels: src.numberOfChannels });
+  for (let c = 0; c < src.numberOfChannels; c++) {
+    const a = src.getChannelData(c);
+    const o = out.getChannelData(c);
+    o.set(a.subarray(0, n));
+    for (let i = 0; i < k; i++) {
+      const w = i / k;
+      o[i] = a[i] * w + a[n + i] * (1 - w);
+    }
+  }
+  return out;
+}
+
+/**
  * Boucle de menu (~12,8 s, boucle parfaite) : nappe planante filtrée,
  * sub, ligne acid discrète, blips de texture éparpillés avec échos.
  */
@@ -109,6 +140,72 @@ export async function renderMenuLoop(): Promise<AudioBuffer> {
   }
 
   return ctx.startRendering();
+}
+
+/**
+ * Boucle d'attente de l'évolution (~6,4 s, boucle parfaite). Volontairement
+ * NEUTRE — une quinte, pas d'accord, pas de rythme, rien qui raconte quelque
+ * chose : on attend, on ne se souvient pas d'elle. Et volontairement ÉTOUFFÉE
+ * (verdict N4 : « comme si on appliquait un filtre EQ ») — le morceau de la
+ * partie est gelé derrière, on l'entend à travers une porte.
+ */
+export async function renderWaitLoop(): Promise<AudioBuffer> {
+  const DUR = 6.4;
+  const XF = 0.3; // queue rendue en plus, rabattue sur la tête
+  const ctx = new OfflineAudioContext(2, Math.round((DUR + XF) * SR), SR);
+  const master = ctx.createGain();
+  master.gain.value = 0.9;
+  master.connect(ctx.destination);
+
+  // Le voile : passe-bas très bas, c'est lui qui fait l'« étouffé »
+  const veil = ctx.createBiquadFilter();
+  veil.type = "lowpass";
+  veil.frequency.value = 260;
+  veil.Q.value = 0.7;
+  veil.connect(master);
+  // Il respire lentement — deux cycles par boucle, donc sans couture
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = aligned(0.3125, DUR);
+  const depth = ctx.createGain();
+  depth.gain.value = 90;
+  lfo.connect(depth);
+  depth.connect(veil.frequency);
+  lfo.start(0);
+
+  // Quinte à vide (La + Mi) : ni majeur ni mineur, donc sans humeur.
+  // Chaque note doublée à +1 cycle/boucle : le battement dure exactement
+  // une boucle, il ne se répète pas sur lui-même.
+  const pad = ctx.createGain();
+  pad.gain.value = 0.085;
+  pad.connect(veil);
+  for (const f of [55, 82.4, 110, 164.8]) {
+    for (const off of [0, 1 / DUR]) {
+      const osc = ctx.createOscillator();
+      osc.type = f < 100 ? "sine" : "triangle";
+      osc.frequency.value = aligned(f, DUR) + off;
+      osc.connect(pad);
+      osc.start(0);
+    }
+  }
+
+  // Le lit de la salle : un souffle très filtré, pour que ce ne soit pas
+  // qu'un synthé posé dans le vide
+  const noiseBuf = ctx.createBuffer(1, Math.round(SR * (DUR + XF)), SR);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuf;
+  const nf = ctx.createBiquadFilter();
+  nf.type = "lowpass";
+  nf.frequency.value = 180;
+  const ng = ctx.createGain();
+  ng.gain.value = 0.055;
+  noise.connect(nf);
+  nf.connect(ng);
+  ng.connect(master);
+  noise.start(0);
+
+  return loopify(await ctx.startRendering(), DUR, XF);
 }
 
 /** Barbotage : l'eau qui bulle pendant l'apparition du logo (~3,5 s). */
