@@ -10,7 +10,7 @@ import { World, BG_STYLES, ARENA, VIEW_HH } from "./game/world";
 import { Ship } from "./game/ship";
 import { Enemies, ENEMY_DEFS, Enemy, EnemyKind } from "./game/enemies";
 import { Weapons, UPGRADE_INFO, UpgradeKind, maxLevelOf } from "./game/weapons";
-import { renderMenuLoop, renderWaitLoop, renderBubbles, renderDrop, speakTitle } from "./audio/menuAudio";
+import { renderMenuLoop, renderBubbles, renderDrop, speakTitle } from "./audio/menuAudio";
 import { META_DEFS, PERSO_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
 import { glowMaterial } from "./game/glow";
 import { UPGRADE_ICONS } from "./game/icons";
@@ -305,118 +305,83 @@ let musicGain: GainNode | null = null;
 let musicVeil: BiquadFilterNode | null = null; // l'étouffoir de l'évolution
 
 /**
- * L'évolution. L'IMAGE ralentit (verdict N4 : « le ralentissement visuel est
- * top »), mais la musique ne ralentit PAS : le vinyle qu'on arrête, c'était
- * une mauvaise idée. Elle s'étouffe et s'efface en un rien de temps, une
- * petite boucle d'attente neutre prend le relais, et le morceau de la partie
- * est GELÉ — pas ralenti : gelé.
+ * La platine. À l'évolution, la musique RALENTIT comme un vinyle qu'on
+ * arrête, et le temps du jeu avec elle (idée N4). Après le choix, elle
+ * repart — la même rampe, en sens inverse.
  *
- * Le gel n'est pas un détail de confort. Si le morceau continuait de défiler
- * pendant le choix, on pourrait le laisser filer sans valider et arriver au
- * bout sans jouer (N4) — et de toute façon le décor, les spawns et la
- * musique seraient décalés au retour.
+ * Deuxième version du geste : le vinyle brut était agaçant, il est ici
+ * ADOUCI — il recule d'un cran en volume et passe derrière un voile qui se
+ * referme à mesure qu'il descend. On l'entend s'arrêter, on ne le subit pas.
+ * (Une boucle d'attente neutre a été essayée entre-temps : pire encore.)
+ *
+ * Conséquence technique : la position dans le morceau ne se lit plus à
+ * l'horloge du contexte audio, puisque la vitesse de lecture varie. On
+ * l'INTÈGRE, et comme la rampe est exponentielle, l'intégrale est
+ * analytique — pas d'accumulation frame par frame, donc pas de dérive.
  */
-const SLOW_DOWN = 0.6; // durée du ralenti de l'image
-const SLOW_UP = 0.5; // et de la reprise
-const SLOW_FLOOR = 0.05; // vitesse de l'image quand elle est « à l'arrêt »
-const MUSIC_DUCK = 0.3; // étouffement de la musique de la partie
+const SPIN_DOWN = 0.6; // durée de l'arrêt du vinyle
+const SPIN_UP = 0.5; // et de la relance
+const SPIN_FLOOR = 0.05; // une rampe exponentielle ne peut pas viser zéro
+// Les deux boutons de l'adoucissement, à régler à l'oreille (N4) : baisser
+// SPIN_DUCK rend l'arrêt plus discret, baisser VEIL_SHUT le rend plus sourd.
+const SPIN_DUCK = 0.5; // volume du vinyle pendant l'arrêt (part du volume musique)
+const VEIL_OPEN = 18000; // voile ouvert : la chaîne est transparente
+const VEIL_SHUT = 1200; // voile fermé : l'arrêt s'entend de derrière une porte
 
-let songAnchor = 0; // position dans le morceau au dernier changement de régime
+let songAnchor = 0; // position dans le morceau au début du régime courant
 let anchorAt = 0; // temps AudioContext à ce moment
-let songSpeed = 1; // 1 = la partie tourne, 0 = morceau gelé
+let rateFrom = 1;
+let rateTo = 1;
+let rampDur = 0; // 0 = régime constant à rateTo
+
+/** Vitesse de lecture courante — 1 en marche normale. */
+function songRate(): number {
+  const e = Math.max(0, audioCtx.currentTime - anchorAt);
+  if (rampDur <= 0 || e >= rampDur) return rateTo;
+  return rateFrom * Math.exp((Math.log(rateTo / rateFrom) * e) / rampDur);
+}
 
 function songTime(): number {
-  return songAnchor + Math.max(0, audioCtx.currentTime - anchorAt) * songSpeed;
+  const e = Math.max(0, audioCtx.currentTime - anchorAt);
+  if (rampDur <= 0) return songAnchor + e * rateTo;
+  const k = Math.log(rateTo / rateFrom);
+  const x = Math.min(e, rampDur);
+  const swept = ((rateFrom * rampDur) / k) * (Math.exp((k * x) / rampDur) - 1);
+  return songAnchor + swept + Math.max(0, e - rampDur) * rateTo;
 }
 
-/** Gèle (0) ou relance (1) le morceau, sans jamais toucher à sa hauteur. */
-function setSongSpeed(s: number) {
+/** Change de régime : `over` = 0 pour un changement sec. */
+function spinTo(to: number, over: number) {
+  const from = songRate();
   songAnchor = songTime();
   anchorAt = audioCtx.currentTime;
-  songSpeed = s;
-  musicSource?.playbackRate.setValueAtTime(s, anchorAt);
+  rateFrom = from;
+  rateTo = to;
+  // Rampe de vitesse nulle : l'intégrale diviserait par ln(1) = 0. Régime
+  // constant, et songTime() reste fini.
+  rampDur = Math.abs(to - from) < 1e-4 ? 0 : over;
+  const p = musicSource?.playbackRate;
+  if (!p) return;
+  p.cancelScheduledValues(anchorAt);
+  p.setValueAtTime(from, anchorAt);
+  if (over > 0) p.exponentialRampToValueAtTime(to, anchorAt + over);
+  else p.setValueAtTime(to, anchorAt);
 }
 
-/** Ralenti de l'IMAGE seule : rampe exponentielle, en temps réel. */
-let slowT = 0;
-let slowDir: 0 | 1 | -1 = 0; // 1 = on ralentit, -1 = on repart
-
-function timeScale(): number {
-  if (slowDir === 0) return 1;
-  const p =
-    slowDir > 0
-      ? Math.min(1, slowT / SLOW_DOWN)
-      : 1 - Math.min(1, slowT / SLOW_UP);
-  return Math.exp(Math.log(SLOW_FLOOR) * p);
-}
-
-const VEIL_OPEN = 18000; // étouffoir ouvert : la chaîne est transparente
-const VEIL_SHUT = 280; // fermé : on entend le morceau à travers une porte
-
-/** L'évolution commence : la partie s'étouffe, la boucle d'attente entre. */
-function duckMusic() {
+/** L'arrêt : le vinyle recule en volume et passe derrière le voile. */
+function softenSpin(down: boolean) {
   const now = audioCtx.currentTime;
+  const over = down ? SPIN_DOWN : SPIN_UP;
   if (musicVeil) {
     musicVeil.frequency.cancelScheduledValues(now);
     musicVeil.frequency.setValueAtTime(musicVeil.frequency.value, now);
-    musicVeil.frequency.exponentialRampToValueAtTime(VEIL_SHUT, now + MUSIC_DUCK);
+    musicVeil.frequency.exponentialRampToValueAtTime(down ? VEIL_SHUT : VEIL_OPEN, now + over);
   }
   if (musicGain) {
     musicGain.gain.cancelScheduledValues(now);
     musicGain.gain.setValueAtTime(musicGain.gain.value, now);
-    musicGain.gain.linearRampToValueAtTime(0, now + MUSIC_DUCK);
+    musicGain.gain.linearRampToValueAtTime(musicVolume * (down ? SPIN_DUCK : 1), now + over);
   }
-  startWaitLoop();
-}
-
-/** Le choix est fait : la boucle s'efface, la partie revient au grand jour. */
-function unduckMusic() {
-  const now = audioCtx.currentTime;
-  setSongSpeed(1);
-  if (musicVeil) {
-    musicVeil.frequency.cancelScheduledValues(now);
-    musicVeil.frequency.setValueAtTime(VEIL_SHUT, now);
-    musicVeil.frequency.exponentialRampToValueAtTime(VEIL_OPEN, now + SLOW_UP);
-  }
-  if (musicGain) {
-    musicGain.gain.cancelScheduledValues(now);
-    musicGain.gain.setValueAtTime(0, now);
-    musicGain.gain.linearRampToValueAtTime(musicVolume, now + SLOW_UP);
-  }
-  stopWaitLoop();
-}
-
-// ---------- La boucle d'attente de l'évolution ----------
-let waitLoopBuf: AudioBuffer | null = null;
-let waitSrc: AudioBufferSourceNode | null = null;
-let waitGain: GainNode | null = null;
-
-function startWaitLoop() {
-  if (!waitLoopBuf || waitSrc) return;
-  const now = audioCtx.currentTime;
-  waitSrc = audioCtx.createBufferSource();
-  waitSrc.buffer = waitLoopBuf;
-  waitSrc.loop = true;
-  waitGain = audioCtx.createGain();
-  waitGain.gain.setValueAtTime(0.0001, now);
-  waitGain.gain.linearRampToValueAtTime(0.55 * musicVolume, now + 0.4);
-  waitSrc.connect(waitGain);
-  waitGain.connect(audioCtx.destination);
-  waitSrc.start(now);
-}
-
-function stopWaitLoop() {
-  if (!waitSrc || !waitGain) return;
-  const now = audioCtx.currentTime;
-  const src = waitSrc;
-  waitGain.gain.cancelScheduledValues(now);
-  waitGain.gain.setValueAtTime(waitGain.gain.value, now);
-  waitGain.gain.linearRampToValueAtTime(0.0001, now + 0.35);
-  waitSrc = null;
-  waitGain = null;
-  setTimeout(() => {
-    try { src.stop(); } catch {}
-  }, 500);
 }
 
 // ---------- Monde & entités ----------
@@ -792,9 +757,11 @@ function startRun(buf: AudioBuffer) {
   audioCtx.resume();
   songAnchor = 0;
   anchorAt = audioCtx.currentTime + 0.1;
-  songSpeed = 1;
-  slowT = 0;
-  slowDir = 0;
+  // La platine repart à vitesse nominale pour chaque run
+  rateFrom = 1;
+  rateTo = 1;
+  rampDur = 0;
+  if (musicVeil) musicVeil.frequency.value = VEIL_OPEN;
   pendingLevelUp = 0;
   musicSource.start(anchorAt);
 
@@ -826,12 +793,19 @@ function stopMusic(fade: number) {
 
 function endRun(victory: boolean, aborted = false) {
   phase = "end";
-  pendingLevelUp = 0; // mourir pendant le ralenti n'ouvre pas les cartes
-  slowDir = 0;
-  stopWaitLoop();
-  setSongSpeed(1); // le fondu de fin se joue à vitesse nominale
+  pendingLevelUp = 0; // mourir pendant l'arrêt du vinyle n'ouvre pas les cartes
+  // Le fondu de fin se joue à vitesse et à voix nominales, même si la run
+  // s'interrompt en plein arrêt de platine
+  spinTo(1, 0);
+  if (musicVeil) {
+    musicVeil.frequency.cancelScheduledValues(audioCtx.currentTime);
+    musicVeil.frequency.value = VEIL_OPEN;
+  }
   audioCtx.resume(); // si on arrive depuis la pause (contexte suspendu), le fondu doit se jouer
   show(pauseEl, false);
+  // Une run peut se terminer DEPUIS l'écran d'évolution (Start = interrompre) :
+  // sans ça les cartes restaient affichées par-dessus le menu (bug N4).
+  show(levelupEl, false);
   stopMusic(victory ? 2.5 : 1.0);
   // L'XP de la run rejoint la banque de la Pharmacie
   meta.xp += xpEarned;
@@ -986,18 +960,20 @@ function openLevelUp() {
     showToast(`Symbiote : ${UPGRADE_INFO[c.kind].name}`);
     return;
   }
-  // L'image ralentit, la partie s'étouffe et la boucle d'attente entre ;
-  // les cartes n'arrivent qu'une fois l'image immobile.
-  slowT = 0;
-  slowDir = 1;
-  duckMusic();
-  pendingLevelUp = SLOW_DOWN;
+  // La platine s'arrête : la musique et le temps ralentissent ensemble, le
+  // vinyle recule en volume et passe derrière le voile. Les cartes n'arrivent
+  // qu'une fois immobile.
+  spinTo(SPIN_FLOOR, SPIN_DOWN);
+  softenSpin(true);
+  pendingLevelUp = SPIN_DOWN;
 }
 
-/** L'image est arrêtée : on GÈLE le morceau et on présente les cartes. */
+/** Le vinyle est à l'arrêt : on gèle tout et on présente les cartes. */
 function showLevelUpCards() {
   phase = "levelup";
-  setSongSpeed(0); // le morceau ne défile pas pendant qu'on choisit
+  // Contexte suspendu : le morceau ne défile pas pendant qu'on choisit —
+  // sinon on pourrait le laisser filer sans valider (N4)
+  audioCtx.suspend();
   buildLevelUpCards();
   updateRerollUI();
   show(levelupEl, true);
@@ -1052,9 +1028,8 @@ function pickCard(i: number) {
   refreshWeaponsHud();
   show(levelupEl, false);
   audioCtx.resume();
-  unduckMusic(); // le morceau repart d'où il s'était arrêté
-  slowT = 0;
-  slowDir = -1; // et l'image reprend sa vitesse
+  spinTo(1, SPIN_UP); // la platine repart, le temps la suit
+  softenSpin(false); // et le voile se rouvre avec elle
   phase = "run";
 }
 
@@ -1245,12 +1220,8 @@ function tick(now: number) {
   lastFrame = now;
   readInputEdges();
   // L'image ralentit à l'évolution (idée N4 : « et le temps aussi ») —
-  // hors ralenti timeScale() vaut 1, c'est un no-op.
-  if (slowDir !== 0) {
-    slowT += realDt;
-    if (slowDir < 0 && slowT >= SLOW_UP) slowDir = 0;
-  }
-  const dt = phase === "run" ? realDt * timeScale() : realDt;
+  // hors rampe songRate() vaut 1, c'est un no-op.
+  const dt = phase === "run" ? realDt * songRate() : realDt;
 
   if (phase === "levelup") {
     if (startEdge) {
@@ -1638,7 +1609,6 @@ function advanceIntro() {
     renderBubbles().then((b) => playOneShot(b, 0.55)); // ça barbote
     renderDrop().then((b) => (dropBuf = b));
     renderMenuLoop().then((b) => (menuLoopBuf = b)); // pré-rendu pendant le logo
-    renderWaitLoop().then((b) => (waitLoopBuf = b)); // idem : prête avant la 1re évolution
     $("intro-prompt").classList.add("hidden");
     $("intro-logo").classList.add("on");
     setTimeout(() => {
