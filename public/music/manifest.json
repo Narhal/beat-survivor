@@ -1,8 +1,18 @@
 {
   "tracks": [
     {
+      "file": "Lumenhole.mp3",
+      "title": "Lumenhole",
+      "difficulty": "easy"
+    },
+    {
       "file": "Never see the light again.mp3",
       "title": "Never see the light again",
+      "difficulty": "easy"
+    },
+    {
+      "file": "Yawn phase.mp3",
+      "title": "Yawn phase",
       "difficulty": "easy"
     },
     {
@@ -18,6 +28,11 @@
     {
       "file": "Anxious pathogene.mp3",
       "title": "Anxious pathogene",
+      "difficulty": "hard"
+    },
+    {
+      "file": "Tap.mp3",
+      "title": "Tap",
       "difficulty": "hard"
     }
   ]

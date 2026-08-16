@@ -21,11 +21,17 @@ try {
 // Difficulté par morceau (verdicts N4). Les inconnus passent en "normal".
 // La bibliothèque est TRIÉE par difficulté croissante : elle se lit comme
 // une campagne, du plus accessible au plus exigeant.
+// Les quatre premiers viennent de l'oreille de N4 ; les trois suivants de
+// l'estimateur (src/audio/analysis.ts), qui retrouve exactement ces quatre
+// verdicts — score entre parenthèses, seuils à 5,8 et 6,95.
 const DIFFICULTES = {
-  "Never see the light again.mp3": "easy",
-  "Beyond abyss.mp3": "normal",
-  "Dreamy Dive.mp3": "normal",
-  "Anxious pathogene.mp3": "hard",
+  "Yawn phase.mp3": "easy", // 4,84
+  "Never see the light again.mp3": "easy", // 5,06
+  "Lumenhole.mp3": "easy", // 5,40
+  "Dreamy Dive.mp3": "normal", // 6,53
+  "Beyond abyss.mp3": "normal", // 6,54
+  "Anxious pathogene.mp3": "hard", // 7,13
+  "Tap.mp3": "hard", // 7,28
 };
 const ORDRE = { easy: 0, normal: 1, hard: 2 };
 
