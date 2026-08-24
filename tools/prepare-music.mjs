@@ -35,16 +35,31 @@ const DIFFICULTES = {
 };
 const ORDRE = { easy: 0, normal: 1, hard: 2 };
 
+// Morceaux MASQUÉS du mode Survie (N4 2026-08-07) : ils restent dans le
+// dépôt, analysés et prêts, mais n'apparaissent plus dans la bibliothèque.
+// Ils sont réservés au futur mode Campagne. Retirer un nom d'ici suffit à le
+// remettre en jeu — rien d'autre à refaire.
+const MASQUES = new Set([
+  "Lumenhole.mp3",
+  "Never see the light again.mp3",
+  "Yawn phase.mp3",
+  "Tap.mp3",
+]);
+
 const tracks = files
   .map((file) => ({
     file,
     title: file.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim(),
     difficulty: DIFFICULTES[file] ?? "normal",
+    ...(MASQUES.has(file) ? { hidden: true } : {}),
   }))
   .sort((a, b) => ORDRE[a.difficulty] - ORDRE[b.difficulty] || a.title.localeCompare(b.title));
 
 await writeFile(path.join(DIR, "manifest.json"), JSON.stringify({ tracks }, null, 2));
+const visibles = tracks.filter((t) => !t.hidden);
 console.log(
-  `manifest.json : ${tracks.length} morceau(x) — ` +
-    (tracks.map((t) => `${t.title} [${t.difficulty}]`).join(", ") || "aucun")
+  `manifest.json : ${visibles.length} morceau(x) en jeu — ` +
+    (visibles.map((t) => `${t.title} [${t.difficulty}]`).join(", ") || "aucun")
 );
+const caches = tracks.filter((t) => t.hidden);
+if (caches.length) console.log(`masqués (Campagne) : ${caches.map((t) => t.title).join(", ")}`);

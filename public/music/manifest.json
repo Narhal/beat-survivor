@@ -3,17 +3,20 @@
     {
       "file": "Lumenhole.mp3",
       "title": "Lumenhole",
-      "difficulty": "easy"
+      "difficulty": "easy",
+      "hidden": true
     },
     {
       "file": "Never see the light again.mp3",
       "title": "Never see the light again",
-      "difficulty": "easy"
+      "difficulty": "easy",
+      "hidden": true
     },
     {
       "file": "Yawn phase.mp3",
       "title": "Yawn phase",
-      "difficulty": "easy"
+      "difficulty": "easy",
+      "hidden": true
     },
     {
       "file": "Beyond abyss.mp3",
@@ -33,7 +36,8 @@
     {
       "file": "Tap.mp3",
       "title": "Tap",
-      "difficulty": "hard"
+      "difficulty": "hard",
+      "hidden": true
     }
   ]
 }

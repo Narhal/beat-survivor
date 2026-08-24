@@ -9,9 +9,21 @@ export interface MetaDef {
   max: number;
   baseCost: number;
   growth: number;
+  /** Acquisition exigée avant celle-ci (grisée tant qu'elle manque). */
+  requires?: string;
 }
 
 export const META_DEFS: MetaDef[] = [
+  {
+    // Le dash ne fait plus partie du corps de base (N4 2026-08-07) : c'est la
+    // première chose qu'on achète, et la Saccade n'a de sens qu'après.
+    id: "dash",
+    name: "Jet propulsif",
+    desc: "Débloque le dash (R1) : une détente brusque qui traverse.",
+    max: 1,
+    baseCost: 180,
+    growth: 1,
+  },
   {
     id: "vacuole",
     name: "Vacuole de réserve",
@@ -67,6 +79,7 @@ export const META_DEFS: MetaDef[] = [
     max: 5,
     baseCost: 100,
     growth: 1.8,
+    requires: "dash",
   },
   {
     id: "reroll",
@@ -79,9 +92,9 @@ export const META_DEFS: MetaDef[] = [
 ];
 
 // ---------- Personnages jouables ----------
-// Débloqués par la RÉUSSITE des morceaux de la bibliothèque (décision N4
-// 2026-07-30) — un personnage par morceau, plus d'achat à l'XP. La sélection
-// se fait sur un écran dédié avant la run. Skins Midjourney à venir.
+// DEUX verrous, pas un (N4 2026-08-07) : réussir le morceau ouvre le droit
+// d'acheter, l'achat donne la possession. L'exploit reste fermé (on ne peut
+// pas se payer un roster sans jouer) et l'XP garde un débouché tardif.
 export interface PersoDef {
   id: string;
   name: string;
@@ -93,6 +106,8 @@ export interface PersoDef {
    * le Tardigrade immortel débloquerait tout le roster sans effort.
    */
   unlockWith?: string;
+  /** Prix en XP une fois la condition remplie (0 = gratuit). */
+  cost?: number;
 }
 
 export const PERSO_DEFS: PersoDef[] = [
@@ -108,6 +123,7 @@ export const PERSO_DEFS: PersoDef[] = [
     desc: "1 PV. Dégâts ×1,5 et +10 % de vitesse — tout dans l'attaque.",
     unlockFile: "Anxious pathogene.mp3",
     unlockWith: "reguliere",
+    cost: 400,
   },
   {
     id: "tardigrade",
@@ -115,6 +131,7 @@ export const PERSO_DEFS: PersoDef[] = [
     desc: "Ne meurt jamais. Chaque coup encaissé disperse ta jauge et te coûte de l'XP.",
     unlockFile: "Beyond abyss.mp3",
     unlockWith: "phage", // l'épreuve du roster : ce morceau avec 1 PV
+    cost: 700, // le plus dur à mériter, donc le plus cher
   },
   {
     id: "amibe",
@@ -122,6 +139,7 @@ export const PERSO_DEFS: PersoDef[] = [
     desc: "Aimant énorme et +50 % d'XP collectée, mais lente et fragile.",
     unlockFile: "Dreamy Dive.mp3",
     unlockWith: "reguliere",
+    cost: 500,
   },
   {
     id: "symbiote",
@@ -129,6 +147,7 @@ export const PERSO_DEFS: PersoDef[] = [
     desc: "Les évolutions se choisissent toutes seules : la run ne s'interrompt jamais.",
     unlockFile: "Never see the light again.mp3",
     unlockWith: "reguliere",
+    cost: 600,
   },
 ];
 
@@ -144,8 +163,10 @@ export interface MetaState {
   selected?: string;
   /** Morceaux de la bibliothèque terminés en victoire (fichiers). */
   cleared?: string[];
-  /** Personnages débloqués (les conditions de perso ont été remplies). */
+  /** Personnages dont la CONDITION est remplie (morceau réussi avec le bon perso). */
   unlocked?: string[];
+  /** Personnages ACHETÉS en Pharmacie. Il faut les deux pour jouer un perso. */
+  bought?: string[];
   /** Meilleur score par morceau (clé = fichier officiel ou id custom). */
   scores?: Record<string, number>;
 }
@@ -161,12 +182,13 @@ export function loadMeta(): MetaState {
         if (!m.selected) m.selected = "reguliere";
         if (!m.cleared) m.cleared = [];
         if (!m.unlocked) m.unlocked = [];
+        if (!m.bought) m.bought = [];
         if (!m.scores) m.scores = {};
         return m;
       }
     }
   } catch {}
-  return { xp: 0, upgrades: {}, selected: "reguliere", cleared: [], unlocked: [], scores: {} };
+  return { xp: 0, upgrades: {}, selected: "reguliere", cleared: [], unlocked: [], bought: [], scores: {} };
 }
 
 export function saveMeta(m: MetaState) {

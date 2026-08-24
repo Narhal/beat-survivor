@@ -11,7 +11,7 @@ import { Ship } from "./game/ship";
 import { Enemies, ENEMY_DEFS, Enemy, EnemyKind } from "./game/enemies";
 import { Weapons, UPGRADE_INFO, UpgradeKind, maxLevelOf } from "./game/weapons";
 import { renderMenuLoop, renderBubbles, renderDrop, speakTitle } from "./audio/menuAudio";
-import { META_DEFS, PERSO_DEFS, costOf, loadMeta, saveMeta } from "./game/meta";
+import { META_DEFS, PERSO_DEFS, PersoDef, costOf, loadMeta, saveMeta } from "./game/meta";
 import { glowMaterial } from "./game/glow";
 import { UPGRADE_ICONS } from "./game/icons";
 import { listCustom, rememberCustom, CustomEntry, CUSTOM_MAX } from "./game/customLib";
@@ -601,28 +601,48 @@ let trackName = "";
 // ---------- Pharmacie : méta-progression persistante ----------
 const meta = loadMeta();
 const metaLvl = (id: string) => meta.upgrades[id] ?? 0;
-// Un perso se débloque en RÉUSSISSANT son morceau de bibliothèque (N4) ;
-// les anciens achats Pharmacie (upgrades) restent honorés.
-const persoOwned = (id: string) => {
+// DEUX verrous (N4 2026-08-07) : réussir le morceau ouvre le DROIT d'acheter,
+// l'achat en Pharmacie donne la possession. Il faut les deux.
+/** La condition de jeu est remplie : le morceau a été réussi avec le bon perso. */
+const persoUnlocked = (id: string) => {
   const def = PERSO_DEFS.find((p) => p.id === id);
   if (!def) return false;
   if (!def.unlockFile) return true;
-  return (meta.unlocked ?? []).includes(id) || metaLvl(id) > 0;
+  return (meta.unlocked ?? []).includes(id);
 };
+/** Le perso a été payé — les vieux achats Pharmacie (upgrades) restent honorés. */
+const persoBought = (id: string) => {
+  const def = PERSO_DEFS.find((p) => p.id === id);
+  if (!def) return false;
+  if (!def.unlockFile) return true;
+  return (meta.bought ?? []).includes(id) || metaLvl(id) > 0;
+};
+const persoOwned = (id: string) => persoUnlocked(id) && persoBought(id);
 
 /** Condition de déblocage, en clair, pour l'écran PERSONNAGE. */
 function unlockHint(def: (typeof PERSO_DEFS)[number]): string {
   if (!def.unlockFile) return "";
   const titre =
-    musicTracks.find((t) => t.file === def.unlockFile)?.title ??
+    allTracks.find((t) => t.file === def.unlockFile)?.title ??
     def.unlockFile.replace(/\.[^.]+$/, "");
   const avec = PERSO_DEFS.find((p) => p.id === def.unlockWith);
   return avec && avec.id !== "reguliere"
     ? `Réussis « ${titre} » avec ${avec.name}`
     : `Réussis « ${titre} » avec la Régulière`;
 }
-const persoActif = () => PERSO_DEFS.find((p) => p.id === (meta.selected ?? "reguliere")) ?? PERSO_DEFS[0];
+/**
+ * Le perso qui plonge VRAIMENT. La sélection peut avoir été invalidée depuis
+ * (perso non racheté, ou masqué avec son morceau) : startRun retombe alors sur
+ * la Régulière, et l'affichage doit dire la même chose que le jeu.
+ */
+const persoActif = () => {
+  const id = meta.selected ?? "reguliere";
+  const def = PERSO_DEFS.find((p) => p.id === id);
+  return def && persoOwned(id) ? def : PERSO_DEFS[0];
+};
 let metaSpeedMul = 1;
+/** Le Jet propulsif a-t-il été acquis en Pharmacie ? Sans lui, pas de dash. */
+let dashUnlocked = false;
 let autopilot = false;
 let tardigrade = false;
 let charXpMul = 1;
@@ -703,6 +723,8 @@ function startRun(buf: AudioBuffer) {
   enemies.kysteRadiusMul = 1 + 0.18 * metaLvl("virulence");
   rerollsLeft = metaLvl("reroll");
   weapons.saccadeLevel = metaLvl("saccade");
+  // Le dash n'est plus dans le corps de base : il s'achète (N4 2026-08-07)
+  dashUnlocked = metaLvl("dash") > 0;
   xpEarned = 0;
   // Le personnage sélectionné imprime son identité
   const perso = persoOwned(meta.selected ?? "reguliere") ? (meta.selected ?? "reguliere") : "reguliere";
@@ -1300,7 +1322,7 @@ function tick(now: number) {
     ship.beat = bassEnv;
 
     // Dash (R1) — la Saccade l'améliore
-    if (dashEdge && ship.tryDash(weapons.dashCooldown)) {
+    if (dashEdge && dashUnlocked && ship.tryDash(weapons.dashCooldown)) {
       burst(ship.pos, 0xaffbff);
       spawnRipple(ship.pos, 1.8, Math.atan2(ship.lastDir.y, ship.lastDir.x));
       rumble(0.25, 0.5, 90);
@@ -1352,7 +1374,7 @@ function tick(now: number) {
     weapons.update(dt, ship, enemies, (ev) => onKill(ev.enemy));
 
     // Signal « dash prêt » : anneau sur la cellule + blip discret (idée N4)
-    if (dashWasCooling && ship.dashCd <= 0) dashReadyCue();
+    if (dashUnlocked && dashWasCooling && ship.dashCd <= 0) dashReadyCue();
     dashWasCooling = ship.dashCd > 0;
 
     // Spirales d'aspiration : rotation, ramassage → toutes les protéines foncent
@@ -1647,16 +1669,38 @@ type PendingAction = { type: "track"; track: MusicTrack } | { type: "demo" } | {
 let pendingAction: PendingAction = null;
 
 // ---------- Morceaux du mode Survie (public/music + manifest) ----------
-interface MusicTrack { file: string; title: string; difficulty?: "easy" | "normal" | "hard"; }
+interface MusicTrack {
+  file: string;
+  title: string;
+  difficulty?: "easy" | "normal" | "hard";
+  /** Mis de côté pour le futur mode Campagne : présent, mais hors bibliothèque. */
+  hidden?: boolean;
+}
 const DIFF_LABEL = { easy: "EASY", normal: "NORMAL", hard: "HARD" } as const;
+/** Ce que la bibliothèque propose. */
 let musicTracks: MusicTrack[] = [];
+/** Tout le manifest, masqués compris — sert à nommer les conditions de perso. */
+let allTracks: MusicTrack[] = [];
 
 fetch(`${ASSET_BASE}music/manifest.json`)
   .then((r) => (r.ok ? r.json() : null))
   .then((m) => {
-    if (m?.tracks) musicTracks = m.tracks;
+    if (!m?.tracks) return;
+    allTracks = m.tracks;
+    musicTracks = allTracks.filter((t) => !t.hidden);
   })
   .catch(() => {}); // pas de manifest = la piste démo synthétique fait le travail
+
+/**
+ * Un personnage dont le morceau de déblocage est masqué devient inatteignable :
+ * on le retire du roster plutôt que d'afficher une condition introuvable. Il
+ * revient tout seul le jour où son morceau revient (N4 2026-08-07).
+ */
+function persoVisible(def: PersoDef): boolean {
+  if (!def.unlockFile) return true;
+  if (allTracks.length === 0) return true; // pas de manifest : on ne cache rien
+  return !allTracks.find((t) => t.file === def.unlockFile)?.hidden;
+}
 
 // Morceau de bibliothèque en cours (null = démo ou custom) — la victoire
 // dessus débloque son personnage
@@ -1838,18 +1882,24 @@ function renderPersoSelect() {
   const list = $("perso-list");
   list.innerHTML = "";
   const navEls: HTMLElement[] = [];
-  for (const p of PERSO_DEFS) {
+  for (const p of PERSO_DEFS.filter(persoVisible)) {
     const owned = persoOwned(p.id);
     const active = (meta.selected ?? "reguliere") === p.id;
     const card = document.createElement("button");
     card.className = "pharma-card" + (active && owned ? " active" : "");
     card.disabled = !owned;
+    // Deux verrous, donc deux messages : la condition d'abord, le prix ensuite
+    const etat = owned
+      ? active
+        ? "Plonger (actif)"
+        : "Plonger"
+      : persoUnlocked(p.id)
+        ? `À acquérir · ${p.cost ?? 0} XP`
+        : unlockHint(p);
     card.innerHTML =
       `<span class="pc-name">${p.name}</span>` +
       `<span class="pc-desc">${p.desc}</span>` +
-      `<span class="pc-cost${active && owned ? " active-label" : ""}">${
-        owned ? (active ? "Plonger (actif)" : "Plonger") : unlockHint(p)
-      }</span>`;
+      `<span class="pc-cost${active && owned ? " active-label" : ""}">${etat}</span>`;
     if (owned) {
       card.addEventListener("click", () => {
         meta.selected = p.id;
@@ -2066,21 +2116,24 @@ function renderPharmacie() {
     const lvl = metaLvl(def.id);
     const cost = costOf(def, lvl);
     const maxed = lvl >= def.max;
+    // Prérequis : la Saccade n'a pas de sens sans Jet propulsif
+    const requis = def.requires ? metaName(def.requires) : "";
+    const bloque = !!def.requires && metaLvl(def.requires) === 0;
     const card = document.createElement("button");
     card.className = "pharma-card";
-    card.disabled = maxed || meta.xp < cost;
+    card.disabled = maxed || bloque || meta.xp < cost;
     card.innerHTML =
       `<span class="pc-name">${def.name}</span>` +
       `<span class="pc-desc">${def.desc}</span>` +
       `<span class="pc-lvl">${"●".repeat(lvl)}${"○".repeat(def.max - lvl)}</span>` +
-      `<span class="pc-cost">${maxed ? "MAX" : `${cost} XP`}</span>`;
-    if (!maxed) {
+      `<span class="pc-cost">${maxed ? "MAX" : bloque ? `Exige ${requis}` : `${cost} XP`}</span>`;
+    if (!maxed && !bloque) {
       card.addEventListener("click", () => {
         if (meta.xp >= cost && metaLvl(def.id) < def.max) {
           meta.xp -= cost;
           meta.upgrades[def.id] = metaLvl(def.id) + 1;
           saveMeta(meta);
-          showToast(`Pharmacie : ${def.name} amélioré`);
+          showToast(`Pharmacie : ${def.name} ${def.max === 1 ? "acquis" : "amélioré"}`);
           renderPharmacie();
         }
       });
@@ -2088,8 +2141,51 @@ function renderPharmacie() {
     list.appendChild(card);
     navEls.push(card);
   }
+
+  // ---- Souches jouables : réussir le morceau ouvre le droit, l'XP conclut ----
+  const persos = PERSO_DEFS.filter((p) => p.unlockFile && persoVisible(p));
+  if (persos.length > 0) {
+    const titre = document.createElement("div");
+    titre.className = "pharma-section";
+    titre.textContent = "SOUCHES";
+    list.appendChild(titre);
+    for (const p of persos) {
+      const acquis = persoOwned(p.id);
+      const ouvert = persoUnlocked(p.id);
+      const cost = p.cost ?? 0;
+      const card = document.createElement("button");
+      card.className = "pharma-card" + (acquis ? " active" : "");
+      card.disabled = acquis || !ouvert || meta.xp < cost;
+      card.innerHTML =
+        `<span class="pc-name">${p.name}</span>` +
+        `<span class="pc-desc">${p.desc}</span>` +
+        `<span class="pc-lvl">${acquis ? "●" : ouvert ? "○" : "✕"}</span>` +
+        `<span class="pc-cost${acquis ? " active-label" : ""}">${
+          acquis ? "ACQUISE" : ouvert ? `${cost} XP` : unlockHint(p)
+        }</span>`;
+      if (!acquis && ouvert) {
+        card.addEventListener("click", () => {
+          if (meta.xp >= cost && !persoBought(p.id)) {
+            meta.xp -= cost;
+            meta.bought = [...(meta.bought ?? []), p.id];
+            saveMeta(meta);
+            showToast(`Pharmacie : ${p.name} rejoint le roster`);
+            renderPharmacie();
+          }
+        });
+      }
+      list.appendChild(card);
+      navEls.push(card);
+    }
+  }
+
   navEls.push($("btn-pharma-back"));
   setMenu(navEls, "y", 4);
+}
+
+/** Nom lisible d'une acquisition, pour annoncer un prérequis. */
+function metaName(id: string): string {
+  return META_DEFS.find((d) => d.id === id)?.name ?? id;
 }
 
 $("btn-survie").addEventListener("click", (e) => {

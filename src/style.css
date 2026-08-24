@@ -478,8 +478,17 @@ button.pharma-card:hover:not(:disabled), button.pharma-card.sel {
   border-color: #b06cff; box-shadow: 0 0 18px rgba(160, 90, 255, 0.5);
   transform: none; filter: none;
 }
+/* Intertitre de la Pharmacie : il traverse la grille sur toute sa largeur,
+   sinon il occuperait une case et casserait l'alignement des cartes. */
 .pharma-section {
+  grid-column: 1 / -1;
   margin-top: 10px; font-size: 13px; letter-spacing: 0.22em; color: #4a8fa8;
+  text-align: center;
+}
+.screen.lab .pharma-section {
+  color: #7fc79a;
+  border-top: 1px solid rgba(126, 240, 160, 0.22);
+  padding-top: 12px;
 }
 #perso-list {
   display: grid;
