@@ -218,6 +218,9 @@ h1 {
 .tk-diff[data-diff="easy"] .colony i { color: #8effc0; }
 .tk-diff[data-diff="normal"] .colony i { color: #ffe28a; }
 .tk-diff[data-diff="hard"] .colony i { color: #ff8fa6; }
+/* Banc d'essai : hors de l'échelle vert-jaune-rouge, donc hors de sa
+   palette — un bleu froid de laboratoire, qui ne promet aucune difficulté. */
+.tk-diff[data-diff="test"] .colony i { color: #86b8d8; }
 
 /* ---------- Fiche d'observation (écran titre) ---------- */
 /* Le relevé se tient à droite, à hauteur d'œil, et occupe la colonne :
@@ -622,6 +625,7 @@ button.track-btn {
 .tk-diff[data-diff="easy"] { color: #8effc0; }
 .tk-diff[data-diff="normal"] { color: #ffe28a; }
 .tk-diff[data-diff="hard"] { color: #ff8fa6; }
+.tk-diff[data-diff="test"] { color: #86b8d8; }
 .tk-done { color: #8effc0; text-align: right; font-size: 13px; white-space: nowrap; }
 button.track-btn { grid-template-columns: 62px 1fr 72px; padding: 9px 18px; }
 /* L'aplat reste sombre à la sélection : les colonies gardent leurs teintes */

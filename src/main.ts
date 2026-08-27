@@ -1672,11 +1672,12 @@ let pendingAction: PendingAction = null;
 interface MusicTrack {
   file: string;
   title: string;
-  difficulty?: "easy" | "normal" | "hard";
+  /** « test » = banc d'essai, hors échelle : le morceau n'est pas calibré. */
+  difficulty?: "easy" | "normal" | "hard" | "test";
   /** Mis de côté pour le futur mode Campagne : présent, mais hors bibliothèque. */
   hidden?: boolean;
 }
-const DIFF_LABEL = { easy: "EASY", normal: "NORMAL", hard: "HARD" } as const;
+const DIFF_LABEL = { easy: "EASY", normal: "NORMAL", hard: "HARD", test: "TEST" } as const;
 /** Ce que la bibliothèque propose. */
 let musicTracks: MusicTrack[] = [];
 /** Tout le manifest, masqués compris — sert à nommer les conditions de perso. */
@@ -1766,7 +1767,9 @@ function renderTrackList() {
  * paisible en easy, grouillante en hard. Le libellé reste, en repli lisible.
  */
 function trackButtonHTML(title: string, diff: string, right: string) {
-  const spec = { easy: [5, 7], normal: [9, 4.5], hard: [15, 2.4] } as const;
+  // L'agitation de la colonie DIT la difficulté. Un banc d'essai n'en a pas :
+  // sa colonie est clairsemée et lente, elle ne promet rien.
+  const spec = { easy: [5, 7], normal: [9, 4.5], hard: [15, 2.4], test: [4, 9] } as const;
   const [count, speed] = spec[diff as keyof typeof spec] ?? spec.normal;
   let cells = "";
   for (let i = 0; i < count; i++) {

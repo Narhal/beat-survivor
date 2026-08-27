@@ -38,6 +38,26 @@
       "title": "Tap",
       "difficulty": "hard",
       "hidden": true
+    },
+    {
+      "file": "Liquid.mp3",
+      "title": "Liquid",
+      "difficulty": "test"
+    },
+    {
+      "file": "Luxury.mp3",
+      "title": "Luxury",
+      "difficulty": "test"
+    },
+    {
+      "file": "Space wind.mp3",
+      "title": "Space wind",
+      "difficulty": "test"
+    },
+    {
+      "file": "Wonderland.mp3",
+      "title": "Wonderland",
+      "difficulty": "test"
     }
   ]
 }

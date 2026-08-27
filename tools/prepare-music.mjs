@@ -32,8 +32,17 @@ const DIFFICULTES = {
   "Beyond abyss.mp3": "normal", // 6,54
   "Anxious pathogene.mp3": "hard", // 7,13
   "Tap.mp3": "hard", // 7,28
+  // Bancs d'essai (N4 2026-08-28) : pas encore jugés, donc pas de place dans
+  // l'échelle. L'étiquette « test » les met en bout de bibliothèque et dit
+  // au joueur qu'ils ne sont pas calibrés.
+  "Liquid.mp3": "test",
+  "Luxury.mp3": "test",
+  "Space wind.mp3": "test",
+  "Wonderland.mp3": "test",
 };
-const ORDRE = { easy: 0, normal: 1, hard: 2 };
+// « test » vaut 3 : les bancs d'essai passent APRÈS la campagne, jamais au
+// milieu de l'échelle de difficulté.
+const ORDRE = { easy: 0, normal: 1, hard: 2, test: 3 };
 
 // Morceaux MASQUÉS du mode Survie (N4 2026-08-07) : ils restent dans le
 // dépôt, analysés et prêts, mais n'apparaissent plus dans la bibliothèque.
