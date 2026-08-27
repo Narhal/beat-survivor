@@ -12,20 +12,24 @@ export type UpgradeCategory = "Arme" | "Atout" | "Passif";
 // L'Apoptose a quitté les cartes de run : ses charges s'achètent désormais
 // en Pharmacie (décision N4 2026-08-02).
 export type UpgradeKind =
-  | "blaster" | "eventail" | "orbes" | "onde" | "tentacule" | "mine" | "arc" // armes
-  | "flagelles" | "membrane" // atouts
+  | "blaster" | "eventail" | "orbes" | "onde" | "tentacule" | "mine" | "arc"
+  | "lance" | "bourgeon" // armes
+  | "flagelles" | "membrane" | "viscosite" // atouts
   | "mitose" | "enzymes" | "phagocytose"; // passifs
 
 export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat: UpgradeCategory }> = {
-  blaster: { name: "Anticorps", desc: "Tire sur le pathogène le plus proche.", cat: "Arme" },
+  blaster: { name: "Anticorps", desc: "Ton tir de base : vise seul le pathogène le plus proche.", cat: "Arme" },
   eventail: { name: "Éventail", desc: "Gerbe de projectiles vers l'arrière.", cat: "Arme" },
-  mine: { name: "Mine", desc: "Pond régulièrement une mine qui explose à l'approche des pathogènes.", cat: "Arme" },
+  mine: { name: "Mine", desc: "Sème trois mines qui explosent à l'approche des pathogènes.", cat: "Arme" },
+  lance: { name: "Lance", desc: "Un dard part au hasard et transperce tout sur sa route.", cat: "Arme" },
+  bourgeon: { name: "Bourgeon", desc: "Un bourgeon papillonne autour de toi et tire de son côté.", cat: "Arme" },
   arc: { name: "Arc voltaïque", desc: "Un cône électrique foudroie tout devant toi.", cat: "Arme" },
   orbes: { name: "Orbes", desc: "Satellites en orbite, dégâts de contact.", cat: "Arme" },
   onde: { name: "Onde de choc", desc: "Anneau périodique qui balaie autour de toi.", cat: "Arme" },
   tentacule: { name: "Filament", desc: "Un filament urticant traîne derrière toi. Jusqu'à 3.", cat: "Arme" },
   flagelles: { name: "Flagelles", desc: "Vitesse de nage augmentée.", cat: "Atout" },
   membrane: { name: "Membrane", desc: "Absorbe un coup, puis se recharge — de plus en plus vite par palier.", cat: "Atout" },
+  viscosite: { name: "Viscosité", desc: "L'eau s'épaissit autour de toi : les pathogènes qui entrent ralentissent.", cat: "Atout" },
   mitose: { name: "Mitose", desc: "Régulièrement, un pathogène détruit laisse un cœur.", cat: "Passif" },
   enzymes: { name: "Enzymes", desc: "+15 % de dégâts pour toutes les armes.", cat: "Passif" },
   phagocytose: { name: "Phagocytose", desc: "Augmente la distance d'aspiration des protéines.", cat: "Passif" },
@@ -51,6 +55,10 @@ interface Projectile {
   life: number;
   dmg: number;
   mesh: THREE.Mesh;
+  /** La Lance ne meurt pas au premier contact : elle traverse. */
+  pierce?: boolean;
+  /** Ce qu'elle a déjà touché — sans ça elle frapperait la même cible 60×/s. */
+  hit?: Set<Enemy>;
 }
 
 interface Shockwave {
@@ -95,6 +103,13 @@ export class Weapons {
   private arcParams = { len: 0, half: 0, bolts: 3 };
   private shieldMesh: THREE.Mesh;
   private time = 0;
+  /** Viscosité : la lentille d'eau épaissie autour de la cellule. */
+  private lensMesh: THREE.Mesh;
+  private lensMat: THREE.ShaderMaterial;
+  /** Bourgeon : le compagnon et sa danse autour du joueur. */
+  private budMesh: THREE.Mesh | null = null;
+  private budPos = new THREE.Vector2();
+  private budPhase = Math.random() * Math.PI * 2;
 
   private projGeo = new THREE.CircleGeometry(0.55, 8);
   private projMat = new THREE.MeshBasicMaterial({ color: 0xfff3a0 });
@@ -103,6 +118,8 @@ export class Weapons {
   private orbMat = new THREE.MeshBasicMaterial({ color: 0x8effc0 });
   private tentGeo = new THREE.CircleGeometry(1, 10);
   private tentMat = new THREE.MeshBasicMaterial({ color: 0x66f0d8 });
+  private budGeo = new THREE.CircleGeometry(0.95, 14);
+  private budMat = new THREE.MeshBasicMaterial({ color: 0xbdffe6 });
   private mineGeo = new THREE.CircleGeometry(0.8, 12);
   private mineMat = new THREE.MeshBasicMaterial({ color: 0xffc36e });
   private projPool: THREE.Mesh[] = [];
@@ -116,6 +133,67 @@ export class Weapons {
     );
     this.shieldMesh.visible = false;
     scene.add(this.shieldMesh);
+
+    // ---- La lentille de Viscosité ----
+    // Une lentille ne se voit PAS par son intérieur : elle se voit par son
+    // bord, là où la lumière rase le verre. D'où un liseré fin et net,
+    // doublé d'une frange chromatique décalée vers l'extérieur (l'eau ne
+    // dévie pas toutes les longueurs d'onde pareil), et un intérieur presque
+    // vide. C'est le contraire d'un halo : rien au centre, tout au bord.
+    this.lensMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uStrength: { value: 1 } },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        uniform float uTime, uStrength;
+        void main() {
+          vec2 p = vUv * 2.0 - 1.0;
+          float r = length(p);
+          if (r > 1.0) discard;
+          float a = atan(p.y, p.x);
+          // Le volume d'eau respire : le bord ondule lentement, sans jamais
+          // déplacer la zone utile (le gameplay ne doit pas mentir)
+          float wob = 1.0 + 0.012 * sin(a * 5.0 + uTime * 0.9) + 0.008 * sin(a * 9.0 - uTime * 1.4);
+          float rr = r / wob;
+          // Liseré principal : net, fin
+          float rim = smoothstep(0.90, 0.985, rr) * (1.0 - smoothstep(0.985, 1.0, rr));
+          // Frange chromatique, un cheveu plus à l'intérieur
+          float fringe = smoothstep(0.84, 0.93, rr) * (1.0 - smoothstep(0.93, 0.975, rr));
+          // Intérieur : un souffle, pas un voile — 4 % suffisent à dire « dedans »
+          float inner = smoothstep(1.0, 0.15, rr) * 0.04;
+          vec3 col = vec3(0.42, 0.86, 1.00) * rim
+                   + vec3(0.78, 0.42, 1.00) * fringe * 0.30
+                   + vec3(0.30, 0.62, 0.85) * inner;
+          float alpha = (rim * 0.9 + fringe * 0.28 + inner) * uStrength;
+          gl_FragColor = vec4(col, alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.lensMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.lensMat);
+    this.lensMesh.position.z = 0.6; // sous le gameplay : la lentille est le milieu
+    this.lensMesh.visible = false;
+    scene.add(this.lensMesh);
+  }
+
+  /** Rayon du champ de Viscosité — il s'élargit à chaque palier. */
+  get viscosityRadius(): number {
+    const lvl = this.levels.get("viscosite") ?? 0;
+    return lvl > 0 ? 15 + lvl * 3.5 : 0;
+  }
+
+  /** Facteur de temps des ennemis dans le champ (0,62 → 0,30 au palier 5). */
+  get viscosityFactor(): number {
+    const lvl = this.levels.get("viscosite") ?? 0;
+    return 1 - Math.min(0.7, 0.54 + (lvl - 1) * 0.04);
   }
 
   reset() {
@@ -134,6 +212,8 @@ export class Weapons {
     this.explosions = [];
     this.clearBolts();
     this.arcTimer = 0;
+    this.lensMesh.visible = false;
+    if (this.budMesh) this.budMesh.visible = false;
     this.syncOrbs();
     this.syncTentacle();
   }
@@ -247,7 +327,62 @@ export class Weapons {
       this.shieldMesh.rotation.z = this.time * 0.8;
     }
 
+    // ---- Viscosité : la lentille suit la cellule, la zone suit la lentille ----
+    const viscR = this.viscosityRadius;
+    if (viscR > 0) {
+      this.lensMesh.visible = true;
+      this.lensMesh.position.set(ship.pos.x, ship.pos.y, 0.6);
+      this.lensMesh.scale.setScalar(viscR);
+      this.lensMat.uniforms.uTime.value = this.time;
+      enemies.slowZone = { pos: ship.pos, radius: viscR, factor: this.viscosityFactor };
+    } else {
+      this.lensMesh.visible = false;
+      enemies.slowZone = null;
+    }
+
+    // ---- Bourgeon : le compagnon papillonne et tire pour son compte ----
+    const budLvl = this.levels.get("bourgeon") ?? 0;
+    if (budLvl > 0) {
+      if (!this.budMesh) {
+        this.budMesh = new THREE.Mesh(this.budGeo, this.budMat);
+        this.scene.add(this.budMesh);
+        this.budPos.copy(ship.pos);
+      }
+      this.budMesh.visible = true;
+      // Vol de papillon : deux sinusoïdes décalées, jamais une orbite propre.
+      // Et il POURSUIT sa cible molle plutôt que d'y être collé — c'est ce
+      // retard qui fait vivant.
+      this.budPhase += dt * 1.7;
+      const target = new THREE.Vector2(
+        ship.pos.x + Math.cos(this.budPhase) * 6.5 + Math.sin(this.budPhase * 2.3) * 2.2,
+        ship.pos.y + Math.sin(this.budPhase * 1.4) * 5.5 + Math.cos(this.budPhase * 3.1) * 1.8
+      );
+      this.budPos.lerp(target, 1 - Math.exp(-dt * 4.5));
+      this.budMesh.position.set(this.budPos.x, this.budPos.y, 1.6);
+      this.budMesh.scale.setScalar(0.85 + 0.15 * Math.sin(this.time * 6));
+
+      // Il naît déjà bien armé, puis gagne en cadence ET en dégâts (N4)
+      const budCd = (this.cooldowns.get("bourgeon") ?? 0) - dt;
+      if (budCd <= 0) {
+        const target2 = this.nearest(this.budPos, enemies);
+        if (target2) {
+          const dir = new THREE.Vector2().subVectors(target2.pos, this.budPos).normalize();
+          this.fire(this.budPos, dir, 70, (3 + budLvl * 1.4) * mul);
+          this.cooldowns.set("bourgeon", 0.62 / (1 + (budLvl - 1) * 0.34));
+        } else {
+          this.cooldowns.set("bourgeon", 0.1); // rien en vue : on regarde souvent
+        }
+      } else {
+        this.cooldowns.set("bourgeon", budCd);
+      }
+    } else if (this.budMesh) {
+      this.budMesh.visible = false;
+    }
+
     for (const [kind, lvl] of this.levels) {
+      // Le Bourgeon a déjà été servi plus haut avec sa propre horloge : le
+      // laisser passer ici décrémenterait son cooldown une seconde fois.
+      if (kind === "bourgeon") continue;
       const cd = (this.cooldowns.get(kind) ?? 0) - dt;
       if (cd > 0) {
         this.cooldowns.set(kind, cd);
@@ -301,12 +436,32 @@ export class Weapons {
           break;
         }
         case "mine": {
-          // Pond une mine sous la cellule ; elle s'arme puis guette
-          const mesh = new THREE.Mesh(this.mineGeo, this.mineMat);
-          mesh.position.set(ship.pos.x, ship.pos.y, 0.8);
-          this.scene.add(mesh);
-          this.mines.push({ pos: ship.pos.clone(), mesh, age: 0 });
+          // TROIS mines écartées au lieu d'une (N4 2026-08-28) : on sème un
+          // champ, pas un point. Elles se posent en triangle derrière la
+          // cellule, assez loin les unes des autres pour couvrir un passage.
+          const heading = Math.atan2(ship.lastDir.y, ship.lastDir.x);
+          for (let k = 0; k < 3; k++) {
+            const a = heading + Math.PI + (k - 1) * 0.9;
+            const d = 4.5 + Math.abs(k - 1) * 1.5;
+            const pos = new THREE.Vector2(
+              ship.pos.x + Math.cos(a) * d,
+              ship.pos.y + Math.sin(a) * d
+            );
+            const mesh = new THREE.Mesh(this.mineGeo, this.mineMat);
+            mesh.position.set(pos.x, pos.y, 0.8);
+            this.scene.add(mesh);
+            this.mines.push({ pos, mesh, age: 0 });
+          }
           this.cooldowns.set(kind, 3.5 / (1 + (lvl - 1) * 0.22));
+          break;
+        }
+        case "lance": {
+          // Un dard lancé AU HASARD qui transperce tout (N4) : on ne vise
+          // pas, on couvre — et il ne s'arrête à personne.
+          const a = Math.random() * Math.PI * 2;
+          const dir = new THREE.Vector2(Math.cos(a), Math.sin(a));
+          this.firePierce(ship.pos, dir, 78, (3 + lvl * 1.6) * mul);
+          this.cooldowns.set(kind, 1.5 / (1 + (lvl - 1) * 0.3));
           break;
         }
         case "arc": {
@@ -321,7 +476,7 @@ export class Weapons {
           break;
         }
         default:
-          break; // orbes, tentacule et les non-armes sont passifs, gérés plus bas
+          break; // orbes, tentacule, bourgeon et les non-armes sont gérés plus bas
       }
     }
 
@@ -341,8 +496,13 @@ export class Weapons {
       }
       if (boom) {
         const mineLvl = this.levels.get("mine") ?? 1;
-        const radius = 8 + mineLvl * 1.5;
-        const mineDmg = (5 + mineLvl * 2) * mul;
+        // Le rayon doit VRAIMENT monter avec les paliers (N4). La pente
+        // passe de 1,5 à 3,5 par palier : +42 % de portée au palier 1,
+        // +77 % au palier 5 (9,5 → 13,5 et 15,5 → 27,5). Pour l'échelle :
+        // l'Apoptose couvre 57,6 — trois mines à 27,5 restent un champ, pas
+        // une purge d'arène. Dégâts +25 % au passage.
+        const radius = 10 + mineLvl * 3.5;
+        const mineDmg = (5 + mineLvl * 2) * 1.25 * mul;
         for (let j = enemies.list.length - 1; j >= 0; j--) {
           const e = enemies.list[j];
           if (e.pos.distanceTo(mn.pos) < radius) {
@@ -412,13 +572,20 @@ export class Weapons {
         for (let j = enemies.list.length - 1; j >= 0; j--) {
           const e = enemies.list[j];
           if (p.pos.distanceTo(e.pos) < e.radius + 0.6) {
+            // La Lance traverse : elle blesse et continue, mais ne frappe
+            // jamais deux fois la même cible (sinon 60 coups par seconde).
+            if (p.pierce) {
+              if (p.hit!.has(e)) continue;
+              p.hit!.add(e);
+            } else {
+              dead = true;
+            }
             e.hp -= p.dmg;
-            dead = true;
             if (e.hp <= 0) {
               onKill({ enemy: e });
               enemies.remove(j);
             }
-            break;
+            if (!p.pierce) break;
           }
         }
       }
@@ -563,6 +730,22 @@ export class Weapons {
       life: 2.2,
       dmg,
       mesh,
+    });
+  }
+
+  /** Tir transperçant (Lance) : plus long, plus rapide, et il ne s'arrête pas. */
+  private firePierce(from: THREE.Vector2, dir: THREE.Vector2, speed: number, dmg: number) {
+    const mesh = this.projPool.pop() ?? new THREE.Mesh(this.projGeo, this.projMat);
+    mesh.position.set(from.x, from.y, 1.5);
+    this.scene.add(mesh);
+    this.projectiles.push({
+      pos: from.clone(),
+      vel: dir.clone().multiplyScalar(speed),
+      life: 3.2, // il doit pouvoir traverser toute l'arène
+      dmg,
+      mesh,
+      pierce: true,
+      hit: new Set(),
     });
   }
 

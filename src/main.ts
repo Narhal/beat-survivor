@@ -651,6 +651,32 @@ let xpEarned = 0;
 let runPerso = "reguliere";
 const GAUGE_BASE = 15; // +50 % de lenteur demandé par N4 (2026-07-26)
 const SPAWN_DENSITY = 0.8; // −20 % de densité d'ennemis (N4)
+/**
+ * Le filtre de libération (N4 2026-08-28). Un morceau qui s'installe en
+ * douceur laissait le joueur les bras ballants — « dans certains cas on
+ * s'ennuie pendant une minute ». Les vannes du spawn sont ouvertes par
+ * l'INTENSITÉ, normalisée sur le pic du morceau : une intro à 10 % du pic ne
+ * franchit aucun seuil, quelle que soit sa richesse réelle.
+ *
+ * Plutôt que d'abaisser les seuils partout (ce qui déréglerait les
+ * accalmies du milieu, elles VOULUES), on garantit un fond d'activité tant
+ * que le morceau ne s'est pas réveillé. Après le réveil, la musique reprend
+ * seule la main et le silence redevient du silence.
+ */
+const DRY_LIMIT = 2.5; // secondes de vide tolérées avant d'ouvrir la vanne
+const DRY_MAX = 5; // et seulement si l'arène est effectivement creuse
+/** Instant où l'intensité du morceau décolle vraiment. */
+let wakeTime = 0;
+/** Dernier instant du morceau où quelque chose est sorti. */
+let lastReleaseT = 0;
+
+/** Premier moment où l'intensité atteint 40 % du pic : le morceau démarre. */
+function computeWakeTime(a: TrackAnalysis): number {
+  for (let i = 0; i < a.intensity.length; i++) {
+    if (a.intensity[i] >= 0.4) return i / a.fps;
+  }
+  return a.duration;
+}
 let score = 0;
 let gauge = 0;
 let gaugeMax = GAUGE_BASE;
@@ -751,6 +777,8 @@ function startRun(buf: AudioBuffer) {
     () => dur * (0.3 + Math.random() * 0.62)
   ).sort((a, b) => a - b);
   spiralIdx = 0;
+  wakeTime = analysis ? computeWakeTime(analysis) : 0;
+  lastReleaseT = 0;
   score = 0;
   gauge = 0;
   gaugeLevel = 0;
@@ -1086,6 +1114,7 @@ function beatInWindow(from: number, to: number): number | null {
 
 function updateSpawns(t: number) {
   if (!analysis) return;
+  const avant = enemies.list.length;
   const difficulty = 1 + (t / 60) * 0.4;
   const inten = envAt(analysis.intensity, analysis.fps, t);
   const speedScale = 0.75 + inten * 0.5;
@@ -1150,6 +1179,23 @@ function updateSpawns(t: number) {
       } else {
         enemies.spawn("dard", ship.pos, o.s, difficulty, speedScale);
       }
+    }
+  }
+
+  // Le filtre de libération : tant que le morceau n'a pas décollé, l'arène
+  // ne reste jamais vide plus de DRY_LIMIT secondes. Passé le réveil, la
+  // musique reprend seule la main — une accalmie de milieu de morceau doit
+  // rester une vraie accalmie.
+  if (enemies.list.length > avant) lastReleaseT = t;
+  else if (
+    t < wakeTime + 3 &&
+    t - lastReleaseT > DRY_LIMIT &&
+    enemies.list.length <= DRY_MAX
+  ) {
+    lastReleaseT = t;
+    const n = 1 + Math.round(2 * ramp);
+    for (let i = 0; i < n; i++) {
+      enemies.spawn(Math.random() < 0.7 ? "globule" : "dard", ship.pos, 0.7, difficulty, speedScale);
     }
   }
 }

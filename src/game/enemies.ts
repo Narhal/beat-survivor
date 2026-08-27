@@ -148,6 +148,8 @@ export class Enemies {
   spritesEnabled = true;
   /** Multiplicateur de rayon d'explosion des kystes (Pharmacie « Virulence »). */
   kysteRadiusMul = 1;
+  /** Zone de ralentissement posée par l'arme Viscosité (null = aucune). */
+  slowZone: { pos: THREE.Vector2; radius: number; factor: number } | null = null;
   private sprites: Partial<Record<EnemyKind, SpriteSet>> = {};
   private spriteGeo = new THREE.PlaneGeometry(2, 2);
   private spriteMats = new Map<THREE.Texture, THREE.MeshBasicMaterial>();
@@ -172,6 +174,17 @@ export class Enemies {
         new THREE.MeshBasicMaterial({ color: ENEMY_DEFS[k].color }),
       ])
     ) as Record<EnemyKind, THREE.MeshBasicMaterial>;
+  }
+
+  /** Facteur de temps à une position : 1 dehors,  dedans, adouci au bord. */
+  slowAt(pos: THREE.Vector2): number {
+    const z = this.slowZone;
+    if (!z) return 1;
+    const d = pos.distanceTo(z.pos);
+    if (d >= z.radius) return 1;
+    // Bord progressif : un ennemi ne se fige pas net en franchissant la ligne
+    const t = Math.min(1, (z.radius - d) / (z.radius * 0.28));
+    return 1 - (1 - z.factor) * t;
   }
 
   setSprites(kind: EnemyKind, set: SpriteSet) {
@@ -352,11 +365,15 @@ export class Enemies {
     });
   }
 
-  update(dt: number, time: number, player: THREE.Vector2, fx?: EnemyFx) {
+  update(dtIn: number, time: number, player: THREE.Vector2, fx?: EnemyFx) {
     const popped: Enemy[] = [];
     const expired: Enemy[] = [];
 
     for (const e of this.list) {
+      // Champ de Viscosité : c'est le temps de l'ENNEMI qui ralentit, pas le
+      // nôtre. Tout ce qui suit — course, sinusoïdes, mèches, cooldowns —
+      // s'écoule à son rythme à lui.
+      const dt = dtIn * this.slowAt(e.pos);
       e.orbHitCd = Math.max(0, e.orbHitCd - dt);
       e.tentHitCd = Math.max(0, e.tentHitCd - dt);
 

@@ -28,11 +28,22 @@ export const UPGRADE_ICONS: Record<UpgradeKind, string> = {
   arc: S(`<circle cx="10" cy="24" r="4"/><path d="M16 24h6"/>
     <path d="m22 24 8-9 -3 8 7-1 -9 10 3-8z" fill="currentColor" stroke="none"/>
     <path d="M38 12a18 18 0 0 1 0 24" opacity="0.45"/>`),
+  lance: S(`<circle cx="8" cy="24" r="3.6"/><path d="M14 24h30"/>
+    <path d="m38 18 6 6-6 6"/>
+    <circle cx="22" cy="24" r="4.5" opacity="0.55"/><circle cx="32" cy="24" r="4.5" opacity="0.35"/>`),
+  bourgeon: S(`<circle cx="16" cy="30" r="6"/>
+    <circle cx="33" cy="16" r="3.6" fill="currentColor" stroke="none"/>
+    <path d="M23 26c4-2 6-5 8-8" stroke-dasharray="2 3"/>
+    <path d="M36 19l6 5"/>`),
   // Atouts — le corps du pilote
   flagelles: S(`<circle cx="30" cy="24" r="5"/><path d="M25 22c-6-1-8 3-14 1"/>
     <path d="M25 26c-6 1-8 5-14 3"/>`),
   membrane: S(`<circle cx="24" cy="24" r="6"/><circle cx="24" cy="24" r="13" stroke-dasharray="2 4"/>
     <path d="M24 5a19 19 0 0 1 0 38" opacity="0.55"/>`),
+  viscosite: S(`<circle cx="24" cy="24" r="3.4" fill="currentColor" stroke="none"/>
+    <circle cx="24" cy="24" r="17"/>
+    <circle cx="24" cy="24" r="14" opacity="0.45"/>
+    <path d="M31 17l4-4" opacity="0.7"/><path d="M17 31l-4 4" opacity="0.7"/>`),
   // Passifs — les propriétés du vivant
   mitose: S(`<circle cx="17" cy="24" r="8"/><circle cx="33" cy="24" r="8" opacity="0.65"/>`),
   enzymes: S(`<path d="M14 34 34 14"/><path d="M28 10h10v10" />
