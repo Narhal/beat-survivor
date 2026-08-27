@@ -29,7 +29,7 @@ export const UPGRADE_INFO: Record<UpgradeKind, { name: string; desc: string; cat
   tentacule: { name: "Filament", desc: "Un filament urticant traîne derrière toi. Jusqu'à 3.", cat: "Arme" },
   flagelles: { name: "Flagelles", desc: "Vitesse de nage augmentée.", cat: "Atout" },
   membrane: { name: "Membrane", desc: "Absorbe un coup, puis se recharge — de plus en plus vite par palier.", cat: "Atout" },
-  viscosite: { name: "Viscosité", desc: "L'eau s'épaissit autour de toi : les pathogènes qui entrent ralentissent.", cat: "Atout" },
+  viscosite: { name: "Viscosité", desc: "Par vagues, l'eau s'épaissit autour de toi et ralentit les pathogènes.", cat: "Atout" },
   mitose: { name: "Mitose", desc: "Régulièrement, un pathogène détruit laisse un cœur.", cat: "Passif" },
   enzymes: { name: "Enzymes", desc: "+15 % de dégâts pour toutes les armes.", cat: "Passif" },
   phagocytose: { name: "Phagocytose", desc: "Augmente la distance d'aspiration des protéines.", cat: "Passif" },
@@ -43,6 +43,11 @@ const FILAMENT_SEGS = 22;
 const FILAMENT_HIT_R = 0.5;
 /** Nombre maximum d'ARMES simultanées : il faut faire des choix (N4). */
 const MAX_WEAPONS = 5;
+/** Période de la Viscosité : l'eau s'épaissit une fois toutes les 12 s. */
+const VISC_CYCLE = 12;
+/** Montée et retombée du champ — l'eau ne s'épaissit pas d'un coup sec. */
+const VISC_FADE_IN = 0.35;
+const VISC_FADE_OUT = 0.7;
 
 // Le Filament va plus loin : 7 paliers (longueur, dégâts, jusqu'à 3 filaments).
 export function maxLevelOf(kind: UpgradeKind): number {
@@ -106,6 +111,8 @@ export class Weapons {
   /** Viscosité : la lentille d'eau épaissie autour de la cellule. */
   private lensMesh: THREE.Mesh;
   private lensMat: THREE.ShaderMaterial;
+  /** Secondes restantes de champ actif (0 = l'eau est redevenue fluide). */
+  private viscTimer = 0;
   /** Bourgeon : le compagnon et sa danse autour du joueur. */
   private budMesh: THREE.Mesh | null = null;
   private budPos = new THREE.Vector2();
@@ -113,6 +120,8 @@ export class Weapons {
 
   private projGeo = new THREE.CircleGeometry(0.55, 8);
   private projMat = new THREE.MeshBasicMaterial({ color: 0xfff3a0 });
+  /** La Lance en vert néon (N4) : on doit la distinguer du tir de base. */
+  private lanceMat = new THREE.MeshBasicMaterial({ color: 0x39ff6e });
   private waveGeo = new THREE.RingGeometry(0.92, 1, 48);
   private orbGeo = new THREE.CircleGeometry(1.15, 12);
   private orbMat = new THREE.MeshBasicMaterial({ color: 0x8effc0 });
@@ -190,10 +199,22 @@ export class Weapons {
     return lvl > 0 ? 15 + lvl * 3.5 : 0;
   }
 
-  /** Facteur de temps des ennemis dans le champ (0,62 → 0,30 au palier 5). */
+  /** Facteur de temps des ennemis dans le champ (0,46 → 0,30 au palier 5). */
   get viscosityFactor(): number {
     const lvl = this.levels.get("viscosite") ?? 0;
     return 1 - Math.min(0.7, 0.54 + (lvl - 1) * 0.04);
+  }
+
+  /**
+   * Durée d'une prise (N4 2026-08-28) : la Viscosité ne peut pas tenir toute
+   * la run, sinon ce n'est plus un abri, c'est une règle du jeu. Même logique
+   * que l'arc voltaïque — ça monte, ça tient, ça s'en va, ça revient. Les
+   * paliers allongent l'abri sans toucher au délai : de 4,2 s toutes les
+   * 12 s (35 % du temps) à 7 s toutes les 12 s (58 %).
+   */
+  get viscosityDuration(): number {
+    const lvl = this.levels.get("viscosite") ?? 0;
+    return 3.5 + lvl * 0.7;
   }
 
   reset() {
@@ -212,6 +233,7 @@ export class Weapons {
     this.explosions = [];
     this.clearBolts();
     this.arcTimer = 0;
+    this.viscTimer = 0;
     this.lensMesh.visible = false;
     if (this.budMesh) this.budMesh.visible = false;
     this.syncOrbs();
@@ -327,15 +349,33 @@ export class Weapons {
       this.shieldMesh.rotation.z = this.time * 0.8;
     }
 
-    // ---- Viscosité : la lentille suit la cellule, la zone suit la lentille ----
+    // ---- Viscosité : une PRISE, pas un état permanent ----
+    // L'eau s'épaissit, tient quelques secondes, se redilue — puis recommence.
+    // La montée et la retombée passent par uStrength ET par le rayon : un
+    // abri qui apparaît d'un coup ne se lit pas, un abri qui s'installe si.
     const viscR = this.viscosityRadius;
-    if (viscR > 0) {
+    if (this.viscTimer > 0 && viscR > 0) {
+      this.viscTimer -= dt;
+      const total = this.viscosityDuration;
+      const ecoule = total - this.viscTimer;
+      const monte = Math.min(1, ecoule / VISC_FADE_IN);
+      const retombe = Math.min(1, Math.max(0, this.viscTimer) / VISC_FADE_OUT);
+      const k = Math.min(monte, retombe);
+      const r = viscR * (0.75 + 0.25 * k); // il s'ouvre en s'installant
       this.lensMesh.visible = true;
       this.lensMesh.position.set(ship.pos.x, ship.pos.y, 0.6);
-      this.lensMesh.scale.setScalar(viscR);
+      this.lensMesh.scale.setScalar(r);
       this.lensMat.uniforms.uTime.value = this.time;
-      enemies.slowZone = { pos: ship.pos, radius: viscR, factor: this.viscosityFactor };
+      this.lensMat.uniforms.uStrength.value = k;
+      // La zone suit EXACTEMENT ce qu'on voit : le gameplay ne ment pas.
+      // Le ralentissement monte et retombe avec elle.
+      enemies.slowZone = {
+        pos: ship.pos,
+        radius: r,
+        factor: 1 - (1 - this.viscosityFactor) * k,
+      };
     } else {
+      this.viscTimer = 0;
       this.lensMesh.visible = false;
       enemies.slowZone = null;
     }
@@ -462,6 +502,11 @@ export class Weapons {
           const dir = new THREE.Vector2(Math.cos(a), Math.sin(a));
           this.firePierce(ship.pos, dir, 78, (3 + lvl * 1.6) * mul);
           this.cooldowns.set(kind, 1.5 / (1 + (lvl - 1) * 0.3));
+          break;
+        }
+        case "viscosite": {
+          this.viscTimer = this.viscosityDuration;
+          this.cooldowns.set(kind, VISC_CYCLE);
           break;
         }
         case "arc": {
@@ -722,6 +767,7 @@ export class Weapons {
 
   private fire(from: THREE.Vector2, dir: THREE.Vector2, speed: number, dmg: number) {
     const mesh = this.projPool.pop() ?? new THREE.Mesh(this.projGeo, this.projMat);
+    mesh.material = this.projMat; // le pool est partagé : on repose la matière
     mesh.position.set(from.x, from.y, 1.5);
     this.scene.add(mesh);
     this.projectiles.push({
@@ -735,7 +781,8 @@ export class Weapons {
 
   /** Tir transperçant (Lance) : plus long, plus rapide, et il ne s'arrête pas. */
   private firePierce(from: THREE.Vector2, dir: THREE.Vector2, speed: number, dmg: number) {
-    const mesh = this.projPool.pop() ?? new THREE.Mesh(this.projGeo, this.projMat);
+    const mesh = this.projPool.pop() ?? new THREE.Mesh(this.projGeo, this.lanceMat);
+    mesh.material = this.lanceMat;
     mesh.position.set(from.x, from.y, 1.5);
     this.scene.add(mesh);
     this.projectiles.push({
