@@ -85,7 +85,7 @@ const FRAG_COMMON = /* glsl */ `
     float a = sin(w.x * 1.7 + t) + sin(w.y * 1.3 - t * 0.8);
     float b = sin((w.x + w.y) * 1.1 + t * 1.3) + sin((w.x - w.y) * 0.9 - t);
     float v = (a + b) * 0.25 + 0.5;
-    return pow(max(0.0, v), 7.0);
+    return pow(max(0.0, v), 11.0); // 11 et non 7 : des filaments, pas une nappe
   }
 
   // Rais de lumiere : ce qui descend de la surface, tres haut au-dessus.
@@ -94,8 +94,15 @@ const FRAG_COMMON = /* glsl */ `
   float rais(vec2 pos, float t) {
     float x = (pos.x + pos.y * 0.42 + uDrift.x * 0.25) * 0.014;
     float s = sin(x * 2.7 + t * 0.09) * sin(x * 1.13 - t * 0.05) + 0.25 * sin(x * 5.3 + t * 0.13);
-    s = pow(max(0.0, s), 5.0);
-    float haut = smoothstep(-0.9, 0.85, pos.y / uView.y); // ils naissent en haut
+    // Puissance 11 et non 5 : un rai est un FAISCEAU, une bande étroite de
+    // lumière séparée de la suivante par du noir. À la puissance 5 les
+    // bandes se touchaient et repeignaient tout le haut de l'écran — le
+    // laiteux, encore lui (N4 2026-09-04).
+    s = pow(max(0.0, s), 11.0);
+    // Brisés par le bruit : un faisceau réel n'a pas une intensité égale
+    // sur toute sa longueur, l'eau le mange par endroits
+    s *= 0.45 + 0.55 * fbm(vec2(x * 6.0, pos.y * 0.01 - t * 0.06));
+    float haut = smoothstep(-0.4, 1.05, pos.y / uView.y); // ils naissent en haut
     return s * haut;
   }
 
@@ -104,7 +111,7 @@ const FRAG_COMMON = /* glsl */ `
   // l'oeil vers le centre, la ou se joue la partie.
   float profondeur(vec2 pos) {
     float d = length(pos / uView);
-    return 1.0 - 0.62 * pow(clamp(d, 0.0, 1.4), 2.0);
+    return 1.0 - 0.78 * pow(clamp(d, 0.0, 1.4), 1.7);
   }
 `;
 
@@ -141,9 +148,20 @@ const FRAG_LAYER = /* glsl */ `
     // remplissaient : mesuré, le bord du Tissu était plus CLAIR que son
     // centre. Le volume s'assombrit en entier, pas seulement son fond.
     float d = length(vPos / uView);
-    float vig = 1.0 - 0.62 * pow(clamp(d, 0.0, 1.4), 2.0);
+    float vig = 1.0 - 0.78 * pow(clamp(d, 0.0, 1.4), 1.7);
 
-    gl_FragColor = vec4(col * vig, lum * uOpacity);
+    // Courbe de contraste sur l'alpha de la couche. Trois couches ADDITIVES,
+    // c'est trois planchers qui s'additionnent : la seule façon d'avoir du
+    // noir au bout, c'est que chacune parte de zéro.
+    //
+    // Un simple carré ne suffisait pas : les masters Tissu vivent dans une
+    // bande étroite de gris moyens, et une puissance les aurait tous éteints
+    // ensemble, sans hautes lumières. C'est un réglage de NIVEAUX qu'il faut
+    // — on écrase sous le point noir, on étire ce qu'il y a entre, on sature
+    // au-dessus du point blanc. Le fond gagne des noirs ET des éclats.
+    float a = smoothstep(0.075, 0.55, lum) * uOpacity;
+
+    gl_FragColor = vec4(col * vig, a);
   }
 `;
 
@@ -164,11 +182,16 @@ const FRAG_PLASMA = FRAG_COMMON + /* glsl */ `
 
     // La soupe reste basse (verdict N4 sur le contraste) : le fond appartient
     // a l'ambiance, la lueur appartient au gameplay.
-    vec3 deep = vec3(0.004, 0.009, 0.022);
+    // Le noir doit être NOIR (verdict N4 2026-09-04). Ce socle est une
+    // couleur unie posée sur CHAQUE pixel : à 0.022 de bleu il s'affichait
+    // en (13,24,41) partout, avant même qu'on ait rien dessiné. C'était ça,
+    // la couche laiteuse qui revenait — divisé par quatre, il tombe à
+    // (4,8,17) et le fond retrouve un vrai plancher.
+    vec3 deep = vec3(0.0010, 0.0022, 0.0052);
     float j = 0.5 + 0.5 * sin(uJourney);
     vec3 tint = mix(vec3(0.006, 0.024, 0.036), vec3(0.016, 0.011, 0.040), j);
     tint = mix(tint, vec3(0.007, 0.028, 0.026), uEnergy * 0.5);
-    deep = mix(deep, vec3(0.021, 0.007, 0.005), uHeat * 0.75);
+    deep = mix(deep, vec3(0.0075, 0.0022, 0.0016), uHeat * 0.75);
     tint = mix(tint, vec3(0.045, 0.017, 0.009), uHeat * 0.7);
     vec3 col = deep + tint * (m1 * 0.7 + m2 * 0.35);
 
@@ -211,8 +234,9 @@ const FRAG_TISSU = FRAG_COMMON + /* glsl */ `
 
     // Chair sombre, chaude par nature, plus chaude encore au danger
     float j = 0.5 + 0.5 * sin(uJourney * 0.8);
-    vec3 flesh = mix(vec3(0.018, 0.008, 0.013), vec3(0.013, 0.011, 0.021), j);
-    flesh = mix(flesh, vec3(0.034, 0.010, 0.007), uHeat * 0.8);
+    // Même traitement : le socle de chair s'affichait en (36,22,30) partout
+    vec3 flesh = mix(vec3(0.0038, 0.0016, 0.0026), vec3(0.0028, 0.0022, 0.0042), j);
+    flesh = mix(flesh, vec3(0.0090, 0.0026, 0.0018), uHeat * 0.8);
     vec3 veinCol = mix(vec3(0.035, 0.012, 0.020), vec3(0.055, 0.018, 0.009), uHeat)
       * (0.35 + uBass * 0.5 + uEnergy * 0.2);
 
