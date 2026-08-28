@@ -20,6 +20,11 @@ export const ARENA = { hw: 139, hh: 88 }; // demi-largeur / demi-hauteur
 // Zoom out demandé par N4 (2026-07-26, puis +20 %) : anticiper les attaques prime
 export const VIEW_HH = 72; // demi-hauteur de la vue en unités monde
 
+// Champ de la neige marine : un peu plus large que la vue, pour que le
+// rembobinage se fasse toujours hors champ.
+const SNOW_W = 190;
+const SNOW_H = 110;
+
 // Abysses écartée par N4 (2026-07-28) : pas assez de variance ni de texture
 export const BG_STYLES = ["Plasma", "Tissu"] as const;
 
@@ -85,25 +90,7 @@ const FRAG_COMMON = /* glsl */ `
     float a = sin(w.x * 1.7 + t) + sin(w.y * 1.3 - t * 0.8);
     float b = sin((w.x + w.y) * 1.1 + t * 1.3) + sin((w.x - w.y) * 0.9 - t);
     float v = (a + b) * 0.25 + 0.5;
-    return pow(max(0.0, v), 11.0); // 11 et non 7 : des filaments, pas une nappe
-  }
-
-  // Rais de lumiere : ce qui descend de la surface, tres haut au-dessus.
-  // Ils tombent en biais, s'eteignent vers le bas, et leur largeur respire.
-  // C'est le repere vertical du volume - sans lui on flotte dans du noir.
-  float rais(vec2 pos, float t) {
-    float x = (pos.x + pos.y * 0.42 + uDrift.x * 0.25) * 0.014;
-    float s = sin(x * 2.7 + t * 0.09) * sin(x * 1.13 - t * 0.05) + 0.25 * sin(x * 5.3 + t * 0.13);
-    // Puissance 11 et non 5 : un rai est un FAISCEAU, une bande étroite de
-    // lumière séparée de la suivante par du noir. À la puissance 5 les
-    // bandes se touchaient et repeignaient tout le haut de l'écran — le
-    // laiteux, encore lui (N4 2026-09-04).
-    s = pow(max(0.0, s), 11.0);
-    // Brisés par le bruit : un faisceau réel n'a pas une intensité égale
-    // sur toute sa longueur, l'eau le mange par endroits
-    s *= 0.45 + 0.55 * fbm(vec2(x * 6.0, pos.y * 0.01 - t * 0.06));
-    float haut = smoothstep(-0.4, 1.05, pos.y / uView.y); // ils naissent en haut
-    return s * haut;
+    return pow(max(0.0, v), 6.0); // des filaments qui courent sur la matière
   }
 
   // Le fond du volume : les bords s'assombrissent. Ce n'est pas un cache
@@ -121,10 +108,19 @@ const FRAG_LAYER = /* glsl */ `
   varying vec2 vPos;
   uniform sampler2D uMap;
   uniform vec2 uDrift, uView;
-  uniform float uParallax, uTile, uOpacity, uDepth;
+  uniform float uParallax, uTile, uOpacity, uDepth, uWarp, uTime;
   uniform vec3 uTint;
   void main() {
-    vec2 uv = (vPos + uDrift * uParallax) / uTile;
+    // Réfraction : l'eau bouge DEVANT le décor. On ne rajoute pas de
+    // lumière, on déplace ce qui est déjà là — c'est la façon la plus
+    // discrète de dire qu'il y a un volume entre l'œil et le fond, et elle
+    // ne peut par construction faire aucune tache. Seule la couche proche
+    // ondule : c'est l'eau du premier plan qu'on traverse.
+    vec2 ondule = vec2(
+      sin(vPos.y * 0.055 + uTime * 0.62) + 0.5 * sin(vPos.y * 0.13 - uTime * 0.41),
+      cos(vPos.x * 0.048 - uTime * 0.55) + 0.5 * cos(vPos.x * 0.11 + uTime * 0.37)
+    ) * uWarp;
+    vec2 uv = (vPos + uDrift * uParallax + ondule) / uTile;
     // La texture est encodée en sRGB ; un ShaderMaterial ne la décode pas tout
     // seul. Lue telle quelle, un gris moyen vaut 0.5 au lieu de 0.21 — la
     // couche entière arriverait deux fois trop claire.
@@ -159,7 +155,7 @@ const FRAG_LAYER = /* glsl */ `
     // ensemble, sans hautes lumières. C'est un réglage de NIVEAUX qu'il faut
     // — on écrase sous le point noir, on étire ce qu'il y a entre, on sature
     // au-dessus du point blanc. Le fond gagne des noirs ET des éclats.
-    float a = smoothstep(0.075, 0.55, lum) * uOpacity;
+    float a = smoothstep(0.075, 0.42, lum) * uOpacity;
 
     gl_FragColor = vec4(col * vig, a);
   }
@@ -193,22 +189,22 @@ const FRAG_PLASMA = FRAG_COMMON + /* glsl */ `
     tint = mix(tint, vec3(0.007, 0.028, 0.026), uEnergy * 0.5);
     deep = mix(deep, vec3(0.0075, 0.0022, 0.0016), uHeat * 0.75);
     tint = mix(tint, vec3(0.045, 0.017, 0.009), uHeat * 0.7);
-    vec3 col = deep + tint * (m1 * 0.7 + m2 * 0.35);
+    float masse = m1 * 0.7 + m2 * 0.35;
 
-    // La basse ne doit pas relever TOUT l'ecran a chaque temps fort
+    // Le frisson de la surface. Il n'AJOUTE plus de lumière — il module ce
+    // qui est déjà là (verdict N4 2026-09-04 : les coups de lumière vive
+    // étaient trop gros et encombrants). Une modulation ne peut pas créer de
+    // tache : là où il n'y a rien, elle ne fait rien. Et il ne touche QUE la
+    // matière, jamais le socle : sinon il relèverait le noir avec le reste.
+    vec2 cq = (vPos + uDrift * 0.7) * 0.16;
+    float ca = caustic(cq, uTime * 0.5) * 0.65
+             + caustic(cq * 2.3 + 11.3, -uTime * 0.31) * 0.35;
+    vec3 col = deep + tint * masse * (1.0 + ca * (0.7 + uEnergy * 0.7));
+
+    // La basse ne doit pas relever TOUT l'écran à chaque temps fort : elle
+    // ne pousse que là où il y a de la matière
     vec3 pulse = mix(vec3(0.010, 0.034, 0.044), vec3(0.044, 0.017, 0.010), uHeat);
-    col += pulse * uBass * uBass * (m1 + 0.15);
-
-    // Le filet de lumiere de la surface, a deux echelles qui derivent
-    vec2 cq = (vPos + uDrift * 0.7) * 0.035;
-    float ca = caustic(cq, uTime * 0.35) * 0.7
-             + caustic(cq * 1.9 + 11.3, -uTime * 0.22) * 0.3;
-    vec3 causCol = mix(vec3(0.10, 0.28, 0.36), vec3(0.30, 0.14, 0.08), uHeat);
-    col += causCol * ca * (0.55 + uEnergy * 0.6);
-
-    // Les rais qui tombent de la surface
-    vec3 raisCol = mix(vec3(0.07, 0.20, 0.30), vec3(0.24, 0.11, 0.07), uHeat);
-    col += raisCol * rais(vPos, uTime) * (0.35 + uEnergy * 0.45);
+    col += pulse * uBass * uBass * m1;
 
     gl_FragColor = vec4(col * profondeur(vPos), 1.0);
   }
@@ -240,18 +236,13 @@ const FRAG_TISSU = FRAG_COMMON + /* glsl */ `
     vec3 veinCol = mix(vec3(0.035, 0.012, 0.020), vec3(0.055, 0.018, 0.009), uHeat)
       * (0.35 + uBass * 0.5 + uEnergy * 0.2);
 
-    vec3 col = flesh + flesh * c1 * 0.4 + veinCol * (v1 + v2 * 0.5);
-
-    // Dans la chair, la lumiere ne vient pas d'une surface : elle SUINTE.
-    // Memes cretes, plus lentes, plus larges, plus chaudes.
-    vec2 cq = (vPos + uDrift * 0.7) * 0.024;
-    float ca = caustic(cq, uTime * 0.20) * 0.75
-             + caustic(cq * 2.1 + 4.7, -uTime * 0.13) * 0.25;
-    vec3 causCol = mix(vec3(0.16, 0.06, 0.10), vec3(0.30, 0.10, 0.05), uHeat);
-    col += causCol * ca * (0.5 + uEnergy * 0.5 + uBass * 0.4);
-
-    vec3 raisCol = mix(vec3(0.14, 0.05, 0.08), vec3(0.26, 0.09, 0.05), uHeat);
-    col += raisCol * rais(vPos, uTime * 0.7) * (0.30 + uEnergy * 0.35);
+    // Dans la chair, le frisson est plus lent et plus large — mais il module
+    // lui aussi, il n'éclaire pas, et il laisse le socle tranquille.
+    vec2 cq = (vPos + uDrift * 0.7) * 0.11;
+    float ca = caustic(cq, uTime * 0.28) * 0.7
+             + caustic(cq * 2.1 + 4.7, -uTime * 0.18) * 0.3;
+    vec3 matiere = flesh * c1 * 0.4 + veinCol * (v1 + v2 * 0.5);
+    vec3 col = flesh + matiere * (1.0 + ca * (0.6 + uEnergy * 0.5 + uBass * 0.4));
 
     gl_FragColor = vec4(col * profondeur(vPos), 1.0);
   }
@@ -289,6 +280,10 @@ export class World {
   // Le voyage : la soupe défile sous l'arène, poussée par l'énergie du morceau
   private driftAngle = Math.random() * Math.PI * 2;
   private driftPos = new THREE.Vector2();
+  /** Déplacement du milieu sur la frame — la neige s'en sert pour dériver. */
+  private driftDelta = new THREE.Vector2();
+  private snow: { points: THREE.Points; pos: Float32Array; phases: Float32Array; parallax: number; base: number }[] = [];
+  private time = 0;
   private journey = 0; // distance parcourue — fait voyager la palette
   private heat = 0; // 0 = eaux froides, 1 = zone dangereuse (souple, lent)
 
@@ -344,6 +339,8 @@ export class World {
           uTile: { value: tile },
           uOpacity: { value: 0 },
           uView: this.bgUniforms.uView, // même cadrage que le socle
+          uTime: this.bgUniforms.uTime,
+          uWarp: { value: parallax > 0.6 ? 1.6 : 0 },
           uDepth: { value: parallax > 0.6 ? 0 : parallax > 0.3 ? 0.7 : 1 },
           uTint: { value: new THREE.Color() },
         },
@@ -415,9 +412,100 @@ export class World {
     );
     this.composer.addPass(new OutputPass());
 
+    this.buildSnow();
+
     this.resize();
     window.addEventListener("resize", () => this.resize());
   }
+
+  /**
+   * La neige marine. C'est elle qui remplace les rais de lumière (N4
+   * 2026-09-04 : « les coups de lumière vive sont trop gros et encombrants,
+   * je ne pense pas qu'il faille poursuivre dans cette voie »).
+   *
+   * Le raisonnement : la profondeur ne se fabrique pas avec de la lumière,
+   * elle se fabrique avec de la MATIÈRE EN SUSPENSION. Un plongeur ne voit
+   * pas des faisceaux, il voit des poussières qui passent — et c'est leur
+   * différence de vitesse et de taille qui lui dit ce qui est près et ce qui
+   * est loin. Trois strates, calées sur les trois vitesses de parallaxe des
+   * couches de texture : le fond devient un volume traversé, pas une image.
+   *
+   * Et c'est l'exact opposé d'une tache : des dizaines de points de deux ou
+   * trois pixels ne peuvent pas encombrer l'écran.
+   */
+  private buildSnow() {
+    // Un disque doux : un point carré se voit comme un pixel mort
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 32;
+    const g = cv.getContext("2d")!;
+    const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, "rgba(255,255,255,1)");
+    grad.addColorStop(0.35, "rgba(255,255,255,0.5)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 32, 32);
+    const tex = new THREE.CanvasTexture(cv);
+
+    // [nombre, taille px, opacité, parallaxe, z] — mêmes vitesses que les
+    // couches de texture, pour que les deux disent la même profondeur
+    const strates: [number, number, number, number, number][] = [
+      [90, 4.0, 0.30, 1.0, 4.5], // devant le gameplay, rares et floues
+      [220, 2.4, 0.24, 0.45, -7.5],
+      [320, 1.5, 0.16, 0.18, -8.2],
+    ];
+    for (const [n, taille, opacite, parallax, z] of strates) {
+      const pos = new Float32Array(n * 3);
+      const phases = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        pos[i * 3] = (Math.random() * 2 - 1) * SNOW_W;
+        pos[i * 3 + 1] = (Math.random() * 2 - 1) * SNOW_H;
+        pos[i * 3 + 2] = z;
+        phases[i] = Math.random() * Math.PI * 2;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      const mat = new THREE.PointsMaterial({
+        size: taille,
+        sizeAttenuation: false, // caméra orthographique : la taille est en pixels
+        map: tex,
+        color: 0xbfe4f0,
+        transparent: true,
+        opacity: opacite,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      const points = new THREE.Points(geo, mat);
+      points.frustumCulled = false;
+      this.scene.add(points);
+      this.snow.push({ points, pos, phases, parallax, base: opacite });
+    }
+  }
+
+  /** Les poussières dérivent avec le milieu et se rembobinent aux bords. */
+  private updateSnow(dt: number, intensity: number) {
+    for (const s of this.snow) {
+      const arr = s.pos;
+      const n = s.phases.length;
+      for (let i = 0; i < n; i++) {
+        const k = i * 3;
+        // Dérive propre : lente, oblique, jamais tout à fait la même
+        const ph = s.phases[i] + this.time * 0.25;
+        arr[k] += (Math.sin(ph) * 0.5 - 0.35) * s.parallax * dt * (2 + intensity * 3);
+        arr[k + 1] += (Math.cos(ph * 0.7) * 0.4 - 0.15) * s.parallax * dt * (2 + intensity * 3);
+        // Et le voyage du milieu les emporte
+        arr[k] -= this.driftDelta.x * s.parallax;
+        arr[k + 1] -= this.driftDelta.y * s.parallax;
+        if (arr[k] > SNOW_W) arr[k] -= SNOW_W * 2;
+        else if (arr[k] < -SNOW_W) arr[k] += SNOW_W * 2;
+        if (arr[k + 1] > SNOW_H) arr[k + 1] -= SNOW_H * 2;
+        else if (arr[k + 1] < -SNOW_H) arr[k + 1] += SNOW_H * 2;
+      }
+      (s.points.geometry.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
+      // Elles respirent avec le morceau, très légèrement
+      (s.points.material as THREE.PointsMaterial).opacity = s.base * (0.75 + intensity * 0.4);
+    }
+  }
+
 
   /** Change le milieu (0 = Plasma, 1 = Tissu). */
   setStyle(index: number) {
@@ -484,8 +572,9 @@ export class World {
     // direction infléchie par les nappes/leads (bande médiums)
     const driftSpeed = 3 + intensity * 17;
     this.driftAngle += (mid - 0.45) * 0.9 * dt + Math.sin(time * 0.07) * 0.06 * dt;
-    this.driftPos.x += Math.cos(this.driftAngle) * driftSpeed * dt;
-    this.driftPos.y += Math.sin(this.driftAngle) * driftSpeed * dt;
+    this.driftDelta.set(Math.cos(this.driftAngle) * driftSpeed * dt, Math.sin(this.driftAngle) * driftSpeed * dt);
+    this.driftPos.add(this.driftDelta);
+    this.time = time;
     this.journey += driftSpeed * dt * 0.012;
 
     // Chaleur du danger : lissée fort (~4 s) pour rester souple
@@ -524,6 +613,8 @@ export class World {
         (i === 0 ? 0.20 + energy * 0.16 : i === 1 ? 0.13 + energy * 0.10 : 0.07 + energy * 0.05) *
         Math.max(0, l.fade);
     }
+
+    this.updateSnow(dt, intensity);
 
     // Les bulles remontent, portées par l'intensité, et se rembobinent en bas
     for (const b of this.bubbles) {
