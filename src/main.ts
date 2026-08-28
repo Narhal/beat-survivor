@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { analyseBuffer, envAt, estimateDifficulty, TrackAnalysis } from "./audio/analysis";
 import { renderDemoTrack } from "./audio/demo";
-import { World, ARENA, VIEW_HH } from "./game/world";
+import { World, LayerSlot, ARENA, VIEW_HH } from "./game/world";
 import { Ship } from "./game/ship";
 import { Enemies, ENEMY_DEFS, Enemy, EnemyKind } from "./game/enemies";
 import { Weapons, UPGRADE_INFO, UpgradeKind, maxLevelOf } from "./game/weapons";
@@ -89,9 +89,11 @@ const texLoader = new THREE.TextureLoader();
 const texCache = new Map<string, THREE.Texture>();
 let nearIdx = 0;
 let farIdx = 1;
+let deepIdx = 2; // la couche la plus lointaine
 let autoRotate = true;
 let nearTimer = 40;
 let farTimer = 65;
+let deepTimer = 95;
 
 /** Les textures de la piste courante, dans l'ordre du manifest. */
 function pisteFiles(): string[] {
@@ -106,13 +108,13 @@ function choisirPiste() {
   world.setStyle(pisteActive === "plasma" ? 0 : 1);
 }
 
-function loadLayer(slot: 0 | 1, silent = false) {
+function loadLayer(slot: LayerSlot, silent = false) {
   const files = pisteFiles();
   if (files.length === 0) {
     world.setLayerTexture(slot, null);
     return;
   }
-  const idx = slot === 0 ? nearIdx : farIdx;
+  const idx = slot === 0 ? nearIdx : slot === 1 ? farIdx : deepIdx;
   const file = files[((idx % files.length) + files.length) % files.length];
   const entry = { piste: pisteActive, file };
   const url = `${ASSET_BASE}textures/${entry.piste}/${entry.file}`;
@@ -124,14 +126,23 @@ function loadLayer(slot: 0 | 1, silent = false) {
     texCache.set(url, tex);
   }
   world.crossfadeLayer(slot, tex);
-  if (!silent) showToast(`Couche ${slot === 0 ? "proche" : "lointaine"} : ${entry.file.replace(".webp", "")}`);
+  if (!silent) {
+    const nom = slot === 0 ? "proche" : slot === 1 ? "médiane" : "lointaine";
+    showToast(`Couche ${nom} : ${entry.file.replace(".webp", "")}`);
+  }
 }
 
 function applyLayers(silent = false) {
+  // Trois plans, trois images distinctes : deux fois la même à deux vitesses
+  // se verrait comme un doublon, pas comme de la profondeur.
   const n = pisteFiles().length;
-  if (n > 1) farIdx = nearIdx + 1 + Math.floor(Math.random() * (n - 1));
+  if (n > 2) {
+    farIdx = nearIdx + 1 + Math.floor(Math.random() * (n - 2));
+    deepIdx = farIdx + 1 + Math.floor(Math.random() * (n - 2));
+  }
   loadLayer(0, silent);
   loadLayer(1, silent);
+  loadLayer(2, silent);
 }
 
 /** Rotation auto : la couche proche change toutes les ~40 s, la lointaine ~65 s. */
@@ -148,6 +159,13 @@ function updateTextureRotation(dt: number) {
     farTimer = 65;
     farIdx += 1 + Math.floor(Math.random() * 3);
     loadLayer(1, true);
+  }
+  // Le lointain change le plus lentement : c'est le décor du décor
+  deepTimer -= dt;
+  if (deepTimer <= 0) {
+    deepTimer = 95;
+    deepIdx += 1 + Math.floor(Math.random() * 3);
+    loadLayer(2, true);
   }
 }
 

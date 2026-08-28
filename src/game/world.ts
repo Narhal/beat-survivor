@@ -45,25 +45,63 @@ const FRAG_COMMON = /* glsl */ `
   uniform float uTime, uBass, uEnergy, uJourney, uHeat;
   uniform vec2 uDrift, uView;
 
-  /**
-   * Caustiques : le réseau de lumière qu'une surface d'eau agitée projette
-   * au fond. Deux trains de vagues croisés — mais on ne garde QUE les
-   * crêtes (puissance 7). Sans ce seuil dur on obtiendrait un voile, et un
-   * voile c'est exactement le laiteux qu'on a chassé. Là, c'est un filet de
-   * lumière sur du noir.
-   */
+  // --- Bruit organique ---
+  // fract() posait un RESEAU : une cellule par case, toutes de la meme
+  // taille, toutes a la meme distance. C'est ca, les cercles geometriques
+  // repartis uniformement que N4 voyait par-dessus ses images (2026-09-04).
+  // Un milieu vivant n'a pas de maille. On passe donc a un bruit a valeurs
+  // interpolees, empile sur plusieurs octaves : aucune periode visible.
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float bruit(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f); // lissage : pas d'arete entre les cases
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+  }
+  // Quatre octaves : les grandes masses portent les petits details.
+  float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 4; i++) {
+      v += a * bruit(p);
+      p = p * 2.03 + vec2(17.3, 9.1); // 2,03 et pas 2 : evite l'alignement des octaves
+      a *= 0.5;
+    }
+    return v;
+  }
+  // Deformation du domaine : c'est elle qui tord tout motif regulier.
+  vec2 tord(vec2 p, float t) {
+    return p + vec2(fbm(p * 0.5 + t * 0.05), fbm(p * 0.5 + 5.2 - t * 0.04)) * 1.6 - 0.8;
+  }
+
+  // Caustiques : le reseau de lumiere qu'une surface d'eau agitee projette
+  // au fond. Deux trains de vagues croises sur un domaine TORDU - sans la
+  // torsion, l'interference de sinus redevient une grille. On ne garde que
+  // les cretes (puissance 7) : sans ce seuil dur on obtient un voile, et un
+  // voile c'est le laiteux qu'on a chasse.
   float caustic(vec2 q, float t) {
-    float a = sin(q.x * 1.7 + t) + sin(q.y * 1.3 - t * 0.8);
-    float b = sin((q.x + q.y) * 1.1 + t * 1.3) + sin((q.x - q.y) * 0.9 - t);
+    vec2 w = tord(q, t);
+    float a = sin(w.x * 1.7 + t) + sin(w.y * 1.3 - t * 0.8);
+    float b = sin((w.x + w.y) * 1.1 + t * 1.3) + sin((w.x - w.y) * 0.9 - t);
     float v = (a + b) * 0.25 + 0.5;
     return pow(max(0.0, v), 7.0);
   }
 
-  /**
-   * Le fond du volume : les bords s'assombrissent. Ce n'est pas un cache
-   * décoratif — c'est ce qui dit qu'on est DANS quelque chose, et ça pousse
-   * l'œil vers le centre, là où se joue la partie.
-   */
+  // Rais de lumiere : ce qui descend de la surface, tres haut au-dessus.
+  // Ils tombent en biais, s'eteignent vers le bas, et leur largeur respire.
+  // C'est le repere vertical du volume - sans lui on flotte dans du noir.
+  float rais(vec2 pos, float t) {
+    float x = (pos.x + pos.y * 0.42 + uDrift.x * 0.25) * 0.014;
+    float s = sin(x * 2.7 + t * 0.09) * sin(x * 1.13 - t * 0.05) + 0.25 * sin(x * 5.3 + t * 0.13);
+    s = pow(max(0.0, s), 5.0);
+    float haut = smoothstep(-0.9, 0.85, pos.y / uView.y); // ils naissent en haut
+    return s * haut;
+  }
+
+  // Le fond du volume : les bords s'assombrissent. Ce n'est pas un cache
+  // decoratif - c'est ce qui dit qu'on est DANS quelque chose, et ca pousse
+  // l'oeil vers le centre, la ou se joue la partie.
   float profondeur(vec2 pos) {
     float d = length(pos / uView);
     return 1.0 - 0.62 * pow(clamp(d, 0.0, 1.4), 2.0);
@@ -75,7 +113,7 @@ const FRAG_COMMON = /* glsl */ `
 const FRAG_LAYER = /* glsl */ `
   varying vec2 vPos;
   uniform sampler2D uMap;
-  uniform vec2 uDrift;
+  uniform vec2 uDrift, uView;
   uniform float uParallax, uTile, uOpacity, uDepth;
   uniform vec3 uTint;
   void main() {
@@ -98,83 +136,78 @@ const FRAG_LAYER = /* glsl */ `
     vec3 col = mix(tex, vec3(lum), uDepth * 0.8);
     col = mix(col, uTint * (0.35 + lum), 0.5 + uDepth * 0.25);
 
-    gl_FragColor = vec4(col, lum * uOpacity);
+    // La vignette de profondeur s'applique AUSSI ici. Tant qu'elle ne vivait
+    // que dans le socle, les couches additives passaient par-dessus et la
+    // remplissaient : mesuré, le bord du Tissu était plus CLAIR que son
+    // centre. Le volume s'assombrit en entier, pas seulement son fond.
+    float d = length(vPos / uView);
+    float vig = 1.0 - 0.62 * pow(clamp(d, 0.0, 1.4), 2.0);
+
+    gl_FragColor = vec4(col * vig, lum * uOpacity);
   }
 `;
 
-// ——— Variante 1 : PLASMA — cellules molles en dérive, l'actuel raffiné ———
+// --- Milieu 1 : PLASMA - la soupe froide, des masses molles en derive ---
 const FRAG_PLASMA = FRAG_COMMON + /* glsl */ `
-  float cells(vec2 p, float t) {
-    vec2 g = fract(p) - 0.5;
-    float d = length(g + 0.14 * vec2(sin(t + p.y), cos(t * 0.8 + p.x)));
-    // Cellules resserrées : étalées, elles couvraient tout le cadre d'un
-    // treillis pâle — la « couche laiteuse ». Elles respirent, elles ne
-    // tapissent plus.
-    return smoothstep(0.26, 0.07, d);
-  }
-
   void main() {
-    // Le voyage : la soupe défile (uDrift), la couche lointaine en parallaxe
-    vec2 p = (vPos + uDrift) * 0.045;
-    vec2 pFar = (vPos + uDrift * 0.45) * 0.085 + 31.7;
-    float t = uTime * 0.12;
-    float c1 = cells(p, t);
-    float c2 = cells(pFar, -t * 1.4);
+    // Le voyage : la soupe defile (uDrift), le lointain suit en parallaxe.
+    // Plus aucune maille : de grandes masses de bruit, tordues sur
+    // elles-memes, qui n'ont ni taille ni espacement reguliers.
+    vec2 p = (vPos + uDrift) * 0.012;
+    vec2 pFar = (vPos + uDrift * 0.45) * 0.022 + 31.7;
+    float t = uTime * 0.06;
+    float m1 = fbm(tord(p, t));
+    float m2 = fbm(pFar + vec2(0.0, t * 0.4));
+    // On resserre : les masses respirent, elles ne tapissent pas
+    m1 = smoothstep(0.42, 0.78, m1);
+    m2 = smoothstep(0.45, 0.85, m2);
 
-    // La soupe descend d'un cran (verdict N4 : « une couche laiteuse sur toute
-    // la surface, j'ai besoin de beaucoup plus de contraste »). Un fond qui
-    // vit à mi-gris écrase tout ce qui se joue devant : le socle est divisé
-    // par deux, les cellules et la pulsion de basse par presque autant. Le
-    // fond appartient à l'ambiance, la lueur appartient au gameplay.
+    // La soupe reste basse (verdict N4 sur le contraste) : le fond appartient
+    // a l'ambiance, la lueur appartient au gameplay.
     vec3 deep = vec3(0.004, 0.009, 0.022);
     float j = 0.5 + 0.5 * sin(uJourney);
-    vec3 tint = mix(vec3(0.004, 0.017, 0.025), vec3(0.011, 0.008, 0.028), j);
-    tint = mix(tint, vec3(0.005, 0.020, 0.018), uEnergy * 0.5);
+    vec3 tint = mix(vec3(0.006, 0.024, 0.036), vec3(0.016, 0.011, 0.040), j);
+    tint = mix(tint, vec3(0.007, 0.028, 0.026), uEnergy * 0.5);
     deep = mix(deep, vec3(0.021, 0.007, 0.005), uHeat * 0.75);
-    tint = mix(tint, vec3(0.032, 0.012, 0.006), uHeat * 0.7);
-    vec3 col = deep + tint * (c1 * 0.6 + c2 * 0.3);
+    tint = mix(tint, vec3(0.045, 0.017, 0.009), uHeat * 0.7);
+    vec3 col = deep + tint * (m1 * 0.7 + m2 * 0.35);
 
-    // La basse ne doit pas relever TOUT l'écran à chaque temps fort
+    // La basse ne doit pas relever TOUT l'ecran a chaque temps fort
     vec3 pulse = mix(vec3(0.010, 0.034, 0.044), vec3(0.044, 0.017, 0.010), uHeat);
-    col += pulse * uBass * uBass * (c1 + 0.15);
+    col += pulse * uBass * uBass * (m1 + 0.15);
 
-    // Le filet de lumière de la surface, très haut au-dessus. Deux échelles
-    // qui dérivent l'une sur l'autre : ce décalage lent est ce qui empêche
-    // l'œil de voir un motif et lui fait voir de l'EAU.
+    // Le filet de lumiere de la surface, a deux echelles qui derivent
     vec2 cq = (vPos + uDrift * 0.7) * 0.035;
     float ca = caustic(cq, uTime * 0.35) * 0.7
              + caustic(cq * 1.9 + 11.3, -uTime * 0.22) * 0.3;
     vec3 causCol = mix(vec3(0.10, 0.28, 0.36), vec3(0.30, 0.14, 0.08), uHeat);
     col += causCol * ca * (0.55 + uEnergy * 0.6);
 
+    // Les rais qui tombent de la surface
+    vec3 raisCol = mix(vec3(0.07, 0.20, 0.30), vec3(0.24, 0.11, 0.07), uHeat);
+    col += raisCol * rais(vPos, uTime) * (0.35 + uEnergy * 0.45);
+
     gl_FragColor = vec4(col * profondeur(vPos), 1.0);
   }
 `;
 
-// ——— Variante 2 : TISSU — membranes réticulées, vaisseaux, l'organisme littéral ———
+// --- Milieu 2 : TISSU - la chair, ses membranes et ses vaisseaux ---
 const FRAG_TISSU = FRAG_COMMON + /* glsl */ `
-  vec2 wob(vec2 q, float t) {
-    return vec2(sin(t + q.y), cos(t * 0.7 + q.x)) * 0.15;
-  }
-  float vein(vec2 q, float t) {
-    vec2 g = fract(q) - 0.5;
-    float d = length(g + wob(q, t));
-    return smoothstep(0.028, 0.0, abs(d - 0.34));
-  }
-  float cellsT(vec2 q, float t) {
-    vec2 g = fract(q) - 0.5;
-    float d = length(g + wob(q, t));
-    return smoothstep(0.30, 0.05, d);
+  // Une veine : la CRETE d'un champ de bruit, donc une ligne qui serpente
+  // sans jamais se refermer en cercle ni se repeter.
+  float veine(vec2 q, float t) {
+    float n = fbm(tord(q, t));
+    return smoothstep(0.030, 0.0, abs(n - 0.5));
   }
 
   void main() {
-    // Motif large et calme — la lisibilité prime, les veines restent discrètes
-    vec2 p = (vPos + uDrift) * 0.030;
-    vec2 pf = (vPos + uDrift * 0.45) * 0.055 + 31.7;
-    float t = uTime * 0.1;
-    float v1 = vein(p, t);
-    float v2 = vein(pf, -t * 1.3);
-    float c1 = cellsT(p, t);
+    // Motif large et calme - la lisibilite prime, les veines restent discretes
+    vec2 p = (vPos + uDrift) * 0.013;
+    vec2 pf = (vPos + uDrift * 0.45) * 0.024 + 31.7;
+    float t = uTime * 0.05;
+    float v1 = veine(p, t);
+    float v2 = veine(pf, -t * 1.3);
+    float c1 = smoothstep(0.40, 0.80, fbm(tord(p * 0.7, t * 0.6)));
 
     // Chair sombre, chaude par nature, plus chaude encore au danger
     float j = 0.5 + 0.5 * sin(uJourney * 0.8);
@@ -185,17 +218,23 @@ const FRAG_TISSU = FRAG_COMMON + /* glsl */ `
 
     vec3 col = flesh + flesh * c1 * 0.4 + veinCol * (v1 + v2 * 0.5);
 
-    // Dans la chair, la lumière ne vient pas d'une surface : elle SUINTE.
-    // Mêmes crêtes, plus lentes, plus larges, plus chaudes.
+    // Dans la chair, la lumiere ne vient pas d'une surface : elle SUINTE.
+    // Memes cretes, plus lentes, plus larges, plus chaudes.
     vec2 cq = (vPos + uDrift * 0.7) * 0.024;
     float ca = caustic(cq, uTime * 0.20) * 0.75
              + caustic(cq * 2.1 + 4.7, -uTime * 0.13) * 0.25;
     vec3 causCol = mix(vec3(0.16, 0.06, 0.10), vec3(0.30, 0.10, 0.05), uHeat);
     col += causCol * ca * (0.5 + uEnergy * 0.5 + uBass * 0.4);
 
+    vec3 raisCol = mix(vec3(0.14, 0.05, 0.08), vec3(0.26, 0.09, 0.05), uHeat);
+    col += raisCol * rais(vPos, uTime * 0.7) * (0.30 + uEnergy * 0.35);
+
     gl_FragColor = vec4(col * profondeur(vPos), 1.0);
   }
 `;
+
+/** 0 = proche, 1 = médiane, 2 = lointaine. */
+export type LayerSlot = 0 | 1 | 2;
 
 export class World {
   scene = new THREE.Scene();
@@ -263,10 +302,15 @@ export class World {
     this.bg.position.z = -10;
     this.scene.add(this.bg);
 
-    // Deux couches de textures : proche (pleine dérive) et lointaine (parallaxe)
+    // TROIS couches (N4 2026-09-04) : deux vitesses de défilement donnaient
+    // un devant et un derrière ; trois donnent une PROFONDEUR. L'œil ne lit
+    // pas une distance absolue, il lit des écarts de vitesse — et il en faut
+    // au moins trois pour que la série se poursuive vers le lointain.
+    // La plus lointaine est aussi la plus large et la plus discrète.
     for (const [parallax, tile, z] of [
       [1.0, 260, -8.5],
       [0.45, 420, -9],
+      [0.18, 700, -9.4],
     ] as const) {
       const mat = new THREE.ShaderMaterial({
         uniforms: {
@@ -275,7 +319,8 @@ export class World {
           uParallax: { value: parallax },
           uTile: { value: tile },
           uOpacity: { value: 0 },
-          uDepth: { value: parallax < 0.6 ? 1 : 0 },
+          uView: this.bgUniforms.uView, // même cadrage que le socle
+          uDepth: { value: parallax > 0.6 ? 0 : parallax > 0.3 ? 0.7 : 1 },
           uTint: { value: new THREE.Color() },
         },
         vertexShader: BG_VERTEX,
@@ -357,7 +402,7 @@ export class World {
   }
 
   /** Branche une texture Midjourney sur une couche (0 = proche, 1 = lointaine). */
-  setLayerTexture(slot: 0 | 1, tex: THREE.Texture | null) {
+  setLayerTexture(slot: LayerSlot, tex: THREE.Texture | null) {
     const layer = this.layers[slot];
     layer.mat.uniforms.uMap.value = tex;
     layer.hasTex = !!tex;
@@ -366,7 +411,7 @@ export class World {
   }
 
   /** Comme setLayerTexture, mais en fondu-enchaîné (rotation des variantes). */
-  crossfadeLayer(slot: 0 | 1, tex: THREE.Texture) {
+  crossfadeLayer(slot: LayerSlot, tex: THREE.Texture) {
     const layer = this.layers[slot];
     if (!layer.hasTex) {
       this.setLayerTexture(slot, tex);
@@ -445,12 +490,15 @@ export class World {
       } else if (l.fade < 1) {
         l.fade = Math.min(1, l.fade + dt / 0.9);
       }
-      (l.mat.uniforms.uTint.value as THREE.Color).copy(this.tintColor).multiplyScalar(breathe * (i === 0 ? 1 : 0.65));
+      (l.mat.uniforms.uTint.value as THREE.Color)
+        .copy(this.tintColor)
+        .multiplyScalar(breathe * (i === 0 ? 1 : i === 1 ? 0.65 : 0.45));
       // En retrait (×2) : ces couches sont ADDITIVES, elles relèvent les noirs
       // sur toute la surface — c'est du contraste perdu partout pour de
       // l'ambiance nulle part. Le fond ne concurrence jamais les entités.
       l.mat.uniforms.uOpacity.value =
-        (i === 0 ? 0.20 + energy * 0.16 : 0.13 + energy * 0.10) * Math.max(0, l.fade);
+        (i === 0 ? 0.20 + energy * 0.16 : i === 1 ? 0.13 + energy * 0.10 : 0.07 + energy * 0.05) *
+        Math.max(0, l.fade);
     }
 
     // Les bulles remontent, portées par l'intensité, et se rembobinent en bas
