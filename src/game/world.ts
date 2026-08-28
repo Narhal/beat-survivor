@@ -1,7 +1,9 @@
 // Scène Three.js : vue du dessus orthographique, fond « soupe cellulaire »
 // (réf. ambiance Nucleus), bloom pour le néon. La musique vit ici : le fond
 // pulse avec la basse, dérive avec l'intensité (le voyage), chauffe au danger.
-// DA en variantes commutables (touches 1-3) : Plasma / Abysses / Tissu — N4 tranche.
+// Deux milieux : Plasma et Tissu. Une run tire le sien à la plongée et s'y tient —
+// mélanger le shader d'un milieu et la texture de l'autre fabriquait un troisième
+// look que personne n'avait demandé (N4 2026-08-28).
 
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
@@ -41,7 +43,31 @@ const BG_VERTEX = /* glsl */ `
 const FRAG_COMMON = /* glsl */ `
   varying vec2 vPos;
   uniform float uTime, uBass, uEnergy, uJourney, uHeat;
-  uniform vec2 uDrift;
+  uniform vec2 uDrift, uView;
+
+  /**
+   * Caustiques : le réseau de lumière qu'une surface d'eau agitée projette
+   * au fond. Deux trains de vagues croisés — mais on ne garde QUE les
+   * crêtes (puissance 7). Sans ce seuil dur on obtiendrait un voile, et un
+   * voile c'est exactement le laiteux qu'on a chassé. Là, c'est un filet de
+   * lumière sur du noir.
+   */
+  float caustic(vec2 q, float t) {
+    float a = sin(q.x * 1.7 + t) + sin(q.y * 1.3 - t * 0.8);
+    float b = sin((q.x + q.y) * 1.1 + t * 1.3) + sin((q.x - q.y) * 0.9 - t);
+    float v = (a + b) * 0.25 + 0.5;
+    return pow(max(0.0, v), 7.0);
+  }
+
+  /**
+   * Le fond du volume : les bords s'assombrissent. Ce n'est pas un cache
+   * décoratif — c'est ce qui dit qu'on est DANS quelque chose, et ça pousse
+   * l'œil vers le centre, là où se joue la partie.
+   */
+  float profondeur(vec2 pos) {
+    float d = length(pos / uView);
+    return 1.0 - 0.62 * pow(clamp(d, 0.0, 1.4), 2.0);
+  }
 `;
 
 // Couches de textures Midjourney (masters de N4) : dérive en parallaxe,
@@ -50,15 +76,29 @@ const FRAG_LAYER = /* glsl */ `
   varying vec2 vPos;
   uniform sampler2D uMap;
   uniform vec2 uDrift;
-  uniform float uParallax, uTile, uOpacity;
+  uniform float uParallax, uTile, uOpacity, uDepth;
   uniform vec3 uTint;
   void main() {
     vec2 uv = (vPos + uDrift * uParallax) / uTile;
     // La texture est encodée en sRGB ; un ShaderMaterial ne la décode pas tout
-    // seul. Lue telle quelle, un gris moyen valait 0.5 au lieu de 0.21 — la
-    // couche entière arrivait deux fois trop claire et blanchissait l'écran.
-    float lum = pow(texture2D(uMap, uv).g, 2.2);
-    gl_FragColor = vec4(uTint, lum * uOpacity);
+    // seul. Lue telle quelle, un gris moyen vaut 0.5 au lieu de 0.21 — la
+    // couche entière arriverait deux fois trop claire.
+    vec3 tex = pow(texture2D(uMap, uv).rgb, vec3(2.2));
+    float lum = dot(tex, vec3(0.2126, 0.7152, 0.0722));
+
+    // On ne lisait QUE le canal vert, comme une luminance, et on repeignait
+    // le tout d'une teinte unie : toute la couleur des masters de N4 partait
+    // à la poubelle (verdict 2026-08-28 : « les sprites sont beaux mais pas
+    // assez bien exploités »). On garde désormais leur couleur, et la palette
+    // du jeu ne fait plus que la faire voyager.
+    //
+    // uDepth range les plans : plus une couche est loin, plus elle se
+    // désature et rejoint le bleu du milieu. C'est la perspective aérienne —
+    // sous l'eau, le lointain perd ses couleurs avant de perdre ses formes.
+    vec3 col = mix(tex, vec3(lum), uDepth * 0.8);
+    col = mix(col, uTint * (0.35 + lum), 0.5 + uDepth * 0.25);
+
+    gl_FragColor = vec4(col, lum * uOpacity);
   }
 `;
 
@@ -98,7 +138,16 @@ const FRAG_PLASMA = FRAG_COMMON + /* glsl */ `
     vec3 pulse = mix(vec3(0.010, 0.034, 0.044), vec3(0.044, 0.017, 0.010), uHeat);
     col += pulse * uBass * uBass * (c1 + 0.15);
 
-    gl_FragColor = vec4(col, 1.0);
+    // Le filet de lumière de la surface, très haut au-dessus. Deux échelles
+    // qui dérivent l'une sur l'autre : ce décalage lent est ce qui empêche
+    // l'œil de voir un motif et lui fait voir de l'EAU.
+    vec2 cq = (vPos + uDrift * 0.7) * 0.035;
+    float ca = caustic(cq, uTime * 0.35) * 0.7
+             + caustic(cq * 1.9 + 11.3, -uTime * 0.22) * 0.3;
+    vec3 causCol = mix(vec3(0.10, 0.28, 0.36), vec3(0.30, 0.14, 0.08), uHeat);
+    col += causCol * ca * (0.55 + uEnergy * 0.6);
+
+    gl_FragColor = vec4(col * profondeur(vPos), 1.0);
   }
 `;
 
@@ -136,7 +185,15 @@ const FRAG_TISSU = FRAG_COMMON + /* glsl */ `
 
     vec3 col = flesh + flesh * c1 * 0.4 + veinCol * (v1 + v2 * 0.5);
 
-    gl_FragColor = vec4(col, 1.0);
+    // Dans la chair, la lumière ne vient pas d'une surface : elle SUINTE.
+    // Mêmes crêtes, plus lentes, plus larges, plus chaudes.
+    vec2 cq = (vPos + uDrift * 0.7) * 0.024;
+    float ca = caustic(cq, uTime * 0.20) * 0.75
+             + caustic(cq * 2.1 + 4.7, -uTime * 0.13) * 0.25;
+    vec3 causCol = mix(vec3(0.16, 0.06, 0.10), vec3(0.30, 0.10, 0.05), uHeat);
+    col += causCol * ca * (0.5 + uEnergy * 0.5 + uBass * 0.4);
+
+    gl_FragColor = vec4(col * profondeur(vPos), 1.0);
   }
 `;
 
@@ -147,6 +204,8 @@ export class World {
   composer: EffectComposer;
   styleIndex = 0;
   layersEnabled = true;
+  /** Les bulles qui remontent — coupables depuis les Options (N4 2026-08-28). */
+  bubblesEnabled = true;
 
   private bgUniforms: Record<string, THREE.IUniform>;
   private bgMats: THREE.ShaderMaterial[];
@@ -188,6 +247,7 @@ export class World {
       uDrift: { value: new THREE.Vector2() },
       uJourney: { value: 0 },
       uHeat: { value: 0 },
+      uView: { value: new THREE.Vector2(VIEW_HH, VIEW_HH) },
     };
     // Un matériau par variante, tous branchés sur les MÊMES uniforms
     this.bgMats = [FRAG_PLASMA, FRAG_TISSU].map(
@@ -215,6 +275,7 @@ export class World {
           uParallax: { value: parallax },
           uTile: { value: tile },
           uOpacity: { value: 0 },
+          uDepth: { value: parallax < 0.6 ? 1 : 0 },
           uTint: { value: new THREE.Color() },
         },
         vertexShader: BG_VERTEX,
@@ -289,7 +350,7 @@ export class World {
     window.addEventListener("resize", () => this.resize());
   }
 
-  /** Change la variante de DA (0 = Plasma, 1 = Abysses, 2 = Tissu). */
+  /** Change le milieu (0 = Plasma, 1 = Tissu). */
   setStyle(index: number) {
     this.styleIndex = ((index % this.bgMats.length) + this.bgMats.length) % this.bgMats.length;
     this.bg.material = this.bgMats[this.styleIndex];
@@ -315,6 +376,12 @@ export class World {
     layer.pending = tex;
   }
 
+  /** Coupe ou rallume les bulles ; elles gardent leur position en coulisse. */
+  setBubbles(on: boolean) {
+    this.bubblesEnabled = on;
+    for (const b of this.bubbles) b.mesh.visible = on;
+  }
+
   toggleLayers(): boolean {
     this.layersEnabled = !this.layersEnabled;
     for (const l of this.layers) l.mesh.visible = l.hasTex && this.layersEnabled;
@@ -329,6 +396,9 @@ export class World {
     this.camera.top = VIEW_HH;
     this.camera.bottom = -VIEW_HH;
     this.camera.updateProjectionMatrix();
+    // La vignette de profondeur se cadre sur la VUE, pas sur l'arène :
+    // elle doit toucher les bords de l'écran quel que soit le format.
+    (this.bgUniforms.uView.value as THREE.Vector2).set(VIEW_HH * aspect, VIEW_HH);
     this.renderer.setSize(w, h);
     this.composer.setSize(w, h);
   }

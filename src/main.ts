@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { analyseBuffer, envAt, estimateDifficulty, TrackAnalysis } from "./audio/analysis";
 import { renderDemoTrack } from "./audio/demo";
-import { World, BG_STYLES, ARENA, VIEW_HH } from "./game/world";
+import { World, ARENA, VIEW_HH } from "./game/world";
 import { Ship } from "./game/ship";
 import { Enemies, ENEMY_DEFS, Enemy, EnemyKind } from "./game/enemies";
 import { Weapons, UPGRADE_INFO, UpgradeKind, maxLevelOf } from "./game/weapons";
@@ -36,19 +36,10 @@ const keys = new Set<string>();
 addEventListener("keydown", (e) => keys.add(e.code));
 addEventListener("keyup", (e) => keys.delete(e.code));
 
-// Variantes de DA commutables (1-2) — méthode « DA en variantes », N4 tranche.
-// Rotation AUTO des textures par défaut (fraîcheur, décision N4 2026-07-28) ;
+// Outils de réglage. Les variantes de DA commutables (touches 1-2) ont été
+// retirées le 2026-08-28 : le choix est fait, il n'y a plus à en changer.
 // F/G : cycle manuel proche/lointaine, R : rotation auto on/off, V : couches on/off.
 addEventListener("keydown", (e) => {
-  const m = e.code.match(/^(?:Digit|Numpad)([1-2])$/);
-  if (m) {
-    const i = Number(m[1]) - 1;
-    autoRotate = false;
-    nearIdx = firstPoolIndexOf(i);
-    farIdx = nearIdx + 1;
-    applyLayers(true);
-    showToast(`DA : ${BG_STYLES[i]} (rotation auto coupée — R pour reprendre)`);
-  }
   if (e.code === "KeyF") {
     autoRotate = false;
     nearIdx++;
@@ -83,7 +74,17 @@ addEventListener("keydown", (e) => {
 // garder de la fraîcheur et repousser la redondance (décision N4 2026-07-28).
 const PISTES = ["plasma", "tissu"] as const;
 let texManifest: Record<string, string[]> | null = null;
+/**
+ * Le milieu d'une run appartient à UNE piste. Avant, le pool était une liste
+ * à plat des deux pistes et les deux couches y avançaient chacune de leur
+ * côté : le shader socle suivait la couche proche pendant que la lointaine
+ * venait de l'autre piste. Ce mélange produisait un troisième look, ni
+ * plasma ni tissu — le « troisième type » que N4 voyait revenir alors qu'on
+ * l'avait supprimé (2026-08-28).
+ */
 let texPool: { piste: (typeof PISTES)[number]; file: string }[] = [];
+/** Piste du milieu courant : les deux couches y puisent, et elle seule. */
+let pisteActive: (typeof PISTES)[number] = "plasma";
 const texLoader = new THREE.TextureLoader();
 const texCache = new Map<string, THREE.Texture>();
 let nearIdx = 0;
@@ -92,19 +93,28 @@ let autoRotate = true;
 let nearTimer = 40;
 let farTimer = 65;
 
-function firstPoolIndexOf(styleIndex: number): number {
-  const piste = PISTES[styleIndex];
-  const i = texPool.findIndex((e) => e.piste === piste);
-  return i < 0 ? 0 : i;
+/** Les textures de la piste courante, dans l'ordre du manifest. */
+function pisteFiles(): string[] {
+  return texPool.filter((e) => e.piste === pisteActive).map((e) => e.file);
+}
+
+/** Choisit le milieu d'une run : une piste, et une seule, jusqu'au bout. */
+function choisirPiste() {
+  const dispo = PISTES.filter((pi) => texPool.some((e) => e.piste === pi));
+  if (dispo.length === 0) return;
+  pisteActive = dispo[Math.floor(Math.random() * dispo.length)];
+  world.setStyle(pisteActive === "plasma" ? 0 : 1);
 }
 
 function loadLayer(slot: 0 | 1, silent = false) {
-  if (texPool.length === 0) {
+  const files = pisteFiles();
+  if (files.length === 0) {
     world.setLayerTexture(slot, null);
     return;
   }
   const idx = slot === 0 ? nearIdx : farIdx;
-  const entry = texPool[((idx % texPool.length) + texPool.length) % texPool.length];
+  const file = files[((idx % files.length) + files.length) % files.length];
+  const entry = { piste: pisteActive, file };
   const url = `${ASSET_BASE}textures/${entry.piste}/${entry.file}`;
   let tex = texCache.get(url);
   if (!tex) {
@@ -114,12 +124,12 @@ function loadLayer(slot: 0 | 1, silent = false) {
     texCache.set(url, tex);
   }
   world.crossfadeLayer(slot, tex);
-  // Le shader socle suit la matière de la couche proche (cohérence du monde)
-  if (slot === 0) world.setStyle(entry.piste === "plasma" ? 0 : 1);
   if (!silent) showToast(`Couche ${slot === 0 ? "proche" : "lointaine"} : ${entry.file.replace(".webp", "")}`);
 }
 
 function applyLayers(silent = false) {
+  const n = pisteFiles().length;
+  if (n > 1) farIdx = nearIdx + 1 + Math.floor(Math.random() * (n - 1));
   loadLayer(0, silent);
   loadLayer(1, silent);
 }
@@ -149,6 +159,7 @@ fetch(`${ASSET_BASE}textures/manifest.json`)
     for (const piste of PISTES) {
       for (const file of texManifest?.[piste] ?? []) texPool.push({ piste, file });
     }
+    choisirPiste();
     applyLayers(true);
   })
   .catch(() => {}); // pas de textures = pas de couches, le shader reste en socle
@@ -777,6 +788,9 @@ function startRun(buf: AudioBuffer) {
     () => dur * (0.3 + Math.random() * 0.62)
   ).sort((a, b) => a - b);
   spiralIdx = 0;
+  // Une run, un milieu : la piste est tirée à la plongée et ne bouge plus
+  choisirPiste();
+  applyLayers(true);
   wakeTime = analysis ? computeWakeTime(analysis) : 0;
   lastReleaseT = 0;
   score = 0;
@@ -1889,7 +1903,7 @@ let optIdx = 0;
 let optCooldown = 0;
 
 function optionRows(): HTMLElement[] {
-  return [optVolume, optSfx, optLayers, optRotate, $("btn-options-close")];
+  return [optVolume, optSfx, optLayers, optRotate, optBubbles, $("btn-options-close")];
 }
 
 function syncOptionsSel() {
@@ -2288,6 +2302,11 @@ const optVolume = $("opt-volume") as HTMLInputElement;
 const optSfx = $("opt-sfx") as HTMLInputElement;
 const optLayers = $("opt-layers") as HTMLInputElement;
 const optRotate = $("opt-rotate") as HTMLInputElement;
+const optBubbles = $("opt-bubbles") as HTMLInputElement;
+// Le réglage des bulles survit à la session : c'est un choix de confort visuel
+let bubblesOn = localStorage.getItem("bs-bubbles") !== "0";
+optBubbles.checked = bubblesOn;
+world.setBubbles(bubblesOn);
 optVolume.value = String(musicVolume);
 optSfx.value = String(sfxVolume);
 
@@ -2305,6 +2324,7 @@ function openOptions(from: "home" | "pause") {
   optionsOpen = true;
   optLayers.checked = world.layersEnabled;
   optRotate.checked = autoRotate;
+  optBubbles.checked = bubblesOn;
   show(optionsEl, true);
   optIdx = 0;
   syncOptionsSel();
@@ -2340,6 +2360,11 @@ optLayers.addEventListener("change", () => {
 });
 optRotate.addEventListener("change", () => {
   autoRotate = optRotate.checked;
+});
+optBubbles.addEventListener("change", () => {
+  bubblesOn = optBubbles.checked;
+  localStorage.setItem("bs-bubbles", bubblesOn ? "1" : "0");
+  world.setBubbles(bubblesOn);
 });
 
 const dropzone = $("dropzone");
