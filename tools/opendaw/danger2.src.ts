@@ -429,7 +429,7 @@ const plongeons = (bar: number): Note[] =>
     kicks(bar).map(k => ({position: k[0] * S16, duration: S16 / 2, pitch: 12, velocity: 1}))
 
 // ---------- Frappe : la grosse caisse ----------
-const kick = apparat("Frappe", FRAPPE, -5)
+const kick = apparat("Frappe", FRAPPE, -6.5)
 reglages("frappe", kick, {tune: 52, start: 380, sweep: 50, decay: 150, punch: 0.6, click: 0.7, drive: 0.4})
 build(kick.noteTracks[0], "Frappe", bar =>
     kicks(bar).map(k => ({position: k[0] * S16, duration: S16, pitch: 36, velocity: k[1]})))
@@ -438,7 +438,7 @@ auto("frappe", kick, "click", [[0, 0.15], [8, 0.7], [92, 0.7], [108, 0.85], [124
 auto("frappe", kick, "drive", [[0, 0.3], [56, 0.4], [92, 0.5], [124, 0.45], [140, 0.3]])
 
 // ---------- Grondement : la masse grave qui roule entre les coups ----------
-const rumble = apparat("Grondement", GRONDEMENT, -13)
+const rumble = apparat("Grondement", GRONDEMENT, -15.5)
 reglages("grondement", rumble, {
     tone: 115, body: 46, weight: 0.6, duck: 0.95, swell: 110, hold: 330, grit: 0.3, drive: 0.5
 })
@@ -487,7 +487,7 @@ function acidNote(pattern: Pattern, index: number, step: number, base: number): 
     }
 }
 
-const acid = apparat("Acide", TB303, -3)
+const acid = apparat("Acide", TB303, -4.5)
 reglages("acide", acid, {cutoff: 70, resonance: 0.85, envmod: 0.3, decay: 300, accent: 1.0})
 // Saturation en parallele : le son propre reste, sa copie ecrasee s'ajoute
 essai("saturation acide", () => acid.addAudioEffect("Waveshaper", {equation: "tanh", inputGain: 19, outputGain: -11, mix: 0.7} as any))
@@ -539,7 +539,7 @@ auto("acide", acid, "volume", [
     [88, 0.40], [91.75, 0.70], [124, 0.70], [136, 0.5], [140, 0.5]
 ])
 
-const acid2 = apparat("Acide carree", TB303, -8, 0.25)
+const acid2 = apparat("Acide carree", TB303, -8.5, 0.25)
 reglages("acide carree", acid2, {waveform: 1, cutoff: 150, resonance: 0.9, envmod: 0.5, decay: 300, accent: 1.0})
 acid2.addAudioEffect("Delay", {delay: 13, feedback: 0.5, cross: 1, filter: 0.5, wet: -10})
 build(acid2.noteTracks[0], "Acide carree", bar => {
@@ -561,7 +561,7 @@ auto("acide carree", acid2, "cutoff", vague([
 // La mineur septieme ; en fin de phrase, Si bemol : la menace.
 const AM7 = [57, 60, 64, 67]
 const BB = [58, 62, 65, 69]
-const stab = apparat("Accord", ACCORD, -2, -0.1)
+const stab = apparat("Accord", ACCORD, 4, -0.1)
 reglages("accord", stab, {
     decay: 160, cutoff: 420, envmod: 2.6, fdecay: 80, reso: 0.35, detune: 12, width: 0.7, duck: 0.5
 })
@@ -597,7 +597,7 @@ auto("accord", stab, "decay", [
 ])
 
 // ---------- Cymbale : les charleys ----------
-const hats = apparat("Cymbale", CYMBALE, -8)
+const hats = apparat("Cymbale", CYMBALE, 1)
 reglages("cymbale", hats, {decay: 40, open: 7, tone: 7000, metal: 0.5, drift: 0.6, width: 0.5})
 const FERME = 42, OUVERT = 46
 /** La vitesse des aigus : elle change a chaque bloc. */
@@ -652,7 +652,7 @@ auto("cymbale", hats, "width", [
 ])
 
 // ---------- Clap, caisse claire, rimshot, toms, ride, crash : TR-909 ----------
-const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -4})
+const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -2})
 const RIM = 37, SNARE = 38, CLAP = 39, TOM_L = 45, TOM_M = 47, TOM_H = 50, CRASH = 49, RIDE = 51
 const kit: [string, number, any][] = [
     ["Rimshot", RIM, {volume: -9, panning: -0.3}],
@@ -741,7 +741,7 @@ auto("souffle", breath, "volume", [
 // envoyes de temps en temps dans un long echo.
 const voix: any = project.addInstrumentUnit("Tape", {label: "Voix", volume: -3})
 voix.addAudioEffect("Delay", {delay: 13, feedback: 0.3, cross: 1, filter: 0.3, wet: -17})
-const lancer: any = project.addInstrumentUnit("Tape", {label: "Voix lancee", volume: -11})
+const lancer: any = project.addInstrumentUnit("Tape", {label: "Voix lancee", volume: -9})
 lancer.addAudioEffect("Delay", {delay: 13, feedback: 0.62, cross: 1, filter: 0.3, wet: -2})
 const dire = (quoi: string, sample: any, bar: number, step: number, lance: boolean = false) => {
     essai("voix " + quoi, () => voix.audioTracks[0].addRegion(sample, {position: bar * BAR + step * S16, playback: "no-sync"}))
@@ -769,7 +769,7 @@ dire("fin", vUn, 138, 0, true)
 
 // ---------- Aspirations et impacts ----------
 // L'aspiration s'arrete un temps avant le drop : ce temps-la reste vide
-const fxRise: any = project.addInstrumentUnit("Tape", {label: "Aspirations", volume: -8})
+const fxRise: any = project.addInstrumentUnit("Tape", {label: "Aspirations", volume: -4})
 essai("aspiration longue", () => fxRise.audioTracks[0].addRegion(aspireLong, {position: Math.round(53.75 * BAR), playback: "no-sync"}))
 essai("aspiration courte", () => fxRise.audioTracks[0].addRegion(aspireCourt, {position: Math.round(90.75 * BAR), playback: "no-sync"}))
 const fxHit: any = project.addInstrumentUnit("Tape", {label: "Impacts", volume: -6})
@@ -788,7 +788,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // l'ecart entre la crete et le niveau moyen, et la force des attaques sur
 // chacun des 16 pas de la mesure (0 a 9) dans le grave, le medium et l'aigu.
 const MESURER = true
-const ISOLER = true
+const ISOLER = false
 const units: any[] = [kick, rumble, acid, acid2, stab, hats, drums, breath, voix, lancer, fxRise, fxHit]
 const STEMS: [string, any][] = [["Frappe", kick], ["Grondement", rumble], ["Acide", acid], ["Acide carree", acid2],
     ["Accord", stab], ["Cymbale", hats], ["909", drums], ["Voix", voix], ["Voix lancee", lancer], ["Aspirations", fxRise]]
