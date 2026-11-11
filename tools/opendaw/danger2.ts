@@ -1355,7 +1355,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // references : l'energie par bande d'octave, la part du grave et de l'aigu,
 // l'ecart entre la crete et le niveau moyen, et la force des attaques sur
 // chacun des 16 pas de la mesure (0 a 9) dans le grave, le medium et l'aigu.
-const MESURER = true
+const MESURER = false
 const ISOLER = false
 const units: any[] = [kick, rumble, acid, acid2, stab, hats, drums, breath, voix, lancer, fxRise, fxHit]
 const STEMS: [string, any][] = [["Frappe", kick], ["Grondement", rumble], ["Acide", acid], ["Acide carree", acid2],
