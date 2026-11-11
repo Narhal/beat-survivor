@@ -869,9 +869,9 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 
 // ---------- Mesure du rendu (pour regler sans entendre) ----------
 // STEMS = [] : mix seul. Sinon, la liste des pistes a isoler.
-const MESURER = true
+const MESURER = false
 const units: any[] = [drums, acid, acid2, rumble, stab, drone, voix, fxRise, fxHit]
-const STEMS: any[] = []
+const STEMS: any[] = [drums, acid, acid2, rumble, stab, voix]
 if (MESURER) {
     const parts = [["intro", 0, 8], ["montee", 8, 24], ["groove", 24, 48], ["break", 48, 56],
         ["drop1", 56, 72], ["drop2", 72, 88], ["trou", 88, 92], ["final", 92, 116], ["sortie", 116, 128]]
