@@ -180,7 +180,7 @@ const tour = (bar: number, step: number, period: number) =>
 function kicks(bar: number): number[][] {
     if (!kickOn(bar)) {return []}
     // Le pied garde de la reserve jusqu aux drops : c est la que le niveau monte
-    const v = bar < 8 || bar >= 184 ? 0.8 : drop(bar) ? 1 : 0.9
+    const v = bar < 8 || bar >= 184 ? 0.8 : drop(bar) ? 1 : 0.85
     const out = [[0, v], [4, v], [8, v], [12, v]]
     if (drop(bar) && bar % 8 === 7) {out.push([14, 0.7])}
     return out
@@ -206,7 +206,7 @@ const FA = 29, SOLB = 30, LAB = 32
 build(sub.noteTracks[0], "Sub", bar => {
     const out: Note[] = kicks(bar).map(k => ({position: k[0] * S16, duration: S16 / 2, pitch: 12, velocity: 1}))
     if (!kickOn(bar) || bar < 8) {return out}
-    const v = bar < 24 || bar >= 184 ? 0.7 : drop(bar) ? 1 : 0.85
+    const v = bar < 24 || bar >= 184 ? 0.7 : drop(bar) ? 1 : 0.8
     for (let beat = 0; beat < 4; beat++) {
         // Fin de phrase : la basse touche le Sol bemol, la seconde mineure
         let pitch = FA
@@ -298,14 +298,15 @@ auto("acide", acid, "decay", [
     [0, 0.12], [24, 0.18], [56, 0.28], [56, 0.70], [64, 0.30], [96, 0.42], [96, 0.80],
     [104, 0.38], [128, 0.46], [152, 0.50], [184, 0.15], [200, 0.12]
 ])
-// Le niveau de la 303 retombe a l entree des creux : un creux doit etre un vrai
-// creux, pour l oreille comme pour la detection de drop du jeu.
+// Le niveau de la 303 : en retrait dans le groove, plein dans les drops, et il
+// retombe a l entree des creux (un creux doit etre un vrai creux, pour l oreille
+// comme pour la detection de drop du jeu). Dans la descente, il s efface.
 auto("acide", acid, "volume", [
-    [0, 0.70], [56, 0.70], [56, 0.38], [60, 0.45], [63.75, 0.70], [96, 0.70],
-    [96, 0.38], [103.75, 0.70], [200, 0.70]
+    [0, 0.60], [56, 0.60], [56, 0.36], [60, 0.42], [63.75, 0.66], [64, 0.70], [96, 0.70],
+    [96, 0.36], [103.75, 0.68], [104, 0.70], [152, 0.70], [176, 0.52], [184, 0.45], [200, 0.45]
 ])
 
-const echo = apparat("Echo", TB303, -8, 0.3)
+const echo = apparat("Echo", TB303, -5, 0.3)
 regle("echo", echo, "waveform", 1)
 regle("echo", echo, "cutoff", 150)
 regle("echo", echo, "resonance", 0.9)
@@ -358,8 +359,8 @@ build(stairs.noteTracks[0], "Escalier", bar => {
 // decay 40..2000 ms (150 ms = 0.34, 260 = 0.48, 600 = 0.69) ;
 // center 120..3000 Hz (400 Hz = 0.37, 800 = 0.59, 1200 = 0.72).
 auto("escalier", stairs, "volume", [
-    [0, 0.30], [40, 0.30], [56, 0.50], [56, 0.80], [63.75, 0.85], [64, 0.50], [96, 0.55],
-    [96, 0.90], [103.75, 0.95], [104, 0.55], [152, 0.68], [168, 0.55], [184, 0.25], [200, 0.25]
+    [0, 0.30], [40, 0.30], [56, 0.50], [56, 0.58], [63.75, 0.66], [64, 0.50], [96, 0.55],
+    [96, 0.66], [103.75, 0.74], [104, 0.55], [152, 0.66], [168, 0.52], [184, 0.25], [200, 0.25]
 ])
 auto("escalier", stairs, "decay", [
     [0, 0.40], [56, 0.42], [56, 0.66], [63.75, 0.70], [64, 0.40], [96, 0.44], [96, 0.70],
@@ -476,8 +477,9 @@ essai("impact 2", () => fxHit.audioTracks[0].addRegion(impact, {position: 104 * 
 essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -3} as any))
 
 // ---------- Mesure du rendu (pour regler sans entendre) ----------
-// STEMS = [] : mix seul. Sinon, la liste des pistes a isoler.
+// ISOLER = true : chaque piste est aussi rendue seule (une passe de plus par piste).
 const MESURER = true
+const ISOLER = false
 const units: any[] = [kick, sub, acid, echo, stairs, wood, breath, drums, fxHit]
 const STEMS: [string, any][] = [["Coup", kick], ["Sub", sub], ["Acide", acid], ["Echo", echo],
     ["Escalier", stairs], ["Bois", wood], ["Souffle", breath], ["909", drums]]
@@ -486,7 +488,7 @@ if (MESURER) {
         ["drop", 64, 96], ["vide", 96, 104], ["final", 104, 128], ["sommet", 128, 152],
         ["descente", 152, 184], ["sortie", 184, 200]]
     const report: string[] = []
-    for (const stem of ([["MIX", null]] as [string, any][]).concat(STEMS)) {
+    for (const stem of ([["MIX", null]] as [string, any][]).concat(ISOLER ? STEMS : [])) {
         units.forEach(u => u.mute = stem[1] !== null && u !== stem[1])
         const audio: any = await project.mixdown()
         const rate = audio.sampleRate ?? 48000
