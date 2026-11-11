@@ -40,6 +40,11 @@
       "hidden": true
     },
     {
+      "file": "Danger.mp3",
+      "title": "Danger",
+      "difficulty": "test"
+    },
+    {
       "file": "Liquid.mp3",
       "title": "Liquid",
       "difficulty": "test"

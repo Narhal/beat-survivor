@@ -39,6 +39,9 @@ const DIFFICULTES = {
   "Luxury.mp3": "test",
   "Space wind.mp3": "test",
   "Wonderland.mp3": "test",
+  // « Danger Danger v2 » (N4 2026-11-11) : premier morceau composé pour le jeu
+  // (script dans tools/opendaw/danger2.ts). Pas encore jugé en partie.
+  "Danger.mp3": "test",
 };
 // « test » vaut 3 : les bancs d'essai passent APRÈS la campagne, jamais au
 // milieu de l'échelle de difficulté.
