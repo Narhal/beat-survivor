@@ -479,7 +479,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // Pour le mix, on mesure aussi ce qu'on a mesure sur la reference : la part du
 // grave et de l'aigu, et la force des attaques sur chacun des 16 pas de la
 // mesure (0 a 9), dans le grave, le medium et l'aigu.
-const MESURER = true
+const MESURER = false
 const ISOLER = false
 const units: any[] = [kick, sub, toms, acid, bell, mark, breath, drums]
 const STEMS: [string, any][] = [["Coup", kick], ["Sub", sub], ["Peaux", toms], ["Acide", acid],
