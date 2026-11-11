@@ -43,14 +43,14 @@ const sr = sampleRate
 const barSec = 240 / BPM
 const beatSec = 60 / BPM
 
-const TB303: string = __TB303__
+const TB303: string = __TB303_L__
 const VOIX_TXT: string = __VOIXTXT__
 const VOIX: any = JSON.parse(VOIX_TXT)
-const FRAPPE: string = __FRAPPE__
-const GRONDEMENT: string = __GRONDEMENT__
-const ACCORD: string = __ACCORD__
-const CYMBALE: string = __CYMBALE__
-const SOUFFLE: string = __SOUFFLE__
+const FRAPPE: string = __FRAPPE_L__
+const GRONDEMENT: string = __GRONDEMENT_L__
+const ACCORD: string = __ACCORD_L__
+const CYMBALE: string = __CYMBALE_L__
+const SOUFFLE: string = __SOUFFLE_L__
 
 /** Tout ce qui n'a pas pu se brancher comme prevu : affiche en fin de script. */
 const soucis: string[] = []

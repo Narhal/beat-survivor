@@ -42,6 +42,16 @@ for (const f of readdirSync(path.join(dir, "apparat")).filter((f) => f.endsWith(
   inserts["__" + f.replace(".js", "").toUpperCase() + "__"] = () => JSON.stringify(read("apparat/" + f).replace(/\n$/, ""));
 }
 
+// Variante « en lignes » de chaque bloc de code : __TB303_L__, __COUP_L__…
+// Le même code, mais découpé en morceaux de 140 caractères mis bout à bout.
+// Une ligne de 9 000 caractères ralentit l'éditeur d'openDAW et finit par le
+// bloquer ; des lignes courtes passent sans histoire.
+for (const [marker, value] of Object.entries(inserts)) {
+  if (marker.startsWith("__VOIX")) continue;
+  inserts[marker.replace(/__$/, "_L__")] = () =>
+    JSON.parse(value()).match(/[\s\S]{1,140}/g).map((c) => JSON.stringify(c)).join(" +\n");
+}
+
 for (const file of readdirSync(dir).filter((f) => f.endsWith(".src.ts"))) {
   let out = read(file);
   for (const [marker, value] of Object.entries(inserts)) {
