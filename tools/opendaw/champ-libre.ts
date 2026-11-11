@@ -197,7 +197,7 @@ const plongeons = (bar: number): Note[] =>
 // ---------- Coup : la grosse caisse ----------
 // Court (le temps ne dure que 333 ms), accorde a 52 Hz comme la reference, dur.
 const kick = apparat("Coup", COUP, -7)
-reglages("coup", kick, {tune: 52, sweep: 0.8, decay: 105, click: 0.55, drive: 0.45})
+reglages("coup", kick, {tune: 52, sweep: 0.8, decay: 105, click: 0.55, drive: 0.3})
 build(kick.noteTracks[0], "Coup", bar =>
     kicks(bar).map(k => ({position: k[0] * S16, duration: S16, pitch: 36, velocity: k[1]})))
 // Le pied arrive etouffe et gagne son claquement en huit mesures
@@ -231,8 +231,8 @@ build(sub.noteTracks[0], "Sub", bar => {
 // ---------- Peaux : les toms du galop ----------
 // Le meme pas que la basse. Le troisieme coup tombe cinq demi-tons plus bas.
 const TOM = 49, TOM_BAS = 44, TOM_HAUT = 56
-const toms = apparat("Peaux", PEAUX, -13.5)
-reglages("peaux", toms, {decay: 120, bend: 0.5, slap: 0.5, drive: 0.5, width: 0.3})
+const toms = apparat("Peaux", PEAUX, -12)
+reglages("peaux", toms, {decay: 120, bend: 0.5, slap: 0.7, drive: 0.5, width: 0.3})
 /** Un roulement : doubles-croches, un accent tous les trois pas, de plus en plus fort. */
 function roulement(from: number, to: number, base: number, gain: number): Note[] {
     const out: Note[] = []
@@ -296,7 +296,7 @@ function acidNote(pattern: Pattern, step: number, base: number): Note {
     }
 }
 
-const acid = apparat("Acide", TB303, -6.5)
+const acid = apparat("Acide", TB303, -4.5)
 reglages("acide", acid, {cutoff: 70, resonance: 0.85, envmod: 0.3, decay: 300, accent: 1.0})
 essai("saturation acide", () => acid.addAudioEffect("Waveshaper", {equation: "tanh", inputGain: 19, outputGain: -11, mix: 0.85} as any))
 acid.addAudioEffect("Delay", {delay: 13, feedback: 0.3, cross: 1, filter: 0.4, wet: -22})
@@ -533,7 +533,8 @@ if (MESURER) {
         if (stem[1] === null) {
             // La meme mesure que sur la reference, sur le drop (mesures 104 a 136)
             const from = Math.floor(104 * barSec * rate), to = Math.min(n, Math.floor(136 * barSec * rate))
-            const hop = 256
+            // Meme pas d analyse que pour la reference (512 echantillons)
+            const hop = 512
             const kLow = 1 - Math.exp(-2 * Math.PI * 120 / rate), kHigh = 1 - Math.exp(-2 * Math.PI * 6000 / rate)
             const kA = 1 - Math.exp(-2 * Math.PI * 300 / rate), kB = 1 - Math.exp(-2 * Math.PI * 3000 / rate)
             let lp = 0, lp2 = 0, hl = 0, ma = 0, mb = 0, sLow = 0, sHigh = 0, sTot = 0
