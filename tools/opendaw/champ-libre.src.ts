@@ -230,8 +230,10 @@ build(sub.noteTracks[0], "Sub", bar => {
 
 // ---------- Peaux : les toms du galop ----------
 // Le meme pas que la basse. Le troisieme coup tombe cinq demi-tons plus bas.
-const TOM = 49, TOM_BAS = 44, TOM_HAUT = 56
-const toms = apparat("Peaux", PEAUX, -12)
+// Ils jouent dans le medium (200 a 400 Hz) : le grave reste au pied et a la basse,
+// et c est la que la reference appuie le plus fort sur le pas du galop.
+const TOM = 61, TOM_BAS = 56, TOM_HAUT = 68
+const toms = apparat("Peaux", PEAUX, -11)
 reglages("peaux", toms, {decay: 120, bend: 0.5, slap: 0.7, drive: 0.5, width: 0.3})
 /** Un roulement : doubles-croches, un accent tous les trois pas, de plus en plus fort. */
 function roulement(from: number, to: number, base: number, gain: number): Note[] {
