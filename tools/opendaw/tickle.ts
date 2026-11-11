@@ -350,7 +350,7 @@ const HAUTEUR = [112, 115, 108, 115]
 build(tics.noteTracks[0], "Tics", bar => {
     if (nu(bar)) {return []}
     const out: Note[] = []
-    const croches = bar < 16 || inBreak(bar) || bar >= 138
+    const croches = bar < 32 || inBreak(bar) || bar >= 138
     const gain = inBreak(bar) || sombre(bar) ? 1 : bar < 8 || bar >= 138 ? 0.9 : 0.75
     const r = rang(bar)
     const rafale = r === 3 && !avantDrop(bar) && bar < 142
@@ -426,10 +426,9 @@ drums.addSend(reverb, {amount: -24})
 function vitesse(bar: number): number {
     if (!tourne(bar) || sombre(bar) || nu(bar) || bar < 8) {return 0}
     if (bar < 32) {return 1}   // charley ferme a contretemps
-    if (bar < 48) {return 2}   // charley ouvert a contretemps
-    if (bar < 72) {return 3}   // + un charley ferme juste avant chaque temps
-    if (bar < 118) {return 4}  // + un autre juste apres
-    if (bar < 130) {return 5}  // + la ride
+    if (bar < 72) {return 2}   // charley ouvert a contretemps (et les tics passent en doubles-croches)
+    if (bar < 118) {return 3}  // + un charley ferme juste avant chaque temps, tout bas
+    if (bar < 130) {return 4}  // + la ride
     return 1
 }
 
@@ -443,10 +442,10 @@ build(drums.noteTracks[0], "909", bar => {
         const beat = step % 4
         // Le clap sur 2 et 4 arrive a la mesure 24, avec le riff de basse
         if (bar >= 24 && bar < 138 && step % 8 === 4) {hit(step, CLAP, d ? 0.95 : 0.8)}
-        if (beat === 2) {hit(step, v >= 2 ? HAT_O : HAT_C, v >= 3 ? 0.8 : v === 2 ? 0.65 : 0.55)}
-        if (v >= 3 && beat === 3) {hit(step, HAT_C, 0.3)}
-        if (v >= 4 && beat === 1) {hit(step, HAT_C, 0.22)}
-        if (v >= 5 && step % 2 === 0) {hit(step, RIDE, beat === 2 ? 0.5 : 0.35)}
+        if (beat === 2) {hit(step, v >= 2 ? HAT_O : HAT_C, v >= 2 ? (d ? 0.8 : 0.65) : 0.55)}
+        // Un seul charley en plus : les doubles-croches, ce sont les tics qui les font
+        if (v >= 3 && beat === 3) {hit(step, HAT_C, 0.25)}
+        if (v >= 4 && step % 2 === 0) {hit(step, RIDE, beat === 2 ? 0.5 : 0.35)}
     }
     // Fin de bloc : le clap bafouille
     if (finDeBloc(bar)) {hit(13, CLAP, 0.5); hit(15, CLAP, 0.65)}
@@ -462,7 +461,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // (0 dB = rien, c'est au centre ; -3 dB = normal pour un son large ; bien
 // en dessous = des choses s'annulent).
 const MESURER = true
-const ISOLER = true
+const ISOLER = false
 const units: any[] = [kick, sub, bip, bop, drops, tics, mark, drums]
 const STEMS: [string, any][] = [["Coup", kick], ["Sub", sub], ["Bip", bip], ["Bop", bop],
     ["Gouttes", drops], ["Tics", tics], ["Marque", mark], ["909", drums]]
