@@ -562,19 +562,19 @@ const final = (bar: number) => bar >= 92 && bar < 116
 const avantDrop = (bar: number) => bar === 55 || bar === 91
 
 // ---------- Batterie : TR-909 ----------
-const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -7})
+const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -5})
 const KICK = 36, RIM = 37, SNARE = 38, CLAP = 39, TOM_L = 45, TOM_M = 47, TOM_H = 50
 const HAT_C = 42, HAT_O = 46, CRASH = 49, RIDE = 51
 const kit: [string, number, any][] = [
     ["Bassdrum", KICK, {volume: 0}],
     ["Rimshot", RIM, {volume: -10, panning: -0.3}],
     ["Snare", SNARE, {volume: -8}],
-    ["Clap", CLAP, {volume: -4}],
+    ["Clap", CLAP, {volume: -3}],
     ["Low Tom", TOM_L, {volume: -6, panning: -0.3}],
     ["Mid Tom", TOM_M, {volume: -7, panning: 0}],
     ["High Tom", TOM_H, {volume: -7, panning: 0.3}],
-    ["Closed Hat", HAT_C, {volume: -10, panning: 0.1, exclude: true}],
-    ["Open Hat", HAT_O, {volume: -9, panning: 0.1, exclude: true}],
+    ["Closed Hat", HAT_C, {volume: -8.5, panning: 0.1, exclude: true}],
+    ["Open Hat", HAT_O, {volume: -8, panning: 0.1, exclude: true}],
     ["Crash", CRASH, {volume: -11}],
     ["Ride", RIDE, {volume: -13, panning: 0.22}]
 ]
@@ -678,7 +678,7 @@ set303(acid, "resonance", 0.85)
 set303(acid, "envmod", 0.3)
 set303(acid, "decay", 300)
 set303(acid, "accent", 1.0)
-essai("saturation 303", () => acid.addAudioEffect("Waveshaper", {equation: "tanh", inputGain: 16, outputGain: -9, mix: 0.85} as any))
+essai("saturation 303", () => acid.addAudioEffect("Waveshaper", {equation: "tanh", inputGain: 19, outputGain: -11, mix: 0.85} as any))
 acid.addAudioEffect("Delay", {delay: 13, feedback: 0.3, cross: 1, filter: 0.4, wet: -18})
 
 build(acid.noteTracks[0], "303", bar => {
@@ -706,8 +706,8 @@ build(acid.noteTracks[0], "303", bar => {
 // 303 (coupure 60-300 Hz en exponentiel : c'est l'enveloppe qui fait le reste).
 automate("303 cutoff", acid, acid.instrument.parameter("cutoff"), "value", [
     [0, 0.05], [8, 0.05], [16, 0.12], [24, 0.30], [40, 0.45], [48, 0.55],
-    [48, 0.10], [52, 0.10], [55.75, 0.90], [56, 0.70], [72, 0.80], [88, 0.90],
-    [88, 0.15], [91.75, 0.95], [92, 0.85], [108, 1.0], [116, 0.60], [124, 0.10], [128, 0.05]
+    [48, 0.10], [52, 0.10], [55.75, 0.90], [56, 0.80], [72, 0.88], [88, 0.95],
+    [88, 0.15], [91.75, 0.95], [92, 0.92], [108, 1.0], [116, 0.60], [124, 0.10], [128, 0.05]
 ])
 automate("303 envmod", acid, acid.instrument.parameter("envmod"), "value", [
     [0, 0.10], [16, 0.20], [24, 0.40], [48, 0.55], [48, 0.25], [55.75, 0.60], [56, 0.75],
@@ -721,8 +721,14 @@ automate("303 decay", acid, acid.instrument.parameter("decay"), "value", [
     [0, 0.10], [24, 0.20], [48, 0.25], [48, 0.70], [56, 0.30], [72, 0.40], [88, 0.50],
     [88, 0.80], [92, 0.45], [116, 0.25], [128, 0.10]
 ])
+// Le niveau de la 303 retombe a l entree des breaks : le trou doit etre un vrai
+// trou, pour l oreille comme pour la detection de drop du jeu.
+automate("303 volume", acid, acid.instrument.parameter("volume"), "value", [
+    [0, 0.70], [48, 0.70], [48, 0.35], [52, 0.45], [55.75, 0.70], [88, 0.70],
+    [88, 0.40], [91.75, 0.70], [128, 0.70]
+])
 
-const acid2 = make303("303 Carree", -9, 0.25)
+const acid2 = make303("303 Carree", -7, 0.25)
 set303(acid2, "waveform", 1)
 set303(acid2, "cutoff", 150)
 set303(acid2, "resonance", 0.9)
@@ -770,7 +776,7 @@ build(rumble.noteTracks[0], "Roulis", bar => {
 })
 
 // ---------- Accord dub : un coup sec, l'echo fait le reste ----------
-const stab = project.addInstrumentUnit("Vaporisateur", {label: "Accord", volume: -15, panning: -0.2}, {
+const stab = project.addInstrumentUnit("Vaporisateur", {label: "Accord", volume: -12, panning: -0.2}, {
     cutoff: 1100, resonance: 2, filterOrder: 2, filterEnvelope: 0.4,
     attack: 0.002, decay: 0.18, sustain: 0.0, release: 0.12,
     voicingMode: POLY,
@@ -816,7 +822,7 @@ automate("bourdon cutoff", drone, drone.instrument, "cutoff", [
 ])
 
 // ---------- La voix ----------
-const voix: any = project.addInstrumentUnit("Tape", {label: "Voix", volume: -4})
+const voix: any = project.addInstrumentUnit("Tape", {label: "Voix", volume: -2.5})
 voix.addAudioEffect("Delay", {delay: 13, feedback: 0.4, cross: 1, filter: 0.3, wet: -12})
 const dire = (quoi: string, sample: any, bar: number, step: number) =>
     essai("voix " + quoi, () => voix.audioTracks[0].addRegion(sample, {position: bar * BAR + step * S16, playback: "no-sync"}))
@@ -865,7 +871,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // STEMS = [] : mix seul. Sinon, la liste des pistes a isoler.
 const MESURER = true
 const units: any[] = [drums, acid, acid2, rumble, stab, drone, voix, fxRise, fxHit]
-const STEMS: any[] = [drums, acid, acid2, rumble, stab, voix]
+const STEMS: any[] = []
 if (MESURER) {
     const parts = [["intro", 0, 8], ["montee", 8, 24], ["groove", 24, 48], ["break", 48, 56],
         ["drop1", 56, 72], ["drop2", 72, 88], ["trou", 88, 92], ["final", 92, 116], ["sortie", 116, 128]]
