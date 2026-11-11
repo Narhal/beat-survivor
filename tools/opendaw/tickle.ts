@@ -460,7 +460,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // "mono" : ce que le son perd quand les deux oreilles sont additionnees
 // (0 dB = rien, c'est au centre ; -3 dB = normal pour un son large ; bien
 // en dessous = des choses s'annulent).
-const MESURER = true
+const MESURER = false
 const ISOLER = false
 const units: any[] = [kick, sub, bip, bop, drops, tics, mark, drums]
 const STEMS: [string, any][] = [["Coup", kick], ["Sub", sub], ["Bip", bip], ["Bop", bop],
