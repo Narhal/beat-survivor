@@ -478,7 +478,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 
 // ---------- Mesure du rendu (pour regler sans entendre) ----------
 // ISOLER = true : chaque piste est aussi rendue seule (une passe de plus par piste).
-const MESURER = true
+const MESURER = false
 const ISOLER = false
 const units: any[] = [kick, sub, acid, echo, stairs, wood, breath, drums, fxHit]
 const STEMS: [string, any][] = [["Coup", kick], ["Sub", sub], ["Acide", acid], ["Echo", echo],
