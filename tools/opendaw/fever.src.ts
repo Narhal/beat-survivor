@@ -161,7 +161,8 @@ const avantDrop = (bar: number) => bar === 55 || bar === 91
 /** Les coups de pied d'une mesure : [pas, velocite]. Le Sub s'en sert aussi. */
 function kicks(bar: number): number[][] {
     if (!kickOn(bar)) {return []}
-    const v = bar < 8 ? 0.85 : 1
+    // Le pied garde de la reserve jusqu au drop : c est la que le niveau monte
+    const v = bar < 8 ? 0.8 : bar < 56 ? 0.9 : 1
     const out = [[0, v], [4, v], [8, v], [12, v]]
     // Coups fantomes : la phrase trebuche avant de repartir
     if (final(bar) && bar % 2 === 1) {out.push([11, 0.55])}
@@ -190,7 +191,7 @@ regle("sub", sub, "drive", 0.4)
 build(sub.noteTracks[0], "Sub", bar => {
     const out: Note[] = kicks(bar).map(k => ({position: k[0] * S16, duration: S16 / 2, pitch: 12, velocity: 1}))
     if (!kickOn(bar)) {return out}
-    const velocity = bar < 8 || bar >= 116 ? 0.75 : 1
+    const velocity = bar < 8 ? 0.65 : bar < 56 ? 0.8 : bar >= 116 ? 0.7 : 1
     if (bar % 8 === 7) {
         // Fin de phrase : la basse glisse au La bemol, la seconde mineure
         out.push({position: 0, duration: 8 * S16 + 20, pitch: 31, velocity})
@@ -241,7 +242,7 @@ build(skins.noteTracks[0], "Peaux", bar => {
     }
     if (bar >= 8 && bar < 16) {play(T0, 0.8)}
     else if (bar < 48 && bar >= 16) {play(T1, 0.9)}
-    else if (bar < 52 && bar >= 48) {congas(48, 1)}
+    else if (bar < 52 && bar >= 48) {congas(48, 0.75)}
     else if (bar < 56 && bar >= 52) {congas(48, 1); play(T0, 0.85)}
     else if (bar < 72 && bar >= 56) {play(T1, 1)}
     else if (bar < 88 && bar >= 72) {play(T1, 1); congas(72, 0.85)}
@@ -342,7 +343,7 @@ auto("shepard", shepard, "rate", [
     [116, 0.66], [116, 0.35], [128, 0.40]
 ])
 auto("shepard", shepard, "volume", [
-    [0, 0.25], [48, 0.30], [52, 0.60], [55.75, 0.80], [56, 0.30], [88, 0.35], [88, 0.60],
+    [0, 0.25], [48, 0.30], [52, 0.45], [55.75, 0.80], [56, 0.30], [88, 0.35], [88, 0.60],
     [91.75, 0.85], [92, 0.35], [116, 0.40], [128, 0.15]
 ])
 
@@ -410,7 +411,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // STEMS = [] : mix seul. Sinon, la liste des pistes a isoler.
 const MESURER = true
 const units: any[] = [kick, sub, skins, riff, shepard, drums, fxRise, fxHit]
-const STEMS: [string, any][] = [["Coup", kick], ["909", drums]]
+const STEMS: [string, any][] = []
 if (MESURER) {
     const parts = [["intro", 0, 8], ["montee", 8, 24], ["groove", 24, 48], ["break", 48, 56],
         ["drop1", 56, 72], ["drop2", 72, 88], ["solo", 88, 92], ["final", 92, 116], ["sortie", 116, 128]]
