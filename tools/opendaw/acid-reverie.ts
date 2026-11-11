@@ -150,7 +150,7 @@ const groove = (bar: number) => (bar >= 16 && bar < 48) || (bar >= 64 && bar < 9
 const peak = (bar: number) => (bar >= 64 && bar < 94) || (bar >= 96 && bar < 112)
 
 // ---------- Batterie : TR-909 ----------
-const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -5})
+const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -7})
 const KICK = 36, RIM = 37, SNARE = 38, CLAP = 39, TOM_L = 45, TOM_M = 47, TOM_H = 50
 const HAT_C = 42, HAT_O = 46, CRASH = 49, RIDE = 51
 const kit: [string, number, any][] = [
@@ -252,13 +252,13 @@ function acidNote(pattern: Pattern, index: number, step: number, base: number, r
     }
 }
 
-const acid = make303("303 Basse", -9, -0.08)
+const acid = make303("303 Basse", -3, -0.08)
 set303(acid, "cutoff", 90)
 set303(acid, "resonance", 0.8)
 set303(acid, "envmod", 0.3)
 set303(acid, "decay", 300)
 set303(acid, "accent", 0.9)
-essai("saturation 303", () => acid.addAudioEffect("Waveshaper", {equation: "tanh", inputGain: 10, outputGain: -7, mix: 0.7} as any))
+essai("saturation 303", () => acid.addAudioEffect("Waveshaper", {equation: "tanh", inputGain: 13, outputGain: -7, mix: 0.75} as any))
 acid.addAudioEffect("Delay", {delay: 13, feedback: 0.35, cross: 1, filter: 0.4, wet: -15})
 acid.addSend(reverb, {amount: -16})
 
@@ -285,21 +285,21 @@ build(acid.noteTracks[0], "303", bar => {
 // 303 (coupure 60-300 Hz en exponentiel : c'est l'enveloppe qui fait le reste).
 automate("303 cutoff", acid, acid.instrument.parameter("cutoff"), "value", [
     [0, 0.10], [8, 0.10], [16, 0.25], [32, 0.55], [48, 0.65],
-    [48, 0.15], [56, 0.15], [63.5, 0.95], [64, 0.80], [80, 0.90], [94, 0.70],
-    [96, 1.0], [112, 0.85], [124, 0.15], [128, 0.15]
+    [48, 0.15], [56, 0.15], [63.5, 0.95], [64, 0.85], [80, 0.95], [94, 0.75],
+    [96, 1.0], [112, 0.90], [124, 0.15], [128, 0.15]
 ])
 automate("303 envmod", acid, acid.instrument.parameter("envmod"), "value", [
-    [0, 0.15], [8, 0.15], [32, 0.45], [48, 0.55], [56, 0.30], [64, 0.70],
-    [96, 0.85], [112, 0.60], [124, 0.20], [128, 0.20]
+    [0, 0.15], [8, 0.15], [32, 0.45], [48, 0.55], [56, 0.30], [64, 0.80],
+    [96, 0.95], [112, 0.65], [124, 0.20], [128, 0.20]
 ])
 automate("303 resonance", acid, acid.instrument.parameter("resonance"), "value", [
-    [0, 0.70], [32, 0.80], [56, 0.85], [63.5, 0.95], [64, 0.86], [96, 0.90], [124, 0.75], [128, 0.75]
+    [0, 0.70], [32, 0.80], [56, 0.85], [63.5, 0.95], [64, 0.90], [96, 0.93], [124, 0.75], [128, 0.75]
 ])
 automate("303 decay", acid, acid.instrument.parameter("decay"), "value", [
     [0, 0.15], [48, 0.30], [64, 0.45], [96, 0.55], [124, 0.20], [128, 0.20]
 ])
 
-const acid2 = make303("303 Aigue", -14, 0.3)
+const acid2 = make303("303 Aigue", -8, 0.3)
 set303(acid2, "waveform", 1)
 set303(acid2, "cutoff", 140)
 set303(acid2, "resonance", 0.9)
@@ -326,7 +326,7 @@ automate("303 aigue cutoff", acid2, acid2.instrument.parameter("cutoff"), "value
 ])
 
 // ---------- Basse : une sinusoide qui tient la fondamentale ----------
-const sub = project.addInstrumentUnit("Vaporisateur", {label: "Basse", volume: -10}, {
+const sub = project.addInstrumentUnit("Vaporisateur", {label: "Basse", volume: -2}, {
     cutoff: 500, resonance: 1, filterOrder: 1, filterEnvelope: 0,
     attack: 0.012, decay: 0.3, sustain: 1.0, release: 0.12,
     voicingMode: MONO,
@@ -340,7 +340,7 @@ build(sub.noteTracks[0], "Basse", bar => {
 })
 
 // ---------- Nappe ----------
-const pad = project.addInstrumentUnit("Vaporisateur", {label: "Nappe", volume: -15}, {
+const pad = project.addInstrumentUnit("Vaporisateur", {label: "Nappe", volume: -17}, {
     // resonance = Q du filtre : sous 0.7 il etouffe tout (mesure le 2026-11-11)
     cutoff: 1500, resonance: 0.9, filterOrder: 2, filterEnvelope: 0.1,
     attack: 0.7, decay: 1.5, sustain: 0.85, release: 2.4,
@@ -365,7 +365,7 @@ automate("nappe cutoff", pad, pad.instrument, "cutoff", [
 ])
 
 // ---------- Theme : la phrase qu'on fredonne en sortant ----------
-const lead = project.addInstrumentUnit("Vaporisateur", {label: "Theme", volume: -15}, {
+const lead = project.addInstrumentUnit("Vaporisateur", {label: "Theme", volume: -9}, {
     cutoff: 2600, resonance: 1.2, filterOrder: 2, filterEnvelope: 0.25,
     attack: 0.01, decay: 0.45, sustain: 0.6, release: 0.55,
     voicingMode: POLY, unisonCount: 3, unisonDetune: 14, unisonStereo: 0.8,
@@ -387,7 +387,7 @@ const HOOK: number[][][] = [
 ]
 build(lead.noteTracks[0], "Theme", bar => {
     let velocity = 0
-    if (bar >= 40 && bar < 48) {velocity = 0.5}
+    if (bar >= 40 && bar < 48) {velocity = 0.6}
     else if (bar >= 48 && bar < 64) {velocity = 0.8}
     else if (bar >= 80 && bar < 94) {velocity = 0.7}
     else if (bar >= 96 && bar < 112) {velocity = 0.85}
@@ -436,26 +436,26 @@ essai("impact 2", () => fxHit.audioTracks[0].addRegion(impact, {position: 96 * B
 fxHit.addSend(reverb, {amount: -8})
 
 // ---------- Pompe : le pied creuse la nappe et la basse ----------
-function pump(quoi: string, unit: any, threshold: number) {
+function pump(quoi: string, unit: any, threshold: number, ratio: number) {
     essai("pompe " + quoi, () => {
         const comp: any = unit.addAudioEffect("Compressor", {
-            threshold, ratio: 10, attack: 2, release: 170, knee: 6, automakeup: false, makeup: 0
+            threshold, ratio, attack: 1, release: 140, knee: 6, automakeup: false, makeup: 0
         } as any)
         if (kickSlot) {comp.sideChain = kickSlot}
     })
 }
-pump("nappe", pad, -34)
-pump("basse", sub, -30)
-pump("theme", lead, -30)
+pump("nappe", pad, -18, 6)
+pump("basse", sub, -20, 6)
+pump("theme", lead, -14, 4)
 
 // Limiteur de sortie
-essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -4} as any))
+essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -3} as any))
 
 // ---------- Mesure du rendu (pour regler sans entendre) ----------
 // STEMS = [] : mix seul. Sinon, la liste des pistes a isoler.
 const MESURER = true
 const units: any[] = [drums, acid, acid2, sub, pad, lead, bell, fxRise, fxHit]
-const STEMS: any[] = [drums, acid, acid2, sub, pad, lead, bell]
+const STEMS: any[] = [sub, pad, lead]
 if (MESURER) {
     const parts = [["intro", 0, 16], ["montee", 16, 32], ["groove", 32, 48], ["break1", 48, 56], ["break2", 56, 64],
         ["drop1", 64, 80], ["drop2", 80, 94], ["trou", 94, 96], ["final", 96, 112], ["sortie", 112, 128]]
