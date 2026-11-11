@@ -502,7 +502,7 @@ if (MESURER) {
         const n = L.length
         // Deux passe-haut a 2 kHz puis deux passe-bas a 6 kHz, du second ordre
         const filtre = (haut: boolean, fc: number) => {
-            const w = 2 * Math.PI * fc / rate, alpha = Math.sin(w) / Math.SQRT2, c = Math.cos(w), a0 = 1 + alpha
+            const w = 2 * Math.PI * fc / rate, alpha = Math.sin(w) / Math.sqrt(2), c = Math.cos(w), a0 = 1 + alpha
             const b0 = haut ? (1 + c) / 2 : (1 - c) / 2, b1 = haut ? -(1 + c) : 1 - c
             let x1 = 0, x2 = 0, y1 = 0, y2 = 0
             return (x: number) => {
