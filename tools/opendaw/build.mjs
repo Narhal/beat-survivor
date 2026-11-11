@@ -27,6 +27,16 @@ const inserts = {
   },
 };
 
+// La voix sous forme de texte : une longue chaîne découpée en lignes, que le
+// script relit avec JSON.parse. Aucune accolade ne reste ouverte d'une ligne à
+// l'autre : l'éditeur d'openDAW, qui referme les accolades tout seul quand on
+// colle le script par morceaux, n'a rien à refermer.
+inserts.__VOIXTXT__ = () => {
+  const voix = JSON.parse(read("voix-sam.json"));
+  const txt = JSON.stringify({ rate: voix.rate, cible: voix.cible, mots: voix.mots });
+  return txt.match(/.{1,150}/g).map((c) => JSON.stringify(c)).join(" +\n");
+};
+
 // Les instruments maison (dossier apparat/) : coup.js entre par le marqueur __COUP__
 for (const f of readdirSync(path.join(dir, "apparat")).filter((f) => f.endsWith(".js"))) {
   inserts["__" + f.replace(".js", "").toUpperCase() + "__"] = () => JSON.stringify(read("apparat/" + f).replace(/\n$/, ""));

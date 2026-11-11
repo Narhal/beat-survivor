@@ -44,7 +44,8 @@ const barSec = 240 / BPM
 const beatSec = 60 / BPM
 
 const TB303: string = __TB303__
-const VOIX: any = __VOIX__
+const VOIX_TXT: string = __VOIXTXT__
+const VOIX: any = JSON.parse(VOIX_TXT)
 const FRAPPE: string = __FRAPPE__
 const GRONDEMENT: string = __GRONDEMENT__
 const ACCORD: string = __ACCORD__
