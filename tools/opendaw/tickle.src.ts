@@ -58,7 +58,7 @@ const sample909 = (name: string) => {
 }
 
 // ---------- Projet ----------
-const project = openDAW.newProject("Tickle")
+const project = openDAW.newProject("Tickle v2")
 project.bpm = BPM
 
 // Une reverb courte, pour le clap et les marqueurs seulement
