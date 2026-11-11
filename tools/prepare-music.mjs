@@ -58,10 +58,15 @@ const MASQUES = new Set([
   "Tap.mp3",
 ]);
 
+// Titres affichés qui ne se déduisent pas du nom du fichier.
+const TITRES = {
+  "Danger.mp3": "Danger Danger",
+};
+
 const tracks = files
   .map((file) => ({
     file,
-    title: file.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim(),
+    title: TITRES[file] ?? file.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim(),
     difficulty: DIFFICULTES[file] ?? "normal",
     ...(MASQUES.has(file) ? { hidden: true } : {}),
   }))
