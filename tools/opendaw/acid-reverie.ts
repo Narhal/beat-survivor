@@ -326,7 +326,7 @@ automate("303 aigue cutoff", acid2, acid2.instrument.parameter("cutoff"), "value
 ])
 
 // ---------- Basse : une sinusoide qui tient la fondamentale ----------
-const sub = project.addInstrumentUnit("Vaporisateur", {label: "Basse", volume: -2}, {
+const sub = project.addInstrumentUnit("Vaporisateur", {label: "Basse", volume: -7}, {
     cutoff: 500, resonance: 1, filterOrder: 1, filterEnvelope: 0,
     attack: 0.012, decay: 0.3, sustain: 1.0, release: 0.12,
     voicingMode: MONO,
@@ -340,7 +340,7 @@ build(sub.noteTracks[0], "Basse", bar => {
 })
 
 // ---------- Nappe ----------
-const pad = project.addInstrumentUnit("Vaporisateur", {label: "Nappe", volume: -17}, {
+const pad = project.addInstrumentUnit("Vaporisateur", {label: "Nappe", volume: -15}, {
     // resonance = Q du filtre : sous 0.7 il etouffe tout (mesure le 2026-11-11)
     cutoff: 1500, resonance: 0.9, filterOrder: 2, filterEnvelope: 0.1,
     attack: 0.7, decay: 1.5, sustain: 0.85, release: 2.4,
@@ -365,7 +365,7 @@ automate("nappe cutoff", pad, pad.instrument, "cutoff", [
 ])
 
 // ---------- Theme : la phrase qu'on fredonne en sortant ----------
-const lead = project.addInstrumentUnit("Vaporisateur", {label: "Theme", volume: -9}, {
+const lead = project.addInstrumentUnit("Vaporisateur", {label: "Theme", volume: -8}, {
     cutoff: 2600, resonance: 1.2, filterOrder: 2, filterEnvelope: 0.25,
     attack: 0.01, decay: 0.45, sustain: 0.6, release: 0.55,
     voicingMode: POLY, unisonCount: 3, unisonDetune: 14, unisonStereo: 0.8,
@@ -389,8 +389,8 @@ build(lead.noteTracks[0], "Theme", bar => {
     let velocity = 0
     if (bar >= 40 && bar < 48) {velocity = 0.6}
     else if (bar >= 48 && bar < 64) {velocity = 0.8}
-    else if (bar >= 80 && bar < 94) {velocity = 0.7}
-    else if (bar >= 96 && bar < 112) {velocity = 0.85}
+    else if (bar >= 80 && bar < 94) {velocity = 0.85}
+    else if (bar >= 96 && bar < 112) {velocity = 1.0}
     if (velocity === 0) {return []}
     return HOOK[bar % 8].map(n => ({position: n[0] * S16, duration: n[1] * S16 - 40, pitch: n[2], velocity}))
 })
@@ -453,9 +453,9 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 
 // ---------- Mesure du rendu (pour regler sans entendre) ----------
 // STEMS = [] : mix seul. Sinon, la liste des pistes a isoler.
-const MESURER = true
+const MESURER = false
 const units: any[] = [drums, acid, acid2, sub, pad, lead, bell, fxRise, fxHit]
-const STEMS: any[] = [sub, pad, lead]
+const STEMS: any[] = [drums, acid, acid2, sub, pad, lead, bell]
 if (MESURER) {
     const parts = [["intro", 0, 16], ["montee", 16, 32], ["groove", 32, 48], ["break1", 48, 56], ["break2", 56, 64],
         ["drop1", 64, 80], ["drop2", 80, 94], ["trou", 94, 96], ["final", 96, 112], ["sortie", 112, 128]]
