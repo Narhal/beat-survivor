@@ -27,6 +27,11 @@ const inserts = {
   },
 };
 
+// Les instruments maison (dossier apparat/) : coup.js entre par le marqueur __COUP__
+for (const f of readdirSync(path.join(dir, "apparat")).filter((f) => f.endsWith(".js"))) {
+  inserts["__" + f.replace(".js", "").toUpperCase() + "__"] = () => JSON.stringify(read("apparat/" + f).replace(/\n$/, ""));
+}
+
 for (const file of readdirSync(dir).filter((f) => f.endsWith(".src.ts"))) {
   let out = read(file);
   for (const [marker, value] of Object.entries(inserts)) {
