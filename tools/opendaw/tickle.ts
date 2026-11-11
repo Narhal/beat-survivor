@@ -171,7 +171,7 @@ const B_RIFF = [
 ]
 const B_SOLO = [[0, 12, MI, 1], [12, 4, MI2, 1], [16, 8, RE, 1], [24, 4, LA, 1], [28, 4, SOL, 0]]
 
-const sub = apparat("Sub", SUB, -12)
+const sub = apparat("Sub", SUB, -13)
 regle("sub", sub, "depth", 0.85)
 regle("sub", sub, "release", 150)
 regle("sub", sub, "glide", 70)
@@ -224,7 +224,7 @@ function motif(bar: number, pattern: number[][] | null): Note[] {
 }
 
 // Le bip : sinusoide nue, la voix du morceau
-const bip = apparat("Bip", BIP, -8)
+const bip = apparat("Bip", BIP, -6.5)
 regle("bip", bip, "decay", 70)
 regle("bip", bip, "hold", 25)
 regle("bip", bip, "shape", 0.05)
@@ -248,7 +248,7 @@ auto("bip", bip, "decay", [
 ])
 
 // Le bop : la reponse. Plus carre, et il tombe sur sa note comme un coup sur du bois
-const bop = apparat("Bop", BIP, -9)
+const bop = apparat("Bop", BIP, -7.5)
 regle("bop", bop, "decay", 50)
 regle("bop", bop, "hold", 10)
 regle("bop", bop, "bend", 0.3)
@@ -291,7 +291,7 @@ function boucleDeGouttes(parMesure: number): Note[][] {
 const GOUTTES_A = boucleDeGouttes(2)
 const GOUTTES_B = boucleDeGouttes(4)
 
-const drops = apparat("Gouttes", BIP, -9)
+const drops = apparat("Gouttes", BIP, -8)
 regle("gouttes", drops, "decay", 35)
 regle("gouttes", drops, "hold", 0)
 regle("gouttes", drops, "bend", -1)
@@ -387,7 +387,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // ---------- Mesure du rendu (pour regler sans entendre) ----------
 // ISOLER = true : chaque piste est aussi rendue seule (une passe de plus par piste).
 const MESURER = true
-const ISOLER = true
+const ISOLER = false
 const units: any[] = [kick, sub, bip, bop, drops, tics, drums]
 const STEMS: [string, any][] = [["Coup", kick], ["Sub", sub], ["Bip", bip], ["Bop", bop],
     ["Gouttes", drops], ["Tics", tics], ["909", drums]]
