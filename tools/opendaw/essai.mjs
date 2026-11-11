@@ -201,11 +201,14 @@ const slices = [];
 for (let bar = 0; bar < lastBar; bar += 8) slices.push([bar, Math.min(lastBar, bar + 8)]);
 
 function report(label, L, R) {
-  let peak = 0, nan = 0;
+  let peak = 0, nan = 0, sumL = 0, sumR = 0, sumM = 0;
   for (let i = 0; i < L.length; i++) {
     if (!Number.isFinite(L[i]) || !Number.isFinite(R[i])) { nan++; continue; }
     peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
+    sumL += L[i] * L[i]; sumR += R[i] * R[i]; sumM += ((L[i] + R[i]) / 2) ** 2;
   }
+  // Ce que le son perd en mono : 0 dB = au centre, -3 dB = large, bien en dessous = ça s'annule
+  const mono = sumL + sumR > 0 ? (10 * Math.log10(2 * sumM / (sumL + sumR))).toFixed(1) : "0.0";
   const cells = slices.map(([a, z]) => {
     const from = Math.max(1, toSamples(a * PPQN.Bar)), to = toSamples(z * PPQN.Bar);
     let sx = 0, sd = 0;
@@ -213,7 +216,7 @@ function report(label, L, R) {
     if (sx === 0) return "   —   ";
     return `${(10 * Math.log10(sx / (to - from))).toFixed(0).padStart(3)}/${String(Math.round(Math.sqrt(sd / sx) * RATE / (2 * Math.PI))).padStart(4)}`;
   });
-  console.log(`  ${label.padEnd(10)} crête ${peak.toFixed(2)}${nan ? ` ${nan} NaN !` : ""} | ${cells.join(" ")}`);
+  console.log(`  ${label.padEnd(10)} crête ${peak.toFixed(2)} mono ${mono.padStart(5)}${nan ? ` ${nan} NaN !` : ""} | ${cells.join(" ")}`);
 }
 
 const apparats = units.filter((u) => u.code);
