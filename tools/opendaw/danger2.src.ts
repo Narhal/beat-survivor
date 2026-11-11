@@ -597,7 +597,7 @@ auto("accord", stab, "decay", [
 ])
 
 // ---------- Cymbale : les charleys ----------
-const hats = apparat("Cymbale", CYMBALE, 1)
+const hats = apparat("Cymbale", CYMBALE, 4)
 reglages("cymbale", hats, {decay: 40, open: 7, tone: 7000, metal: 0.5, drift: 0.6, width: 0.5})
 const FERME = 42, OUVERT = 46
 /** La vitesse des aigus : elle change a chaque bloc. */
@@ -652,7 +652,7 @@ auto("cymbale", hats, "width", [
 ])
 
 // ---------- Clap, caisse claire, rimshot, toms, ride, crash : TR-909 ----------
-const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -2})
+const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -0.5})
 const RIM = 37, SNARE = 38, CLAP = 39, TOM_L = 45, TOM_M = 47, TOM_H = 50, CRASH = 49, RIDE = 51
 const kit: [string, number, any][] = [
     ["Rimshot", RIM, {volume: -9, panning: -0.3}],
