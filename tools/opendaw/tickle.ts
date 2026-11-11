@@ -483,7 +483,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // (0 dB = rien, c'est au centre ; -3 dB = normal pour un son large ; bien
 // en dessous = des choses s'annulent).
 // "2-6k" : la part de l'energie entre 2 et 6 kHz, la zone ou l'oreille fatigue.
-const MESURER = true
+const MESURER = false
 const ISOLER = false
 const units: any[] = [kick, sub, bip, echo, bop, drops, tics, mark, drums]
 const STEMS: [string, any][] = [["Coup", kick], ["Sub", sub], ["Bip", bip], ["Echo", echo], ["Bop", bop],
