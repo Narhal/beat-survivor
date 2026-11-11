@@ -170,18 +170,20 @@ function kicks(bar: number): number[][] {
 }
 
 // ---------- Coup : la grosse caisse ----------
-const kick = apparat("Coup", COUP, -4.5)
+const kick = apparat("Coup", COUP, -5)
 regle("coup", kick, "tune", 49)
-regle("coup", kick, "sweep", 0.6)
-regle("coup", kick, "decay", 200)
-regle("coup", kick, "click", 0.5)
-regle("coup", kick, "drive", 0.45)
+// Peu de saturation et un corps court : mesure, un corps sature qui tient
+// 350 ms ecrase tout le mix. Ici il tient 180 ms et la crete depasse de 8 dB.
+regle("coup", kick, "sweep", 0.7)
+regle("coup", kick, "decay", 150)
+regle("coup", kick, "click", 0.7)
+regle("coup", kick, "drive", 0.15)
 build(kick.noteTracks[0], "Coup", bar =>
     kicks(bar).map(k => ({position: k[0] * S16, duration: S16, pitch: 36, velocity: k[1]})))
 
 // ---------- Sub : une note tenue, que le pied creuse ----------
 // Le creux est dans l'instrument : la note 12 ne sonne pas, elle le declenche.
-const sub = apparat("Sub", SUB, -13)
+const sub = apparat("Sub", SUB, -15)
 regle("sub", sub, "depth", 0.9)
 regle("sub", sub, "release", 160)
 regle("sub", sub, "drive", 0.4)
@@ -211,7 +213,7 @@ const T3 = [N, N, TH, TL, N, TM, TL, N, N, TM, N, TL, TH, N, TL, TX]
 // retombent sur leurs pieds que toutes les 5 mesures
 const CONGA = [58, N, N, 62, N]
 
-const skins = apparat("Peaux", PEAUX, -8.5)
+const skins = apparat("Peaux", PEAUX, -7.5)
 regle("peaux", skins, "decay", 220)
 regle("peaux", skins, "bend", 0.5)
 regle("peaux", skins, "slap", 0.4)
@@ -345,15 +347,15 @@ auto("shepard", shepard, "volume", [
 ])
 
 // ---------- Cymbales, clap, caisse claire : TR-909 ----------
-const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -8})
+const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -2})
 const SNARE = 38, CLAP = 39, HAT_C = 42, HAT_O = 46, CRASH = 49, RIDE = 51
 const kit: [string, number, any][] = [
     ["Snare", SNARE, {volume: -8}],
-    ["Clap", CLAP, {volume: -3}],
-    ["Closed Hat", HAT_C, {volume: -8.5, panning: 0.1, exclude: true}],
-    ["Open Hat", HAT_O, {volume: -8, panning: 0.1, exclude: true}],
-    ["Crash", CRASH, {volume: -11}],
-    ["Ride", RIDE, {volume: -13, panning: 0.22}]
+    ["Clap", CLAP, {volume: -1}],
+    ["Closed Hat", HAT_C, {volume: -6, panning: 0.1, exclude: true}],
+    ["Open Hat", HAT_O, {volume: -6, panning: 0.1, exclude: true}],
+    ["Crash", CRASH, {volume: -15}],
+    ["Ride", RIDE, {volume: -11, panning: 0.22}]
 ]
 for (const [name, note, props] of kit) {
     const smp = sample909(name)
@@ -408,7 +410,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // STEMS = [] : mix seul. Sinon, la liste des pistes a isoler.
 const MESURER = true
 const units: any[] = [kick, sub, skins, riff, shepard, drums, fxRise, fxHit]
-const STEMS: [string, any][] = [["Coup", kick], ["Sub", sub], ["Peaux", skins], ["Fievre", riff], ["Shepard", shepard], ["909", drums]]
+const STEMS: [string, any][] = [["Coup", kick], ["909", drums]]
 if (MESURER) {
     const parts = [["intro", 0, 8], ["montee", 8, 24], ["groove", 24, 48], ["break", 48, 56],
         ["drop1", 56, 72], ["drop2", 72, 88], ["solo", 88, 92], ["final", 92, 116], ["sortie", 116, 128]]
