@@ -209,6 +209,18 @@ function report(label, L, R) {
   }
   // Ce que le son perd en mono : 0 dB = au centre, -3 dB = large, bien en dessous = ça s'annule
   const mono = sumL + sumR > 0 ? (10 * Math.log10(2 * sumM / (sumL + sumR))).toFixed(1) : "0.0";
+  // Part de l'énergie entre 2 et 6 kHz, la zone où l'oreille fatigue : passe-haut 2 kHz puis
+  // passe-bas 6 kHz, deux filtres du second ordre chacun
+  const biquad = (type, fc) => {
+    const w = 2 * Math.PI * fc / RATE, alpha = Math.sin(w) / (2 * Math.SQRT1_2), c = Math.cos(w), a0 = 1 + alpha;
+    const b = type === "hp" ? [(1 + c) / 2, -(1 + c), (1 + c) / 2] : [(1 - c) / 2, 1 - c, (1 - c) / 2];
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    return (x) => { const y = (b[0] * x + b[1] * x1 + b[2] * x2 - (-2 * c) * y1 - (1 - alpha) * y2) / a0; x2 = x1; x1 = x; y2 = y1; y1 = y; return y; };
+  };
+  const chain = [biquad("hp", 2000), biquad("hp", 2000), biquad("lp", 6000), biquad("lp", 6000)];
+  let sumBand = 0;
+  for (let i = 0; i < L.length; i++) { let v = (L[i] + R[i]) / 2; for (const f of chain) v = f(v); sumBand += v * v; }
+  const zone = sumM > 0 ? (100 * sumBand / sumM).toFixed(1) : "0.0";
   const cells = slices.map(([a, z]) => {
     const from = Math.max(1, toSamples(a * PPQN.Bar)), to = toSamples(z * PPQN.Bar);
     let sx = 0, sd = 0;
@@ -216,7 +228,7 @@ function report(label, L, R) {
     if (sx === 0) return "   —   ";
     return `${(10 * Math.log10(sx / (to - from))).toFixed(0).padStart(3)}/${String(Math.round(Math.sqrt(sd / sx) * RATE / (2 * Math.PI))).padStart(4)}`;
   });
-  console.log(`  ${label.padEnd(10)} crête ${peak.toFixed(2)} mono ${mono.padStart(5)}${nan ? ` ${nan} NaN !` : ""} | ${cells.join(" ")}`);
+  console.log(`  ${label.padEnd(10)} crête ${peak.toFixed(2)} mono ${mono.padStart(5)} 2-6k ${zone.padStart(5)}%${nan ? ` ${nan} NaN !` : ""} | ${cells.join(" ")}`);
 }
 
 const apparats = units.filter((u) => u.code);
