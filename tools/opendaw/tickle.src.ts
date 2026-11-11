@@ -433,7 +433,7 @@ const CLAP = 39, HAT_C = 42, HAT_O = 46, RIDE = 51
 const kit: [string, number, any][] = [
     ["Clap", CLAP, {volume: -1}],
     ["Closed Hat", HAT_C, {volume: -6, panning: 0.1, exclude: true}],
-    ["Open Hat", HAT_O, {volume: -6, panning: 0.1, exclude: true}],
+    ["Open Hat", HAT_O, {volume: -8, panning: 0.1, exclude: true}],
     ["Ride", RIDE, {volume: -12, panning: -0.15}]
 ]
 for (const [name, note, props] of kit) {
@@ -464,7 +464,7 @@ build(drums.noteTracks[0], "909", bar => {
         const beat = step % 4
         // Le clap sur 2 et 4 arrive a la mesure 24, avec le riff de basse
         if (bar >= 24 && bar < 138 && step % 8 === 4) {hit(step, CLAP, d ? 0.95 : 0.8)}
-        if (beat === 2) {hit(step, v >= 2 ? HAT_O : HAT_C, v >= 2 ? (d ? 0.8 : 0.65) : 0.55)}
+        if (beat === 2) {hit(step, v >= 2 ? HAT_O : HAT_C, v >= 2 ? (d ? 0.7 : 0.6) : 0.55)}
         // Un seul charley en plus : les doubles-croches, ce sont les tics qui les font
         if (v >= 3 && beat === 3) {hit(step, HAT_C, 0.25)}
         if (v >= 4 && step % 2 === 0) {hit(step, RIDE, beat === 2 ? 0.5 : 0.35)}
@@ -484,7 +484,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // en dessous = des choses s'annulent).
 // "2-6k" : la part de l'energie entre 2 et 6 kHz, la zone ou l'oreille fatigue.
 const MESURER = true
-const ISOLER = true
+const ISOLER = false
 const units: any[] = [kick, sub, bip, echo, bop, drops, tics, mark, drums]
 const STEMS: [string, any][] = [["Coup", kick], ["Sub", sub], ["Bip", bip], ["Echo", echo], ["Bop", bop],
     ["Gouttes", drops], ["Tics", tics], ["Marque", mark], ["909", drums]]
@@ -529,9 +529,11 @@ if (MESURER) {
         for (const s of parts) {
             const from = Math.max(1, Math.floor((s[1] as number) * barSec * rate))
             const to = Math.min(n, Math.floor((s[2] as number) * barSec * rate))
+            // Une piste isolee peut finir avant la fin de la fenetre : on divise par la duree prevue
+            const plein = Math.floor((s[2] as number) * barSec * rate) - from
             let sx = 0, sd = 0
             for (let i = from; i < to; i++) {const d = L[i] - L[i - 1]; sx += L[i] * L[i]; sd += d * d}
-            cells.push(s[0] + " " + (sx > 0 ? gainToDb(Math.sqrt(sx / (to - from))).toFixed(1) + "dB " + Math.round(Math.sqrt(sd / sx) * rate / (2 * Math.PI)) + "Hz" : "silence"))
+            cells.push(s[0] + " " + (sx > 0 ? gainToDb(Math.sqrt(sx / plein)).toFixed(1) + "dB " + Math.round(Math.sqrt(sd / sx) * rate / (2 * Math.PI)) + "Hz" : "silence"))
         }
         report.push(stem[0] + " " + (n / rate).toFixed(0) + "s crete " + peakValue.toFixed(2) + " mono " + mono + "dB zone " + zone + "% : " + cells.join(", "))
     }
