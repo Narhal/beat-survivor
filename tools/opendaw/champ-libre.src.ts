@@ -196,19 +196,19 @@ const plongeons = (bar: number): Note[] =>
 
 // ---------- Coup : la grosse caisse ----------
 // Court (le temps ne dure que 333 ms), accorde a 52 Hz comme la reference, dur.
-const kick = apparat("Coup", COUP, -4)
-reglages("coup", kick, {tune: 52, sweep: 0.8, decay: 105, click: 0.9, drive: 0.45})
+const kick = apparat("Coup", COUP, -7)
+reglages("coup", kick, {tune: 52, sweep: 0.8, decay: 105, click: 0.55, drive: 0.45})
 build(kick.noteTracks[0], "Coup", bar =>
     kicks(bar).map(k => ({position: k[0] * S16, duration: S16, pitch: 36, velocity: k[1]})))
 // Le pied arrive etouffe et gagne son claquement en huit mesures
-auto("coup", kick, "click", [[0, 0.15], [8, 0.9], [170, 0.9], [198, 0.3], [202, 0.3]])
+auto("coup", kick, "click", [[0, 0.15], [8, 0.55], [170, 0.55], [198, 0.25], [202, 0.25]])
 
 // ---------- Sub : la basse du galop ----------
 // Une note courte sur le pas qui precede chaque temps : "ta-BOUM". Elle se
 // tait avant que le pied retombe : un seul acteur dans le grave a la fois.
 // Do diese 2 (69 Hz), a la quarte au-dessus du pied : ils ne battent pas.
 const DO = 37, RE = 38
-const sub = apparat("Sub", SUB, -10)
+const sub = apparat("Sub", SUB, -16)
 reglages("sub", sub, {depth: 0.9, release: 90, glide: 20, drive: 0.5})
 build(sub.noteTracks[0], "Sub", bar => {
     const out: Note[] = plongeons(bar)
@@ -231,7 +231,7 @@ build(sub.noteTracks[0], "Sub", bar => {
 // ---------- Peaux : les toms du galop ----------
 // Le meme pas que la basse. Le troisieme coup tombe cinq demi-tons plus bas.
 const TOM = 49, TOM_BAS = 44, TOM_HAUT = 56
-const toms = apparat("Peaux", PEAUX, -9)
+const toms = apparat("Peaux", PEAUX, -13.5)
 reglages("peaux", toms, {decay: 120, bend: 0.5, slap: 0.5, drive: 0.5, width: 0.3})
 /** Un roulement : doubles-croches, un accent tous les trois pas, de plus en plus fort. */
 function roulement(from: number, to: number, base: number, gain: number): Note[] {
@@ -296,7 +296,7 @@ function acidNote(pattern: Pattern, step: number, base: number): Note {
     }
 }
 
-const acid = apparat("Acide", TB303, -5)
+const acid = apparat("Acide", TB303, -6.5)
 reglages("acide", acid, {cutoff: 70, resonance: 0.85, envmod: 0.3, decay: 300, accent: 1.0})
 essai("saturation acide", () => acid.addAudioEffect("Waveshaper", {equation: "tanh", inputGain: 19, outputGain: -11, mix: 0.85} as any))
 acid.addAudioEffect("Delay", {delay: 13, feedback: 0.3, cross: 1, filter: 0.4, wet: -22})
@@ -347,7 +347,7 @@ auto("acide", acid, "volume", [
 const ORIGINE = 104 * 16
 const tour = (bar: number, step: number, period: number) =>
     (((bar * 16 + step - ORIGINE) % period) + period) % period
-const bell = apparat("Cloche", BLIP, -9)
+const bell = apparat("Cloche", BLIP, -12)
 reglages("cloche", bell, {
     long: 40, tone: 0.4, bite: 1.5, ratio: 3.5, snap: 0.5, sub: 0, chirp: 3,
     drift: 0.5, duck: 0.4, width: 0.7, haas: 8
@@ -369,7 +369,7 @@ auto("cloche", bell, "tone", [[0, 0.30], [56, 0.30], [80, 0.42], [104, 0.38], [1
 // ---------- Les marqueurs ----------
 // La meme voix, longue, noyee dans son echo, sur le premier temps de trois blocs seulement
 const MARQUES = [[104, 61, 73], [138, 68, 73], [158, 61, 73]]
-const mark = apparat("Marque", BLIP, -10)
+const mark = apparat("Marque", BLIP, -13)
 reglages("marque", mark, {
     long: 500, tone: 0.5, bite: 1.6, ratio: 3.5, snap: 0.3, sub: 0.3, chirp: 12,
     drift: 0, duck: 0, width: 0, haas: 0
@@ -387,7 +387,7 @@ build(mark.noteTracks[0], "Marque", bar => {
 })
 
 // ---------- Souffle : l'air du hangar, et les montees ----------
-const breath = apparat("Souffle", SOUFFLE, -12)
+const breath = apparat("Souffle", SOUFFLE, -15)
 reglages("souffle", breath, {reso: 0.6, drift: 0.6})
 build(breath.noteTracks[0], "Souffle", bar => {
     const section = SECTIONS.find(s => s.start === bar)
@@ -405,7 +405,7 @@ auto("souffle", breath, "volume", [
 ])
 
 // ---------- Charleys, caisse claire, clap, ride : TR-909 ----------
-const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -6})
+const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -3})
 const SNARE = 38, CLAP = 39, HAT_C = 42, HAT_O = 46, CRASH = 49, RIDE = 51
 const kit: [string, number, any][] = [
     ["Snare", SNARE, {volume: -4}],
@@ -457,8 +457,8 @@ build(drums.noteTracks[0], "909", bar => {
             continue
         }
         if (beat === 2) {hit(step, HAT_O, drop(bar) ? 0.7 : 0.6)}
-        if (v >= 2 && beat === 3) {hit(step, HAT_C, 0.5)}
-        if (v >= 3 && beat === 1) {hit(step, HAT_C, 0.25)}
+        if (v >= 2 && beat === 3) {hit(step, HAT_C, 0.8)}
+        if (v >= 3 && beat === 1) {hit(step, HAT_C, 0.55)}
         if (v >= 4 && beat === 0) {hit(step, RIDE, 0.4)}
     }
     if (bar === 104 || bar === 138) {hit(0, CRASH, 0.6)}
@@ -478,7 +478,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // grave et de l'aigu, et la force des attaques sur chacun des 16 pas de la
 // mesure (0 a 9), dans le grave, le medium et l'aigu.
 const MESURER = true
-const ISOLER = true
+const ISOLER = false
 const units: any[] = [kick, sub, toms, acid, bell, mark, breath, drums]
 const STEMS: [string, any][] = [["Coup", kick], ["Sub", sub], ["Peaux", toms], ["Acide", acid],
     ["Cloche", bell], ["Marque", mark], ["Souffle", breath], ["909", drums]]
