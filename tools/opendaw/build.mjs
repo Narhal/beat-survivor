@@ -15,7 +15,16 @@ const read = (f) => readFileSync(path.join(dir, f), "utf8").replace(/\r\n/g, "\n
 
 const inserts = {
   __TB303__: () => JSON.stringify(read("tb303-bass-line.js").replace(/\n$/, "")),
-  __VOIX__: () => read("voix-sam.json").trim(),
+  // La voix : un objet littéral, les échantillons découpés en lignes courtes.
+  // (Une seule ligne de 50 000 caractères fait caler l'éditeur d'openDAW.)
+  __VOIX__: () => {
+    const voix = JSON.parse(read("voix-sam.json"));
+    const lignes = (s) => s.match(/.{1,160}/g).map((c) => JSON.stringify(c)).join(" +\n");
+    const mots = Object.entries(voix.mots)
+      .map(([nom, m]) => `${JSON.stringify(nom)}: {f0: ${m.f0}, n: ${m.n}, b64:\n${lignes(m.b64)}}`)
+      .join(",\n");
+    return `{rate: ${voix.rate}, cible: ${voix.cible}, mots: {\n${mots}\n}}`;
+  },
 };
 
 for (const file of readdirSync(dir).filter((f) => f.endsWith(".src.ts"))) {
