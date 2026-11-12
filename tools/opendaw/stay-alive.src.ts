@@ -531,7 +531,9 @@ build(drums.noteTracks[0], "909", bar => {
 
 // ---------- La voix ----------
 // Deux pistes : la voix, presque seche ; et ses lancers, les memes mots
-// envoyes de temps en temps dans un long echo.
+// envoyes de temps en temps dans un long echo. Deux regions ne doivent jamais
+// se chevaucher sur une meme piste : openDAW le signale, et le rendu de la
+// piste seule reste alors bloque.
 const voix: any = project.addInstrumentUnit("Tape", {label: "Voix", volume: -3})
 voix.addAudioEffect("Delay", {delay: 13, feedback: 0.3, cross: 1, filter: 0.3, wet: -17})
 const lancer: any = project.addInstrumentUnit("Tape", {label: "Voix lancee", volume: -10})
@@ -546,7 +548,7 @@ dire("consigne avant le pied", vStay, 7, 8, true)
 dire("consigne intro", vStayAccord, 15, 8)
 dire("consigne avant acide", vStay, 31, 8)
 dire("begaie 39", vBegaie, 39, 12)
-dire("alive avant creux", vAlive, 47, 8, true)
+dire("alive avant creux", vAlive, 47, 4, true)
 // Premier creux : le robot chante, annonce le jeu, puis compte
 dire("chante 48", vChante, 48, 0)
 dire("chante haut 50", vChanteHaut, 50, 0, true)
@@ -558,19 +560,18 @@ dire("titre drop 1", vTitre, 56, 0, true)
 dire("begaie 63", vBegaie, 63, 12)
 dire("consigne avant le bloc nu", vStay, 71, 8, true)
 dire("begaie 79", vBegaie, 79, 12)
-dire("alive avant suspens", vAlive, 87, 8, true)
+dire("alive avant suspens", vAlive, 87, 4, true)
 // Second creux : il chante encore, puis "beat" accelere jusqu'a devenir une note
 dire("chante 88", vChante, 88, 0, true)
 dire("chante haut 90", vChanteHaut, 90, 0)
 dire("beat qui devient une note", vGrain, 92, 0)
 // Second drop
 dire("titre drop 2", vTitre, 96, 0, true)
-dire("titre en accord drop 2", vTitreAccord, 96, 0)
 dire("begaie 103", vBegaie, 103, 12)
 dire("consigne 111", vStay, 111, 8)
 dire("consigne en accord 112", vStayAccord, 112, 8, true)
 dire("begaie 119", vBegaie, 119, 12)
-dire("alive 127", vAlive, 127, 8, true)
+dire("alive 127", vAlive, 127, 4, true)
 dire("consigne sortie", vStayAccord, 135, 8)
 // Le morceau s'acheve : le joueur a tenu
 dire("fin", vFin, 141, 0, true)
@@ -584,10 +585,11 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // "zone" : la part de l'energie entre 2 et 6 kHz, la ou l'oreille fatigue.
 // Sur le premier drop, on mesure aussi ce qu'on a mesure sur les references.
 const MESURER = true
-const ISOLER = true
+const ISOLER = false
 const units: any[] = [kick, bass, acid, ticks, tocs, drums, voix, lancer]
+// Les deux pistes de voix ne sont pas rendues seules (voir plus haut)
 const STEMS: [string, any][] = [["Frappe", kick], ["Roulante", bass], ["Venin", acid], ["Tics", ticks],
-    ["Tocs", tocs], ["909", drums], ["Voix", voix], ["Lancer", lancer]]
+    ["Tocs", tocs], ["909", drums]]
 if (MESURER) {
     const parts = [["intro", 0, 16], ["roule", 16, 32], ["acide", 32, 48], ["creux", 48, 56], ["drop", 56, 72],
         ["nu", 72, 76], ["plus", 76, 88], ["suspens", 88, 96], ["final", 96, 112], ["sommet", 112, 128],
