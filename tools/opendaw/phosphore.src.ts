@@ -209,7 +209,7 @@ auto("frappe", kick, "click", [[0, 0.1], [8, 0.1], [16, 0.55], [128, 0.55], [140
 // Trois notes entre deux coups de pied : "BOUM-ta-ta-ta". La premiere, celle
 // qui suit le pied, se joue sans sa fondamentale (velocite 0,35) : la queue du
 // pied et le grave de la basse ne s'additionnent jamais.
-const bass = apparat("Roulante", ROULANTE, -3.5)
+const bass = apparat("Roulante", ROULANTE, -3)
 reglages("roulante", bass, {
     pas: PAS_MS, long: 0.8, cutoff: 95, envmod: 3.4, fdecay: 0.45, pinch: 0.55,
     sub: 0.75, sublen: 0.6, disperse: 0.3, drive: 0.45
@@ -263,6 +263,8 @@ reglages("venin", acid, {
     cutoff: 260, reso: 0.78, envmod: 2.2, decay: 300, accent: 0.7, tint: 1.0, glide: 80,
     shape: 0, drive: 0.45, lowcut: 190, tonic: SOL2, just: 1, duck: 0.35
 })
+// Les accents sortaient en pointes (20 dB au-dessus du niveau moyen) : une saturation les rabote avant l'echo
+essai("saturation venin", () => acid.addAudioEffect("Waveshaper", {equation: "tanh", inputGain: 12, outputGain: -8, mix: 0.8} as any))
 acid.addAudioEffect("Delay", {delay: 13, feedback: 0.32, cross: 1, filter: 0.45, wet: -21})
 
 function motifAcid(bar: number): Motif | null {
@@ -343,7 +345,7 @@ const TREILLIS = [
 ]
 const FORCES = [1, 0.5, 0.72, 0.42, 0.85]
 const tirageTreillis = hasard(20261112)
-const lattice = apparat("Treillis", LUEUR, -4)
+const lattice = apparat("Treillis", LUEUR, -2.5)
 reglages("treillis", lattice, {
     decay: 190, matter: 0.2, strike: 0.5, damp: 0.5, chirp: 0, grain: 0.3, tonic: SOL2, just: 1,
     drift: 0.5, duck: 0.35, width: 0.7, drive: 0.15
@@ -447,8 +449,8 @@ build(halo.noteTracks[0], "Halo", bar => {
 
 // ---------- Cymbale : les charleys ----------
 // Leur vitesse change a chaque bloc. Note 42 = ferme, 46 = ouvert.
-const hats = apparat("Cymbale", CYMBALE, 4)
-reglages("cymbale", hats, {decay: 38, open: 5, tone: 7200, metal: 0.5, drift: 0.6, width: 0.5})
+const hats = apparat("Cymbale", CYMBALE, 5.5)
+reglages("cymbale", hats, {decay: 38, open: 5, tone: 5800, metal: 0.5, drift: 0.6, width: 0.5})
 function vitesse(bar: number): number {
     if (!kickOn(bar) || bar < 16) {return 0}
     if (bar < 32) {return 1}                 // un charley a contretemps
@@ -542,7 +544,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // la part du grave et de l'aigu, l'energie par bande d'octave, l'ecart entre
 // la crete et le niveau moyen, et la force des attaques sur les 16 pas.
 const MESURER = true
-const ISOLER = true
+const ISOLER = false
 const units: any[] = [kick, bass, acid, lattice, wood, halo, hats, breath, drums]
 const STEMS: [string, any][] = [["Frappe", kick], ["Roulante", bass], ["Venin", acid], ["Treillis", lattice],
     ["Bois", wood], ["Halo", halo], ["Cymbale", hats], ["Souffle", breath], ["909", drums]]
