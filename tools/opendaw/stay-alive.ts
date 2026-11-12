@@ -1107,14 +1107,14 @@ const vBegaie = await phrase("SA B-b-b-beat survivor", [
 // "Alive, alive, alive" : trois fois, en croches pointees
 const vAlive = await phrase("SA Alive alive alive", [["alive", 0, 0, 0.7], ["alive", 0.75, 0, 0.7], ["alive", 1.5, 0, 0]], 0.9, 0.4)
 // "Beat" de plus en plus vite : l'ecart entre deux repetitions passe de 230 ms a
-// 3 ms en onze temps. A la fin, on n'entend plus un mot mais une note.
+// 3 ms en quinze temps. A la fin, on n'entend plus un mot mais une note.
 const grains: Dit[] = []
 {
-    const count = 110
+    const count = 150
     const ratio = Math.pow(0.004 / 0.23, 1 / (count - 1))
     let gap = 0.23, sum = 0
     for (let k = 0; k < count; k++) {sum += gap; gap *= ratio}
-    const scale = 11 * beatSec / sum
+    const scale = 15 * beatSec / sum
     let at = 0
     gap = 0.23
     for (let k = 0; k < count; k++) {
@@ -1457,7 +1457,7 @@ dire("alive avant suspens", vAlive, 87, 8, true)
 // Second creux : il chante encore, puis "beat" accelere jusqu'a devenir une note
 dire("chante 88", vChante, 88, 0, true)
 dire("chante haut 90", vChanteHaut, 90, 0)
-dire("beat qui devient une note", vGrain, 93, 0)
+dire("beat qui devient une note", vGrain, 92, 0)
 // Second drop
 dire("titre drop 2", vTitre, 96, 0, true)
 dire("titre en accord drop 2", vTitreAccord, 96, 0)
