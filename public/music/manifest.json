@@ -45,6 +45,11 @@
       "difficulty": "test"
     },
     {
+      "file": "Derive.mp3",
+      "title": "Dérive",
+      "difficulty": "test"
+    },
+    {
       "file": "Liquid.mp3",
       "title": "Liquid",
       "difficulty": "test"
@@ -55,8 +60,18 @@
       "difficulty": "test"
     },
     {
+      "file": "Phosphore.mp3",
+      "title": "Phosphore",
+      "difficulty": "test"
+    },
+    {
       "file": "Space wind.mp3",
       "title": "Space wind",
+      "difficulty": "test"
+    },
+    {
+      "file": "Stay Alive.mp3",
+      "title": "Stay Alive",
       "difficulty": "test"
     },
     {

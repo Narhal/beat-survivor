@@ -42,6 +42,11 @@ const DIFFICULTES = {
   // « Danger Danger v2 » (N4 2026-11-11) : premier morceau composé pour le jeu
   // (script dans tools/opendaw/danger2.ts). Pas encore jugé en partie.
   "Danger.mp3": "test",
+  // Les trois morceaux du 2026-11-12, écrits après la lecture de Dash Glitch
+  // (scripts phosphore.ts, derive.ts et stay-alive.ts). Pas encore jugés en partie.
+  "Phosphore.mp3": "test",
+  "Derive.mp3": "test",
+  "Stay Alive.mp3": "test",
 };
 // « test » vaut 3 : les bancs d'essai passent APRÈS la campagne, jamais au
 // milieu de l'échelle de difficulté.
@@ -61,6 +66,7 @@ const MASQUES = new Set([
 // Titres affichés qui ne se déduisent pas du nom du fichier.
 const TITRES = {
   "Danger.mp3": "Danger Danger",
+  "Derive.mp3": "Dérive",
 };
 
 const tracks = files
