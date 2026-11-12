@@ -7,10 +7,25 @@
       "hidden": true
     },
     {
+      "file": "Luxury.mp3",
+      "title": "Luxury",
+      "difficulty": "easy"
+    },
+    {
       "file": "Never see the light again.mp3",
       "title": "Never see the light again",
       "difficulty": "easy",
       "hidden": true
+    },
+    {
+      "file": "Space wind.mp3",
+      "title": "Space wind",
+      "difficulty": "easy"
+    },
+    {
+      "file": "Wonderland.mp3",
+      "title": "Wonderland",
+      "difficulty": "easy"
     },
     {
       "file": "Yawn phase.mp3",
@@ -26,6 +41,11 @@
     {
       "file": "Dreamy Dive.mp3",
       "title": "Dreamy Dive",
+      "difficulty": "normal"
+    },
+    {
+      "file": "Liquid.mp3",
+      "title": "Liquid",
       "difficulty": "normal"
     },
     {
@@ -50,33 +70,13 @@
       "difficulty": "test"
     },
     {
-      "file": "Liquid.mp3",
-      "title": "Liquid",
-      "difficulty": "test"
-    },
-    {
-      "file": "Luxury.mp3",
-      "title": "Luxury",
-      "difficulty": "test"
-    },
-    {
       "file": "Phosphore.mp3",
       "title": "Phosphore",
       "difficulty": "test"
     },
     {
-      "file": "Space wind.mp3",
-      "title": "Space wind",
-      "difficulty": "test"
-    },
-    {
       "file": "Stay Alive.mp3",
       "title": "Stay Alive",
-      "difficulty": "test"
-    },
-    {
-      "file": "Wonderland.mp3",
-      "title": "Wonderland",
       "difficulty": "test"
     }
   ]

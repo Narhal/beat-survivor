@@ -32,13 +32,15 @@ const DIFFICULTES = {
   "Beyond abyss.mp3": "normal", // 6,54
   "Anxious pathogene.mp3": "hard", // 7,13
   "Tap.mp3": "hard", // 7,28
-  // Bancs d'essai (N4 2026-08-28) : pas encore jugés, donc pas de place dans
-  // l'échelle. L'étiquette « test » les met en bout de bibliothèque et dit
-  // au joueur qu'ils ne sont pas calibrés.
-  "Liquid.mp3": "test",
-  "Luxury.mp3": "test",
-  "Space wind.mp3": "test",
-  "Wonderland.mp3": "test",
+  // Les bancs d'essai du 2026-08-28, sortis du statut « test » à la demande
+  // de N4 le 2026-11-12, classés par l'estimateur (mesure du même jour) :
+  "Space wind.mp3": "easy", // 4,10
+  "Wonderland.mp3": "easy", // 4,42
+  "Luxury.mp3": "easy", // 5,47
+  "Liquid.mp3": "normal", // 6,19
+  // Bancs d'essai : pas encore jugés, donc pas de place dans l'échelle.
+  // L'étiquette « test » les met en bout de bibliothèque et dit au joueur
+  // qu'ils ne sont pas calibrés.
   // « Danger Danger v2 » (N4 2026-11-11) : premier morceau composé pour le jeu
   // (script dans tools/opendaw/danger2.ts). Pas encore jugé en partie.
   "Danger.mp3": "test",
