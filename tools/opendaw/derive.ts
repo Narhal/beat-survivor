@@ -719,7 +719,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // Sur le premier drop, on mesure aussi ce qu'on a mesure sur les references :
 // la part du grave et de l'aigu, l'energie par bande d'octave, l'ecart entre
 // la crete et le niveau moyen, et la force des attaques sur les 16 pas.
-const MESURER = true
+const MESURER = false
 const ISOLER = false
 const units: any[] = [kick, bass, voixA, voixB, ticks, tocs, gong, drums]
 const STEMS: [string, any][] = [["Frappe", kick], ["Roulante", bass], ["VeninA", voixA], ["VeninB", voixB],
