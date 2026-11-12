@@ -419,7 +419,8 @@ const rang = (bar: number) => bar % 4
 /** Les coups de pied d'une mesure : [pas, velocite]. */
 function kicks(bar: number): number[][] {
     if (!kickOn(bar)) {return []}
-    const v = bar < 16 || bar >= 144 ? 0.8 : drop(bar) ? 1 : 0.92
+    // Avant le premier drop, le pied retient un peu ses coups : le drop doit monter d'un cran
+    const v = bar < 16 || bar >= 144 ? 0.8 : drop(bar) ? 1 : 0.86
     const out = [[0, v], [4, v], [8, v], [12, v]]
     return finDeBloc(bar) ? out.filter(k => k[0] < 12) : out
 }
@@ -440,7 +441,7 @@ auto("frappe", kick, "click", [[0, 0.1], [8, 0.1], [16, 0.5], [144, 0.5], [152, 
 // ---------- Roulante : la basse ----------
 // Une seule note par temps, a contretemps, plus longue qu'un pas : "BOUM-baa".
 // Elle a fini avant le coup suivant : un seul acteur dans le grave a la fois.
-const bass = apparat("Roulante", ROULANTE, -2)
+const bass = apparat("Roulante", ROULANTE, -3.5)
 reglages("roulante", bass, {
     pas: PAS_MS, long: 1.3, cutoff: 85, envmod: 3.2, fdecay: 0.35, pinch: 0.5,
     sub: 0.8, sublen: 0.75, disperse: 0.3, drive: 0.45
@@ -451,7 +452,7 @@ build(bass.noteTracks[0], "Roulante", bar => {
     for (let beat = 0; beat < 4; beat++) {
         const step = beat * 4 + 2
         if (step >= limite(bar) || (finDeBloc(bar) && beat === 3)) {continue}
-        out.push({position: step * S16, duration: S16, pitch: FA1, velocity: 0.8})
+        out.push({position: step * S16, duration: S16, pitch: FA1, velocity: drop(bar) ? 0.8 : 0.7})
     }
     return out
 })
@@ -597,9 +598,11 @@ auto("venin b", voixB, "volume", [[0, 0.28], [32, 0.28], [40, 0.6], [160, 0.6]])
 // change a chaque bloc.
 const ticks = apparat("Tics", GRESIL, 6)
 reglages("tics", ticks, {
-    decay: 22, index: 8, snap: 2, body: 0.5, r2: 2.41, r3: 5.63, noise: 0.5, chirp: 0,
+    decay: 30, index: 8, snap: 2, body: 0.5, r2: 2.41, r3: 5.63, noise: 0.5, chirp: 0,
     lowcut: 7500, drift: 0.5, width: 0.5, duck: 0
 })
+// Un tic est si bref que sa pointe depassait son niveau moyen de 23 dB : une saturation la rabote
+essai("saturation tics", () => ticks.addAudioEffect("Waveshaper", {equation: "tanh", inputGain: 8, outputGain: -6, mix: 1} as any))
 const TIC = 84
 function vitesse(bar: number): number {
     if (!kickOn(bar) || bar < 16) {return 0}
@@ -623,14 +626,14 @@ build(ticks.noteTracks[0], "Tics", bar => {
     return out
 })
 auto("tics", ticks, "decay", vague(enLog([
-    [0, 18], [72, 22], [112, 27], [144, 19], [160, 16]
+    [0, 25], [72, 30], [112, 36], [144, 26], [160, 22]
 ], 5, 600), 6, 0.02))
 
 // ---------- Gresil : les tocs ----------
 // Le meme instrument, plus grave et plus long, avec une chute de hauteur a
 // l'attaque : une syncope seche, et le roulement qui annonce les drops.
 const TOCS = [62, 57, 65]
-const tocs = apparat("Tocs", GRESIL, -13, 0.15)
+const tocs = apparat("Tocs", GRESIL, -11, 0.15)
 reglages("tocs", tocs, {
     decay: 70, index: 2.5, snap: 4, body: 0.1, r2: 1.48, r3: 3.7, noise: 0.1, chirp: 7,
     lowcut: 150, drift: 0.5, width: 0.4, duck: 0.2
@@ -717,7 +720,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // la part du grave et de l'aigu, l'energie par bande d'octave, l'ecart entre
 // la crete et le niveau moyen, et la force des attaques sur les 16 pas.
 const MESURER = true
-const ISOLER = true
+const ISOLER = false
 const units: any[] = [kick, bass, voixA, voixB, ticks, tocs, gong, drums]
 const STEMS: [string, any][] = [["Frappe", kick], ["Roulante", bass], ["VeninA", voixA], ["VeninB", voixB],
     ["Tics", ticks], ["Tocs", tocs], ["Gong", gong], ["909", drums]]
