@@ -19,12 +19,25 @@ const require = createRequire(path.join(path.resolve(samDir), "x.js"));
 const mod = require("sam-js/dist/samjs.common.min.js");
 const SamJs = mod.default || mod;
 
+// Un jeu de mots par morceau, chacun dans son fichier : le jeu "danger" (les deux
+// Danger Danger) ne doit plus jamais changer.
+//   node tools/opendaw/voix.mjs <dossier sam> [jeu]
+const JEUX = {
+  danger: { fichier: "voix-sam.json", cible: 110, temoin: "danger", mots: { danger: "DEYNJER", letsgo: "LEHTS GOW", faster: "FAESTER" } },
+  // Stay Alive : Sol diese 2 (103,83 Hz)
+  stay: { fichier: "voix-stay.json", cible: 103.83, temoin: "alive", mots: {
+    beat: "BIYT", survivor: "SERVAYVER", stay: "STEY", alive: "AHLAYV",
+    three: "THRIY", two: "TUW", one: "WAHN", you: "YUW", survived: "SERVAYVD" } },
+};
+const JEU = JEUX[process.argv[3] || "danger"];
+if (!JEU) throw new Error("jeu inconnu : " + process.argv[3]);
+
 const RATE = 22050;
-const CIBLE = 110; // La2 : la voix chante la tonique du morceau
+const CIBLE = JEU.cible; // la voix chante la tonique du morceau
 // Phonèmes de SAM, SANS marque d'accent tonique : l'accent fait monter la voix
 // (« DEY4NJER » part de 110 Hz et retombe à 90). Sans lui, la voix reste sur
 // une seule note — le robot de Kraftwerk — et c'est le morceau qui la transpose.
-const MOTS = { danger: "DEYNJER", letsgo: "LEHTS GOW", faster: "FAESTER" };
+const MOTS = JEU.mots;
 
 // Période de SAM, mesurée : 3,25 échantillons par unité de réglage.
 const periodeAttendue = (pitch) => 3.25 * pitch;
@@ -68,12 +81,12 @@ const flottant = (b8) => Float32Array.from(b8, (v) => (v - 128) / 128);
 // 1. Le réglage de hauteur de SAM le plus proche de la cible
 let pitch = 64, ecart = Infinity;
 for (let p = 55; p <= 70; p++) {
-  const m = f0(flottant(rendre(MOTS.danger, p)), p);
+  const m = f0(flottant(rendre(MOTS[JEU.temoin], p)), p);
   const cents = Math.abs(1200 * Math.log2(m.f0 / CIBLE));
   if (m.f0 > 0 && cents < ecart) { ecart = cents; pitch = p; }
 }
-for (const p of [48, 64, 80, 96]) console.log(`  réglage ${p} → ${f0(flottant(rendre(MOTS.danger, p)), p).f0.toFixed(1)} Hz`);
-console.log(`hauteur SAM retenue : ${pitch} (écart ${ecart.toFixed(0)} cents sur « danger »)`);
+for (const p of [48, 64, 80, 96]) console.log(`  réglage ${p} → ${f0(flottant(rendre(MOTS[JEU.temoin], p)), p).f0.toFixed(1)} Hz`);
+console.log(`hauteur SAM retenue : ${pitch} (écart ${ecart.toFixed(0)} cents sur « ${JEU.temoin} »)`);
 
 // 2. Les mots : coupe des silences, niveaux distincts, encodage
 const sortie = { rate: RATE, cible: CIBLE, pitch, mots: {} };
@@ -93,5 +106,5 @@ for (const [nom, b8] of Object.entries(bruts)) {
 }
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
-writeFileSync(path.join(dir, "voix-sam.json"), JSON.stringify(sortie));
-console.log("voix-sam.json écrit");
+writeFileSync(path.join(dir, JEU.fichier), JSON.stringify(sortie));
+console.log(JEU.fichier + " écrit");
