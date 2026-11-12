@@ -35,7 +35,7 @@
 // Le jeu repere un drop a la montee du niveau ; elle doit tomber sur le drop.
 //
 // Instruments : Frappe (grosse caisse), Roulante (basse), Venin (acid), Lueur
-// (treillis, bois, halo), Cymbale (charleys) et Souffle sont ecrits pour ces
+// (treillis, bois, halo) et Cymbale (charleys) sont ecrits pour ces
 // morceaux (Apparat = instrument scriptable d'openDAW). Clap, rim, ride : TR-909.
 
 const BPM = 124
@@ -280,32 +280,6 @@ const CYMBALE: string = "// @label Cymbale\n// @param decay   45    10    300   
 "1 = h2\n            this.soft += (h2 - this.soft) * kSoft\n            if (this.attack < 1) {this.attack = Math.min(1, this.attack + attackSte" +
 "p)}\n            const y = this.soft * this.amp * this.attack * this.level * norm\n            outL[s] += y * this.left\n            outR[s] +=" +
 " y * this.right\n            this.amp *= this.kAmp\n        }\n    }\n}"
-const SOUFFLE: string = "// @label Souffle\n// @param freq    600   80    8000  exp     Hz\n// @param reso    0.6   0     1     linear\n// @param drift   0.5   0     1 " +
-"    linear\n// @param volume  0.5   0     1     linear\n\n// Le souffle : du bruit dans un filtre passe-bande, un par oreille. \"freq\" est\n// la" +
-" hauteur du souffle, \"reso\" son etroitesse (0 = vent large, 1 = sifflement).\n// \"drift\" le fait vivre : la hauteur ondule lentement et le so" +
-"n passe d'une\n// oreille a l'autre, sur trois horloges qui ne se rejoignent jamais.\n// Faire monter \"freq\" et \"volume\" ensemble, c'est une m" +
-"ontee.\n// Sonne tant qu'une note est tenue (la hauteur de la note est ignoree).\nclass Processor {\n    freq = 600\n    reso = 0.6\n    drift = " +
-"0.5\n    volume = 0.5\n    held = 0\n    env = 0\n    smooth = 600\n    seedL = 22222\n    seedR = 77777\n    lowL = 0\n    bandL = 0\n    lowR = 0\n " +
-"   bandR = 0\n    lfoA = 0\n    lfoB = 0.3\n    lfoC = 0.6\n    paramChanged(name, value) {\n        switch (name) {\n            case \"freq\": thi" +
-"s.freq = value; break\n            case \"reso\": this.reso = value; break\n            case \"drift\": this.drift = value; break\n            case" +
-" \"volume\": this.volume = value; break\n        }\n    }\n    noteOn(pitch, velocity, cent, id) {\n        this.held++\n    }\n    noteOff(id) {\n  " +
-"      if (this.held > 0) {this.held--}\n    }\n    reset() {\n        this.held = 0\n        this.env = 0\n        this.lowL = 0\n        this.ban" +
-"dL = 0\n        this.lowR = 0\n        this.bandR = 0\n    }\n    process(output, block) {\n        const [outL, outR] = output\n        const sr " +
-"= sampleRate\n        const twoPi = 2 * Math.PI\n        const target = this.held > 0 ? 1 : 0\n        if (target === 0 && this.env < 0.0002) {" +
-"\n            this.env = 0\n            return\n        }\n        const kEnv = 1 - Math.exp(-1 / (0.6 * sr))\n        const kSmooth = 1 - Math.e" +
-"xp(-1 / (0.05 * sr))\n        const n = block.s1 - block.s0\n        // Les trois horloges lentes : une fois par bloc suffit\n        this.lfoA" +
-" += 0.07 * n / sr\n        if (this.lfoA >= 1) {this.lfoA -= 1}\n        this.lfoB += 0.11 * n / sr\n        if (this.lfoB >= 1) {this.lfoB -= " +
-"1}\n        this.lfoC += 0.045 * n / sr\n        if (this.lfoC >= 1) {this.lfoC -= 1}\n        const wander = Math.pow(2, 0.35 * this.drift * M" +
-"ath.sin(twoPi * this.lfoC))\n        const ampL = 1 - 0.45 * this.drift * (1 + Math.sin(twoPi * this.lfoA))\n        const ampR = 1 - 0.45 * t" +
-"his.drift * (1 + Math.sin(twoPi * this.lfoB))\n        const damp = 1.2 - 1.1 * this.reso\n        for (let s = block.s0; s < block.s1; s++) {" +
-"\n            this.smooth += (this.freq - this.smooth) * kSmooth\n            const fc = Math.min(this.smooth * wander, sr / 7)\n            co" +
-"nst f = 2 * Math.sin(Math.PI * fc / sr)\n            // Le bruit filtre sort d'autant plus faible que le filtre est grave\n            // et l" +
-"arge : on compense pour que le niveau reste le meme\n            const comp = Math.sqrt(6 * damp / f) * 0.22\n            this.env += (target " +
-"- this.env) * kEnv\n            this.seedL = (this.seedL * 1664525 + 1013904223) >>> 0\n            this.seedR = (this.seedR * 1664525 + 10139" +
-"04223) >>> 0\n            const xL = this.seedL / 2147483648 - 1\n            const xR = this.seedR / 2147483648 - 1\n            this.lowL += " +
-"f * this.bandL\n            this.bandL += f * (xL - this.lowL - damp * this.bandL)\n            this.lowR += f * this.bandR\n            this.b" +
-"andR += f * (xR - this.lowR - damp * this.bandR)\n            const a = comp * this.env * this.volume\n            outL[s] += Math.tanh(this.b" +
-"andL * a * ampL)\n            outR[s] += Math.tanh(this.bandR * a * ampR)\n        }\n    }\n}"
 
 /** Tout ce qui n'a pas pu se brancher comme prevu : affiche en fin de script. */
 const soucis: string[] = []
@@ -736,27 +710,6 @@ auto("cymbale", hats, "decay", vague([
     [0, loga(30, 10, 300)], [56, loga(38, 10, 300)], [112, loga(48, 10, 300)], [128, loga(34, 10, 300)], [144, loga(28, 10, 300)]
 ], 6, 0.04))
 
-// ---------- Souffle : l'air ----------
-const breath = apparat("Souffle", SOUFFLE, -14)
-reglages("souffle", breath, {reso: 0.55, drift: 0.6})
-build(breath.noteTracks[0], "Souffle", bar => {
-    const section = SECTIONS.find(s => s.start === bar)
-    if (!section) {return []}
-    // Dans les creux, l'air se tait un temps avant le drop
-    const fin = inBreak(bar) ? section.bars * BAR - 4 * S16 : section.bars * BAR - 10
-    return [{position: 0, duration: fin, pitch: 60, velocity: 1}]
-})
-// freq 80..8000 Hz. L'air monte dans les creux, mais sans enfler : le niveau reste bas.
-auto("souffle", breath, "freq", [
-    [0, loga(500, 80, 8000)], [16, loga(350, 80, 8000)], [48, loga(400, 80, 8000)], [55.5, loga(2400, 80, 8000)],
-    [56, loga(500, 80, 8000)], [88, loga(450, 80, 8000)], [95.5, loga(3200, 80, 8000)], [96, loga(550, 80, 8000)],
-    [128, loga(500, 80, 8000)], [144, loga(300, 80, 8000)]
-])
-auto("souffle", breath, "volume", [
-    [0, 0.55], [16, 0.25], [48, 0.25], [48, 0.5], [55.5, 0.6], [56, 0.2], [88, 0.22], [88, 0.5],
-    [95.5, 0.62], [96, 0.2], [128, 0.25], [140, 0.5], [144, 0.55]
-])
-
 // ---------- Clap, rim, ride : TR-909 ----------
 const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -3})
 const RIM = 37, CLAP = 39, RIDE = 51
@@ -799,9 +752,9 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // la crete et le niveau moyen, et la force des attaques sur les 16 pas.
 const MESURER = false
 const ISOLER = false
-const units: any[] = [kick, bass, acid, lattice, wood, halo, hats, breath, drums]
+const units: any[] = [kick, bass, acid, lattice, wood, halo, hats, drums]
 const STEMS: [string, any][] = [["Frappe", kick], ["Roulante", bass], ["Venin", acid], ["Treillis", lattice],
-    ["Bois", wood], ["Halo", halo], ["Cymbale", hats], ["Souffle", breath], ["909", drums]]
+    ["Bois", wood], ["Halo", halo], ["Cymbale", hats], ["909", drums]]
 if (MESURER) {
     const parts = [["eveil", 0, 16], ["roule", 16, 32], ["venin", 32, 48], ["creux", 48, 56], ["drop", 56, 72],
         ["nu", 72, 76], ["plus", 76, 88], ["suspens", 88, 96], ["final", 96, 112], ["sommet", 112, 128],

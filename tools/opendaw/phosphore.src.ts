@@ -35,7 +35,7 @@
 // Le jeu repere un drop a la montee du niveau ; elle doit tomber sur le drop.
 //
 // Instruments : Frappe (grosse caisse), Roulante (basse), Venin (acid), Lueur
-// (treillis, bois, halo), Cymbale (charleys) et Souffle sont ecrits pour ces
+// (treillis, bois, halo) et Cymbale (charleys) sont ecrits pour ces
 // morceaux (Apparat = instrument scriptable d'openDAW). Clap, rim, ride : TR-909.
 
 const BPM = 124
@@ -51,7 +51,6 @@ const ROULANTE: string = __ROULANTE_L__
 const VENIN: string = __VENIN_L__
 const LUEUR: string = __LUEUR_L__
 const CYMBALE: string = __CYMBALE_L__
-const SOUFFLE: string = __SOUFFLE_L__
 
 /** Tout ce qui n'a pas pu se brancher comme prevu : affiche en fin de script. */
 const soucis: string[] = []
@@ -482,27 +481,6 @@ auto("cymbale", hats, "decay", vague([
     [0, loga(30, 10, 300)], [56, loga(38, 10, 300)], [112, loga(48, 10, 300)], [128, loga(34, 10, 300)], [144, loga(28, 10, 300)]
 ], 6, 0.04))
 
-// ---------- Souffle : l'air ----------
-const breath = apparat("Souffle", SOUFFLE, -14)
-reglages("souffle", breath, {reso: 0.55, drift: 0.6})
-build(breath.noteTracks[0], "Souffle", bar => {
-    const section = SECTIONS.find(s => s.start === bar)
-    if (!section) {return []}
-    // Dans les creux, l'air se tait un temps avant le drop
-    const fin = inBreak(bar) ? section.bars * BAR - 4 * S16 : section.bars * BAR - 10
-    return [{position: 0, duration: fin, pitch: 60, velocity: 1}]
-})
-// freq 80..8000 Hz. L'air monte dans les creux, mais sans enfler : le niveau reste bas.
-auto("souffle", breath, "freq", [
-    [0, loga(500, 80, 8000)], [16, loga(350, 80, 8000)], [48, loga(400, 80, 8000)], [55.5, loga(2400, 80, 8000)],
-    [56, loga(500, 80, 8000)], [88, loga(450, 80, 8000)], [95.5, loga(3200, 80, 8000)], [96, loga(550, 80, 8000)],
-    [128, loga(500, 80, 8000)], [144, loga(300, 80, 8000)]
-])
-auto("souffle", breath, "volume", [
-    [0, 0.55], [16, 0.25], [48, 0.25], [48, 0.5], [55.5, 0.6], [56, 0.2], [88, 0.22], [88, 0.5],
-    [95.5, 0.62], [96, 0.2], [128, 0.25], [140, 0.5], [144, 0.55]
-])
-
 // ---------- Clap, rim, ride : TR-909 ----------
 const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -3})
 const RIM = 37, CLAP = 39, RIDE = 51
@@ -545,9 +523,9 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // la crete et le niveau moyen, et la force des attaques sur les 16 pas.
 const MESURER = false
 const ISOLER = false
-const units: any[] = [kick, bass, acid, lattice, wood, halo, hats, breath, drums]
+const units: any[] = [kick, bass, acid, lattice, wood, halo, hats, drums]
 const STEMS: [string, any][] = [["Frappe", kick], ["Roulante", bass], ["Venin", acid], ["Treillis", lattice],
-    ["Bois", wood], ["Halo", halo], ["Cymbale", hats], ["Souffle", breath], ["909", drums]]
+    ["Bois", wood], ["Halo", halo], ["Cymbale", hats], ["909", drums]]
 if (MESURER) {
     const parts = [["eveil", 0, 16], ["roule", 16, 32], ["venin", 32, 48], ["creux", 48, 56], ["drop", 56, 72],
         ["nu", 72, 76], ["plus", 76, 88], ["suspens", 88, 96], ["final", 96, 112], ["sommet", 112, 128],
