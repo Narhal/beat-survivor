@@ -243,7 +243,7 @@ build(sub.noteTracks[0], "Gouffre", bar => {
 const growl = apparat("Gueule", GUEULE, 2)
 reglages("gueule", growl, {
     pas: PAS_MS, detune: 16, growl: 0.5, rank: 11, cutoff: 170, depth: 4, reso: 0.45, vowel: 0.45,
-    shape: 0.3, drive: 0.65, tone: 3600, lowcut: 95, width: 0.6, glide: 60
+    shape: 0.3, drive: 0.65, tone: 4600, lowcut: 95, width: 0.6, glide: 60
 })
 build(growl.noteTracks[0], "Gueule", bar =>
     notesDe(bar).map(n => ({
@@ -404,8 +404,9 @@ build(drums.noteTracks[0], "909", bar => {
     return out
 })
 
-// Limiteur de sortie
-essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -3} as any))
+// Limiteur de sortie. Un cran de moins que dans les morceaux techno : les references de
+// dubstep gardent plus d'ecart entre la crete et le niveau moyen.
+essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -2} as any))
 
 // ---------- Mesure du rendu (pour regler sans entendre) ----------
 // ISOLER = true : chaque piste est aussi rendue seule (une passe de plus par piste).
