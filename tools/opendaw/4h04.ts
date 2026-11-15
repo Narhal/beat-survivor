@@ -988,7 +988,7 @@ auto("nappe", pad, "volume", [[0, V_NAPPE], [110.5, V_NAPPE], [112, 0]])
 const FOND = [47, 43, 52, 48]
 /** La note qui mene a l accord suivant. */
 const APPROCHE = [45, 50, 50, 45]
-const bass = apparat("Basse", MAGNETO, -1.5)
+const bass = apparat("Basse", MAGNETO, -0.5)
 reglages("basse", bass, {
     ...bande404(0.3, 8), shape: 0.2, pwm: 0.2, detune: 5, sub: 0.8, cutoff: 200, envmod: 1.6, track: 0.2, reso: 0.1,
     attack: 8, decay: 700, sustain: 0.55, release: 140, vibrato: 0, drift: 3, glide: 1,
@@ -1182,7 +1182,7 @@ function batterie(bar: number): number {
 const drums = apparat("Poussiere", POUSSIERE, -4)
 reglages("poussiere", drums, {
     tune: 54, punch: 0.6, kdecay: 220, stone: 185, snap: 0.35, sdecay: 160, htone: 8500, hdecay: 36, odecay: 240,
-    rate: 24000, bits: 10, drive: 0.55, tone: 11000, volume: 0.6
+    rate: 28000, bits: 10, drive: 0.55, tone: 14000, volume: 0.6
 })
 drums.addSend(reverb, {amount: -24})
 build(drums.noteTracks[0], "Poussiere", bar => {
