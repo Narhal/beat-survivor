@@ -44,6 +44,13 @@ inserts.__VOIXSTAY__ = () => {
   return txt.match(/.{1,150}/g).map((c) => JSON.stringify(c)).join(" +\n");
 };
 
+// La voix de « 4 h 04 » : la station de nombres.
+inserts.__VOIX404__ = () => {
+  const voix = JSON.parse(read("voix-404.json"));
+  const txt = JSON.stringify({ rate: voix.rate, cible: voix.cible, mots: voix.mots });
+  return txt.match(/.{1,150}/g).map((c) => JSON.stringify(c)).join(" +\n");
+};
+
 // Les instruments maison (dossier apparat/) : coup.js entre par le marqueur __COUP__
 for (const f of readdirSync(path.join(dir, "apparat")).filter((f) => f.endsWith(".js"))) {
   inserts["__" + f.replace(".js", "").toUpperCase() + "__"] = () => JSON.stringify(read("apparat/" + f).replace(/\n$/, ""));

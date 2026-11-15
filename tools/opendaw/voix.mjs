@@ -28,6 +28,9 @@ const JEUX = {
   stay: { fichier: "voix-stay.json", cible: 103.83, temoin: "alive", mots: {
     beat: "BIYT", survivor: "SERVAYVER", stay: "STEY", alive: "AHLAYV",
     three: "THRIY", two: "TUW", one: "WAHN", you: "YUW", survived: "SERVAYVD" } },
+  // 4 h 04 : Si 2 accordé 35 cents trop bas (121,0 Hz), comme tout le morceau
+  h404: { fichier: "voix-404.json", cible: 121.0, temoin: "zero", mots: {
+    four: "FOHR", zero: "ZIYROW", two: "TUW", five: "FAYV", one: "WAHN", not: "NAAT", found: "FAWND" } },
 };
 const JEU = JEUX[process.argv[3] || "danger"];
 if (!JEU) throw new Error("jeu inconnu : " + process.argv[3]);
