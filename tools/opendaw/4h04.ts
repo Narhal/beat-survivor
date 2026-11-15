@@ -945,7 +945,7 @@ const bande404 = (phase: number, wow: number) => ({tune: FAUX, wow, flutter: 3, 
 const NAPPE = [[50, 54, 57, 61], [50, 54, 55, 59], [50, 54, 55, 59], [52, 54, 55, 59]]
 const NAPPE_PANNE = [[47, 54, 57, 61], [47, 54, 55, 59], [47, 54, 55, 59], [47, 52, 55, 60]]
 const V_NAPPE = 0.5
-const pad = apparat("Nappe", MAGNETO, -7)
+const pad = apparat("Nappe", MAGNETO, -8.5)
 reglages("nappe", pad, {
     ...bande404(0, 18), shape: 0.35, pwm: 0.5, detune: 12, sub: 0, cutoff: 420, envmod: 1.4, track: 0.3, reso: 0.15,
     attack: 1100, decay: 3500, sustain: 0.75, release: 2200, vibrato: 0, drift: 8, glide: 1,
@@ -988,7 +988,7 @@ auto("nappe", pad, "volume", [[0, V_NAPPE], [110.5, V_NAPPE], [112, 0]])
 const FOND = [47, 43, 52, 48]
 /** La note qui mene a l accord suivant. */
 const APPROCHE = [45, 50, 50, 45]
-const bass = apparat("Basse", MAGNETO, -0.5)
+const bass = apparat("Basse", MAGNETO, -2)
 reglages("basse", bass, {
     ...bande404(0.3, 8), shape: 0.2, pwm: 0.2, detune: 5, sub: 1, cutoff: 200, envmod: 1.6, track: 0.2, reso: 0.1,
     attack: 8, decay: 700, sustain: 0.55, release: 140, vibrato: 0, drift: 3, glide: 1,
@@ -1055,7 +1055,7 @@ function melodie(bar: number): number[][] {
     if (bar >= 96 && bar < 104) {return k < 2 || k === 4 || k === 5 ? MEL_A[k] : []}
     return []
 }
-const lead = apparat("Melodie", MAGNETO, -7, -0.1)
+const lead = apparat("Melodie", MAGNETO, -8.5, -0.1)
 reglages("melodie", lead, {
     ...bande404(0.55, 22), flutter: 4, shape: 0.12, pwm: 0.2, detune: 6, sub: 0, cutoff: 750, envmod: 1.2, track: 0.5,
     reso: 0.3, attack: 35, decay: 900, sustain: 0.6, release: 500, vibrato: 16, drift: 6, glide: 70,
@@ -1083,11 +1083,11 @@ auto("melodie", lead, "cutoff", enLog([
 // Des croches. Six notes par accord, dans une mesure qui en contient huit : le
 // dessin ne retombe sur ses pieds que toutes les trois mesures.
 const ARP = [[59, 62, 66, 73, 69, 66], [59, 62, 66, 71, 67, 62], [59, 64, 67, 71, 66, 64], [60, 64, 67, 71, 66, 64]]
-const arp = apparat("Arpege", MAGNETO, -3.5, 0.15)
+const arp = apparat("Arpege", MAGNETO, -5, 0.15)
 reglages("arpege", arp, {
     ...bande404(0.8, 14), shape: 0.55, pwm: 0.3, detune: 7, sub: 0, cutoff: 420, envmod: 2.8, track: 0.4, reso: 0.3,
     attack: 2, decay: 190, sustain: 0, release: 160, vibrato: 0, drift: 5, glide: 1,
-    drive: 0.2, age: 0.25, dropout: 0, width: 0.6, volume: 0.5
+    drive: 0.2, age: 0.15, dropout: 0, width: 0.6, volume: 0.5
 })
 arp.addAudioEffect("Delay", {delay: 13, feedback: 0.5, cross: 1, filter: 0.25, wet: -8})
 arp.addSend(reverb, {amount: -13})
@@ -1151,7 +1151,7 @@ build(term.noteTracks[0], "Terminal", bar => {
 // ---------- L aspiration ----------
 // La meme quinte, Si et Fa diese, qui enfle pendant une mesure et s arrete net
 // sur le premier temps de la suivante. Elle annonce chaque changement.
-const swell = apparat("Aspiration", MAGNETO, -10)
+const swell = apparat("Aspiration", MAGNETO, -11.5)
 reglages("aspiration", swell, {
     ...bande404(0.7, 20), shape: 0.3, pwm: 0.6, detune: 14, sub: 0, cutoff: 260, envmod: 3.2, track: 0.3, reso: 0.25,
     attack: 2400, decay: 400, sustain: 1, release: 45, vibrato: 0, drift: 10, glide: 1,
@@ -1179,7 +1179,7 @@ function batterie(bar: number): number {
     if (bar >= 104 && bar < 110) {return 1}
     return 0
 }
-const drums = apparat("Poussiere", POUSSIERE, -4)
+const drums = apparat("Poussiere", POUSSIERE, -5.5)
 reglages("poussiere", drums, {
     tune: 54, punch: 0.6, kdecay: 260, stone: 185, snap: 0.35, sdecay: 160, htone: 8500, hdecay: 36, odecay: 240,
     rate: 24000, bits: 10, drive: 0.55, tone: 14000, volume: 0.6
@@ -1220,7 +1220,7 @@ build(drums.noteTracks[0], "Poussiere", bar => {
     }
     for (let s = 0; s < 16; s += 2) {
         const ouvert = (b >= 3 && bar % 4 === 3 && s === 14) || (b === 4 && !pair && s === 6)
-        hit(s, ouvert ? OPEN : HAT, s % 4 === 0 ? 0.6 : 0.4)
+        hit(s, ouvert ? OPEN : HAT, s % 4 === 0 ? 0.68 : 0.46)
     }
     if (b >= 3) {hit(3, HAT, 0.25); hit(11, HAT, 0.25)}
     // Fin de phrase : la caisse claire relance
@@ -1231,7 +1231,7 @@ build(drums.noteTracks[0], "Poussiere", bar => {
 // ---------- La voix ----------
 // Une seule piste, dans un echo et dans la salle. Deux regions ne doivent
 // jamais se chevaucher.
-const voix: any = project.addInstrumentUnit("Tape", {label: "Voix", volume: -6})
+const voix: any = project.addInstrumentUnit("Tape", {label: "Voix", volume: -7.5})
 voix.addAudioEffect("Delay", {delay: 13, feedback: 0.5, cross: 1, filter: 0.3, wet: -8})
 voix.addSend(reverb, {amount: -7})
 const dire = (quoi: string, sample: any, bar: number, step: number) =>
