@@ -988,7 +988,7 @@ auto("nappe", pad, "volume", [[0, V_NAPPE], [110.5, V_NAPPE], [112, 0]])
 const FOND = [47, 43, 52, 48]
 /** La note qui mene a l accord suivant. */
 const APPROCHE = [45, 50, 50, 45]
-const bass = apparat("Basse", MAGNETO, -3.5)
+const bass = apparat("Basse", MAGNETO, -1.5)
 reglages("basse", bass, {
     ...bande404(0.3, 8), shape: 0.2, pwm: 0.2, detune: 5, sub: 0.8, cutoff: 140, envmod: 1.6, track: 0.2, reso: 0.1,
     attack: 8, decay: 700, sustain: 0.55, release: 140, vibrato: 0, drift: 3, glide: 1,
@@ -1083,7 +1083,7 @@ auto("melodie", lead, "cutoff", enLog([
 // Des croches. Six notes par accord, dans une mesure qui en contient huit : le
 // dessin ne retombe sur ses pieds que toutes les trois mesures.
 const ARP = [[59, 62, 66, 73, 69, 66], [59, 62, 66, 71, 67, 62], [59, 64, 67, 71, 66, 64], [60, 64, 67, 71, 66, 64]]
-const arp = apparat("Arpege", MAGNETO, -2, 0.15)
+const arp = apparat("Arpege", MAGNETO, -3.5, 0.15)
 reglages("arpege", arp, {
     ...bande404(0.8, 14), shape: 0.55, pwm: 0.3, detune: 7, sub: 0, cutoff: 420, envmod: 2.8, track: 0.4, reso: 0.3,
     attack: 2, decay: 190, sustain: 0, release: 160, vibrato: 0, drift: 5, glide: 1,
@@ -1181,7 +1181,7 @@ function batterie(bar: number): number {
 }
 const drums = apparat("Poussiere", POUSSIERE, -4)
 reglages("poussiere", drums, {
-    tune: 54, punch: 0.6, kdecay: 220, stone: 185, snap: 0.6, sdecay: 160, htone: 8500, hdecay: 36, odecay: 240,
+    tune: 54, punch: 0.6, kdecay: 220, stone: 185, snap: 0.45, sdecay: 160, htone: 8500, hdecay: 36, odecay: 240,
     rate: 24000, bits: 10, drive: 0.55, tone: 11000, volume: 0.6
 })
 drums.addSend(reverb, {amount: -24})
