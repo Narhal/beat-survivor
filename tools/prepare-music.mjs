@@ -49,6 +49,11 @@ const DIFFICULTES = {
   "Phosphore.mp3": "test",
   "Derive.mp3": "test",
   "Stay Alive.mp3": "test",
+  // Les deux morceaux du 2026-11-15, hors techno : « Glas » (dubstep, script
+  // glas.ts) et « 4 h 04 » (electronica sur bande, scripts 4h04*.ts). Pas encore
+  // jugés en partie.
+  "Glas.mp3": "test",
+  "4 h 04.mp3": "test",
 };
 // « test » vaut 3 : les bancs d'essai passent APRÈS la campagne, jamais au
 // milieu de l'échelle de difficulté.

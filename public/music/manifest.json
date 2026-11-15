@@ -60,6 +60,11 @@
       "hidden": true
     },
     {
+      "file": "4 h 04.mp3",
+      "title": "4 h 04",
+      "difficulty": "test"
+    },
+    {
       "file": "Danger.mp3",
       "title": "Danger Danger",
       "difficulty": "test"
@@ -67,6 +72,11 @@
     {
       "file": "Derive.mp3",
       "title": "Dérive",
+      "difficulty": "test"
+    },
+    {
+      "file": "Glas.mp3",
+      "title": "Glas",
       "difficulty": "test"
     },
     {
