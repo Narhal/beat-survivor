@@ -945,7 +945,7 @@ const bande404 = (phase: number, wow: number) => ({tune: FAUX, wow, flutter: 3, 
 const NAPPE = [[50, 54, 57, 61], [50, 54, 55, 59], [50, 54, 55, 59], [52, 54, 55, 59]]
 const NAPPE_PANNE = [[47, 54, 57, 61], [47, 54, 55, 59], [47, 54, 55, 59], [47, 52, 55, 60]]
 const V_NAPPE = 0.5
-const pad = apparat("Nappe", MAGNETO, -8)
+const pad = apparat("Nappe", MAGNETO, -7)
 reglages("nappe", pad, {
     ...bande404(0, 18), shape: 0.35, pwm: 0.5, detune: 12, sub: 0, cutoff: 420, envmod: 1.4, track: 0.3, reso: 0.15,
     attack: 1100, decay: 3500, sustain: 0.75, release: 2200, vibrato: 0, drift: 8, glide: 1,
@@ -990,7 +990,7 @@ const FOND = [47, 43, 52, 48]
 const APPROCHE = [45, 50, 50, 45]
 const bass = apparat("Basse", MAGNETO, -1.5)
 reglages("basse", bass, {
-    ...bande404(0.3, 8), shape: 0.2, pwm: 0.2, detune: 5, sub: 0.8, cutoff: 140, envmod: 1.6, track: 0.2, reso: 0.1,
+    ...bande404(0.3, 8), shape: 0.2, pwm: 0.2, detune: 5, sub: 0.8, cutoff: 200, envmod: 1.6, track: 0.2, reso: 0.1,
     attack: 8, decay: 700, sustain: 0.55, release: 140, vibrato: 0, drift: 3, glide: 1,
     drive: 0.5, age: 0.7, dropout: 0, width: 0.15, volume: 0.5
 })
@@ -1181,7 +1181,7 @@ function batterie(bar: number): number {
 }
 const drums = apparat("Poussiere", POUSSIERE, -4)
 reglages("poussiere", drums, {
-    tune: 54, punch: 0.6, kdecay: 220, stone: 185, snap: 0.45, sdecay: 160, htone: 8500, hdecay: 36, odecay: 240,
+    tune: 54, punch: 0.6, kdecay: 220, stone: 185, snap: 0.35, sdecay: 160, htone: 8500, hdecay: 36, odecay: 240,
     rate: 24000, bits: 10, drive: 0.55, tone: 11000, volume: 0.6
 })
 drums.addSend(reverb, {amount: -24})
@@ -1202,7 +1202,7 @@ build(drums.noteTracks[0], "Poussiere", bar => {
     }
     if (b === 5) {
         hit(0, KICK, 0.85); hit(10, KICK, 0.7); hit(4, RIM, 0.6); hit(12, RIM, 0.6)
-        for (let s = 0; s < 16; s += 2) {hit(s, HAT, s % 4 === 0 ? 0.5 : 0.35)}
+        for (let s = 0; s < 16; s += 2) {hit(s, HAT, s % 4 === 0 ? 0.42 : 0.3)}
         return out
     }
     const pair = bar % 2 === 0
@@ -1220,9 +1220,9 @@ build(drums.noteTracks[0], "Poussiere", bar => {
     }
     for (let s = 0; s < 16; s += 2) {
         const ouvert = (b >= 3 && bar % 4 === 3 && s === 14) || (b === 4 && !pair && s === 6)
-        hit(s, ouvert ? OPEN : HAT, s % 4 === 0 ? 0.75 : 0.5)
+        hit(s, ouvert ? OPEN : HAT, s % 4 === 0 ? 0.6 : 0.4)
     }
-    if (b >= 3) {hit(3, HAT, 0.3); hit(11, HAT, 0.3)}
+    if (b >= 3) {hit(3, HAT, 0.25); hit(11, HAT, 0.25)}
     // Fin de phrase : la caisse claire relance
     if (bar % 8 === 7) {hit(14, SNARE, 0.55); hit(15, SNARE, 0.75)}
     return out
@@ -1247,7 +1247,7 @@ dire("rappel", vOuvre, 100, 0)
 dire("not found", vPerdu, 106, 0)
 
 // Limiteur de sortie, leger : les deux references ne sont presque pas limitees
-essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -1.5} as any))
+essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -0.8} as any))
 
 // ---------- Mesure du rendu (pour regler sans entendre) ----------
 // ISOLER = true : chaque piste est aussi rendue seule (une passe de plus par piste).
