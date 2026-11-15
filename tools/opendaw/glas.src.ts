@@ -216,7 +216,7 @@ build(kick.noteTracks[0], "Frappe", bar =>
 // notes se chevauchent : la hauteur glisse de l'une a l'autre. Il s'arrete
 // avant la mesure suivante : chaque mesure repart de la meme phase, sous le
 // meme coup de pied.
-const sub = apparat("Gouffre", GOUFFRE, -8)
+const sub = apparat("Gouffre", GOUFFRE, -12)
 reglages("gouffre", sub, {attack: 14, release: 70, glide: 70, harm: 0.25, depth: 0.85, dipms: 130})
 build(sub.noteTracks[0], "Gouffre", bar => {
     const out: Note[] = plongeons(bar)
@@ -240,10 +240,10 @@ build(sub.noteTracks[0], "Gouffre", bar => {
 })
 
 // ---------- Gueule : la basse qui gronde ----------
-const growl = apparat("Gueule", GUEULE, -2)
+const growl = apparat("Gueule", GUEULE, 2)
 reglages("gueule", growl, {
-    pas: PAS_MS, detune: 16, growl: 0.5, rank: 11, cutoff: 140, depth: 4, reso: 0.45, vowel: 0.45,
-    shape: 0.3, drive: 0.65, tone: 2600, lowcut: 95, width: 0.6, glide: 60
+    pas: PAS_MS, detune: 16, growl: 0.5, rank: 11, cutoff: 170, depth: 4, reso: 0.45, vowel: 0.45,
+    shape: 0.3, drive: 0.65, tone: 3600, lowcut: 95, width: 0.6, glide: 60
 })
 build(growl.noteTracks[0], "Gueule", bar =>
     notesDe(bar).map(n => ({
@@ -307,7 +307,7 @@ build(bell.noteTracks[0], "Glas", bar => {
 // La meme percussion, tres courte, haute, en matiere de lame : un cliquetis
 // rare, pris dans un echo.
 const OS = [86, 89, 91]
-const bones = apparat("Os", LUEUR, -8, 0.2)
+const bones = apparat("Os", LUEUR, -2, 0.2)
 reglages("os", bones, {
     decay: 55, matter: 0.95, strike: 0.75, damp: 0.7, chirp: 0, grain: 0.6, tonic: SOL2, just: 0,
     drift: 0.6, duck: 0, width: 0.8, drive: 0.1
@@ -329,7 +329,7 @@ build(bones.noteTracks[0], "Os", bar => {
 // ---------- Gresil : les tics ----------
 // Peu d'aigus : la dubstep sombre en a tres peu. Des croches a contretemps,
 // et un triolet en fin de phrase.
-const ticks = apparat("Tics", GRESIL, 2)
+const ticks = apparat("Tics", GRESIL, 6)
 reglages("tics", ticks, {
     decay: 26, index: 8, snap: 2, body: 0.5, r2: 2.41, r3: 5.63, noise: 0.5, chirp: 0,
     lowcut: 7000, drift: 0.5, width: 0.5, duck: 0
@@ -377,7 +377,7 @@ build(tocs.noteTracks[0], "Tocs", bar => {
 // ---------- Caisse claire et clap : TR-909 ----------
 // La caisse claire tombe sur le troisieme temps, le clap la double. Un peu
 // de reverb : c'est le seul son du morceau qui a droit a une salle.
-const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -2})
+const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: 0})
 const SNARE = 38, CLAP = 39
 const kit: [string, number, any][] = [
     ["Snare", SNARE, {volume: -2}],
@@ -413,7 +413,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // "zone" : la part de l'energie entre 2 et 6 kHz, la ou l'oreille fatigue.
 // Sur le premier drop, on mesure aussi ce qu'on a mesure sur les references.
 const MESURER = true
-const ISOLER = true
+const ISOLER = false
 const units: any[] = [kick, sub, growl, drone, bell, bones, ticks, tocs, drums]
 const STEMS: [string, any][] = [["Frappe", kick], ["Gouffre", sub], ["Gueule", growl], ["Bourdon", drone],
     ["Glas", bell], ["Os", bones], ["Tics", ticks], ["Tocs", tocs], ["909", drums]]
