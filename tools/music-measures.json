@@ -1,0 +1,161 @@
+{
+  "4 h 04.mp3": {
+    "sig": "11124525",
+    "bpm": 98,
+    "seconds": 278,
+    "level": -13,
+    "density": 5.43,
+    "low": -4,
+    "high": -13.9,
+    "bpmMesure": 130.8
+  },
+  "Anxious pathogene.mp3": {
+    "sig": "5899563",
+    "bpm": 126,
+    "seconds": 246,
+    "level": -11.4,
+    "density": 4.43,
+    "low": -1.5,
+    "high": -18.4
+  },
+  "Beyond abyss.mp3": {
+    "sig": "7297010",
+    "bpm": 120.2,
+    "seconds": 304,
+    "level": -18.9,
+    "density": 4.25,
+    "low": -2.4,
+    "high": -14.3
+  },
+  "Danger.mp3": {
+    "sig": "10268205",
+    "bpm": 132,
+    "seconds": 257,
+    "level": -8.7,
+    "density": 5.73,
+    "low": -3.1,
+    "high": -12.6,
+    "bpmMesure": 132.1
+  },
+  "Derive.mp3": {
+    "sig": "12243885",
+    "bpm": 126,
+    "seconds": 306,
+    "level": -10,
+    "density": 4.72,
+    "low": -2.8,
+    "high": -12.8,
+    "bpmMesure": 126
+  },
+  "Dreamy Dive.mp3": {
+    "sig": "7122721",
+    "bpm": 110,
+    "seconds": 297,
+    "level": -9,
+    "density": 4.73,
+    "low": -3.2,
+    "high": -10.1
+  },
+  "Glas.mp3": {
+    "sig": "10896045",
+    "bpm": 140,
+    "seconds": 272,
+    "level": -10.3,
+    "density": 4.19,
+    "low": -2.8,
+    "high": -12,
+    "bpmMesure": 139.7
+  },
+  "Liquid.mp3": {
+    "sig": "3035583",
+    "bpm": 72.5,
+    "seconds": 189,
+    "level": -16,
+    "density": 5.65,
+    "low": -2.4,
+    "high": -11.6
+  },
+  "Lumenhole.mp3": {
+    "sig": "5463187",
+    "bpm": 134.2,
+    "seconds": 228,
+    "level": -13,
+    "density": 4.87,
+    "low": -2.4,
+    "high": -12
+  },
+  "Luxury.mp3": {
+    "sig": "7883474",
+    "bpm": 82.5,
+    "seconds": 327,
+    "level": -8.8,
+    "density": 5.58,
+    "low": -2.4,
+    "high": -13.8
+  },
+  "Never see the light again.mp3": {
+    "sig": "6204256",
+    "bpm": 175.2,
+    "seconds": 259,
+    "level": -10.7,
+    "density": 4.21,
+    "low": -1.4,
+    "high": -16.9
+  },
+  "Phosphore.mp3": {
+    "sig": "11660205",
+    "bpm": 124,
+    "seconds": 291,
+    "level": -9.8,
+    "density": 4.9,
+    "low": -3,
+    "high": -12.5,
+    "bpmMesure": 124.2
+  },
+  "Space wind.mp3": {
+    "sig": "10149093",
+    "bpm": 137.8,
+    "seconds": 254,
+    "level": -17.8,
+    "density": 3.65,
+    "low": -2.5,
+    "high": -11.8
+  },
+  "Stay Alive.mp3": {
+    "sig": "10654125",
+    "bpm": 130,
+    "seconds": 266,
+    "level": -9.6,
+    "density": 5.16,
+    "low": -3,
+    "high": -11.8,
+    "bpmMesure": 130
+  },
+  "Tap.mp3": {
+    "sig": "3073296",
+    "bpm": 89.9,
+    "seconds": 128,
+    "level": -7.5,
+    "density": 3.87,
+    "low": -1.4,
+    "high": -18.1
+  },
+  "Wonderland.mp3": {
+    "sig": "3418905",
+    "bpm": 70,
+    "seconds": 214,
+    "level": -12.6,
+    "density": 4.04,
+    "low": -3.7,
+    "high": -8.2
+  },
+  "Yawn phase.mp3": {
+    "sig": "3951011",
+    "bpm": 140.1,
+    "seconds": 165,
+    "level": -8.7,
+    "density": 2.8,
+    "low": -1.4,
+    "high": -12.6
+  }
+}

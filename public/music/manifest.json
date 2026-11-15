@@ -4,90 +4,226 @@
       "file": "Lumenhole.mp3",
       "title": "Lumenhole",
       "difficulty": "easy",
-      "hidden": true
+      "hidden": true,
+      "measures": {
+        "bpm": 134.2,
+        "seconds": 228,
+        "level": -13,
+        "density": 4.87,
+        "low": -2.4,
+        "high": -12
+      }
     },
     {
       "file": "Luxury.mp3",
       "title": "Luxury",
-      "difficulty": "easy"
+      "difficulty": "easy",
+      "measures": {
+        "bpm": 82.5,
+        "seconds": 327,
+        "level": -8.8,
+        "density": 5.58,
+        "low": -2.4,
+        "high": -13.8
+      }
     },
     {
       "file": "Never see the light again.mp3",
       "title": "Never see the light again",
       "difficulty": "easy",
-      "hidden": true
+      "hidden": true,
+      "measures": {
+        "bpm": 175.2,
+        "seconds": 259,
+        "level": -10.7,
+        "density": 4.21,
+        "low": -1.4,
+        "high": -16.9
+      }
     },
     {
       "file": "Space wind.mp3",
       "title": "Space wind",
-      "difficulty": "easy"
+      "difficulty": "easy",
+      "measures": {
+        "bpm": 137.8,
+        "seconds": 254,
+        "level": -17.8,
+        "density": 3.65,
+        "low": -2.5,
+        "high": -11.8
+      }
     },
     {
       "file": "Wonderland.mp3",
       "title": "Wonderland",
-      "difficulty": "easy"
+      "difficulty": "easy",
+      "measures": {
+        "bpm": 70,
+        "seconds": 214,
+        "level": -12.6,
+        "density": 4.04,
+        "low": -3.7,
+        "high": -8.2
+      }
     },
     {
       "file": "Yawn phase.mp3",
       "title": "Yawn phase",
       "difficulty": "easy",
-      "hidden": true
+      "hidden": true,
+      "measures": {
+        "bpm": 140.1,
+        "seconds": 165,
+        "level": -8.7,
+        "density": 2.8,
+        "low": -1.4,
+        "high": -12.6
+      }
     },
     {
       "file": "Beyond abyss.mp3",
       "title": "Beyond abyss",
-      "difficulty": "normal"
+      "difficulty": "normal",
+      "measures": {
+        "bpm": 120.2,
+        "seconds": 304,
+        "level": -18.9,
+        "density": 4.25,
+        "low": -2.4,
+        "high": -14.3
+      }
     },
     {
       "file": "Dreamy Dive.mp3",
       "title": "Dreamy Dive",
-      "difficulty": "normal"
+      "difficulty": "normal",
+      "measures": {
+        "bpm": 110,
+        "seconds": 297,
+        "level": -9,
+        "density": 4.73,
+        "low": -3.2,
+        "high": -10.1
+      }
     },
     {
       "file": "Liquid.mp3",
       "title": "Liquid",
-      "difficulty": "normal"
+      "difficulty": "normal",
+      "measures": {
+        "bpm": 72.5,
+        "seconds": 189,
+        "level": -16,
+        "density": 5.65,
+        "low": -2.4,
+        "high": -11.6
+      }
     },
     {
       "file": "Anxious pathogene.mp3",
       "title": "Anxious pathogene",
-      "difficulty": "hard"
+      "difficulty": "hard",
+      "measures": {
+        "bpm": 126,
+        "seconds": 246,
+        "level": -11.4,
+        "density": 4.43,
+        "low": -1.5,
+        "high": -18.4
+      }
     },
     {
       "file": "Tap.mp3",
       "title": "Tap",
       "difficulty": "hard",
-      "hidden": true
+      "hidden": true,
+      "measures": {
+        "bpm": 89.9,
+        "seconds": 128,
+        "level": -7.5,
+        "density": 3.87,
+        "low": -1.4,
+        "high": -18.1
+      }
     },
     {
       "file": "4 h 04.mp3",
       "title": "4 h 04",
-      "difficulty": "test"
+      "difficulty": "test",
+      "measures": {
+        "bpm": 98,
+        "seconds": 278,
+        "level": -13,
+        "density": 5.43,
+        "low": -4,
+        "high": -13.9
+      }
     },
     {
       "file": "Danger.mp3",
       "title": "Danger Danger",
-      "difficulty": "test"
+      "difficulty": "test",
+      "measures": {
+        "bpm": 132,
+        "seconds": 257,
+        "level": -8.7,
+        "density": 5.73,
+        "low": -3.1,
+        "high": -12.6
+      }
     },
     {
       "file": "Derive.mp3",
       "title": "Dérive",
-      "difficulty": "test"
+      "difficulty": "test",
+      "measures": {
+        "bpm": 126,
+        "seconds": 306,
+        "level": -10,
+        "density": 4.72,
+        "low": -2.8,
+        "high": -12.8
+      }
     },
     {
       "file": "Glas.mp3",
       "title": "Glas",
-      "difficulty": "test"
+      "difficulty": "test",
+      "measures": {
+        "bpm": 140,
+        "seconds": 272,
+        "level": -10.3,
+        "density": 4.19,
+        "low": -2.8,
+        "high": -12
+      }
     },
     {
       "file": "Phosphore.mp3",
       "title": "Phosphore",
-      "difficulty": "test"
+      "difficulty": "test",
+      "measures": {
+        "bpm": 124,
+        "seconds": 291,
+        "level": -9.8,
+        "density": 4.9,
+        "low": -3,
+        "high": -12.5
+      }
     },
     {
       "file": "Stay Alive.mp3",
       "title": "Stay Alive",
-      "difficulty": "test"
+      "difficulty": "test",
+      "measures": {
+        "bpm": 130,
+        "seconds": 266,
+        "level": -9.6,
+        "density": 5.16,
+        "low": -3,
+        "high": -11.8
+      }
     }
   ]
 }

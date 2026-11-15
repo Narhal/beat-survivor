@@ -16,6 +16,7 @@ import { glowMaterial } from "./game/glow";
 import { UPGRADE_ICONS } from "./game/icons";
 import { listCustom, rememberCustom, CustomEntry, CUSTOM_MAX } from "./game/customLib";
 import { Organism } from "./game/organism";
+import { BodyMap, type MapMeasures } from "./game/bodymap";
 
 // Racine des assets : "/" en dev, "./" en build (site sous /play-beat-survivor/)
 const ASSET_BASE = import.meta.env.BASE_URL;
@@ -1374,6 +1375,9 @@ function tick(now: number) {
         else updateOptionsNav(dt);
       } else if (cancelEdge && titleScreen !== "home") {
         backFromTitleScreen(); // ◯/B = retour dans les menus
+      } else if (titleScreen === "survie" && bodyMap) {
+        const v = inputVector();
+        bodyMap.update(dt, v.x, v.y, confirmEdge);
       } else {
         updateMenuNav(dt);
       }
@@ -1754,6 +1758,8 @@ interface MusicTrack {
   difficulty?: "easy" | "normal" | "hard" | "test";
   /** Mis de côté pour le futur mode Campagne : présent, mais hors bibliothèque. */
   hidden?: boolean;
+  /** Tempo, durée, niveau… mesurés par tools/measure-music.mjs : la carte du menu Survie. */
+  measures?: MapMeasures;
 }
 const DIFF_LABEL = { easy: "EASY", normal: "NORMAL", hard: "HARD", test: "TEST" } as const;
 /** Ce que la bibliothèque propose. */
@@ -1810,33 +1816,19 @@ function setStatus(text: string) {
   statusEl.textContent = text;
 }
 
+// Le menu Survie n'est plus une liste (N4 2026-11-16) : c'est le corps d'une
+// créature, et chaque morceau y est un foyer. Voir src/game/bodymap.ts.
+let bodyMap: BodyMap | null = null;
 function renderTrackList() {
-  const list = $("track-list");
-  list.innerHTML = "";
-  const navEls: HTMLElement[] = [];
-  for (const track of musicTracks) {
-    const btn = document.createElement("button");
-    const cleared = (meta.cleared ?? []).includes(track.file);
-    const diff = track.difficulty ?? "normal";
-    btn.classList.add("track-btn");
-    const best = meta.scores?.[track.file] ?? 0;
-    btn.innerHTML = trackButtonHTML(
-      track.title,
-      diff,
-      `${best > 0 ? best + " " : ""}${cleared ? "✓" : ""}`
-    );
-    btn.addEventListener("click", () => {
-      audioCtx.resume();
-      pendingAction = { type: "track", track };
-      showTitleScreen("perso");
-    });
-    list.appendChild(btn);
-    navEls.push(btn);
-  }
-  // (La piste de synthèse a quitté le menu — N4 2026-07-30. loadDemo reste
-  // le repli automatique si la bibliothèque est vide.)
-  navEls.push($("btn-survie-back"));
-  setMenu(navEls, "y");
+  bodyMap ??= new BodyMap($("survie"), $("btn-survie-back"));
+  bodyMap.open(musicTracks, meta.cleared ?? [], (track) => {
+    audioCtx.resume();
+    pendingAction = { type: "track", track: track as MusicTrack };
+    showTitleScreen("perso");
+  });
+  // La carte a sa propre navigation (on saute de foyer en foyer) : le menu
+  // générique n'a rien à parcourir ici.
+  setMenu([], "y");
 }
 
 /**
@@ -2166,6 +2158,7 @@ function showTitleScreen(which: TitleScreen) {
   show(customEl, which === "custom");
   show(pharmacieEl, which === "pharmacie");
   show(controlesEl, which === "controles");
+  if (which !== "survie") bodyMap?.close();
   if (which === "home") homeMenu();
   if (which === "survie") renderTrackList();
   if (which === "perso") renderPersoSelect();

@@ -3,7 +3,7 @@
 // dans public/music/ puis lance : node tools/prepare-music.mjs
 // Le titre affiché = nom du fichier sans extension, tirets/underscores → espaces.
 
-import { readdir, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -76,12 +76,28 @@ const TITRES = {
   "Derive.mp3": "Dérive",
 };
 
+// Les mesures de chaque morceau (tools/measure-music.mjs) : tempo, durée,
+// niveau, attaques par seconde, part de grave et part d'aigu. Le menu Survie
+// en fait la carte : la place, la taille et le battement de chaque point.
+let MESURES = {};
+try {
+  MESURES = JSON.parse(await readFile(path.join(repoRoot, "tools", "music-measures.json"), "utf8"));
+} catch {
+  console.log("tools/music-measures.json absent : lance d'abord node tools/measure-music.mjs");
+}
+const mesuresDe = (file) => {
+  const m = MESURES[file];
+  if (!m) return {};
+  return { measures: { bpm: m.bpm, seconds: m.seconds, level: m.level, density: m.density, low: m.low, high: m.high } };
+};
+
 const tracks = files
   .map((file) => ({
     file,
     title: TITRES[file] ?? file.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim(),
     difficulty: DIFFICULTES[file] ?? "normal",
     ...(MASQUES.has(file) ? { hidden: true } : {}),
+    ...mesuresDe(file),
   }))
   .sort((a, b) => ORDRE[a.difficulty] - ORDRE[b.difficulty] || a.title.localeCompare(b.title));
 
