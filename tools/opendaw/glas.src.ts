@@ -413,7 +413,7 @@ essai("limiteur", () => project.output.addAudioEffect("Maximizer", {threshold: -
 // "mono" : ce que le son perd quand les deux oreilles sont additionnees.
 // "zone" : la part de l'energie entre 2 et 6 kHz, la ou l'oreille fatigue.
 // Sur le premier drop, on mesure aussi ce qu'on a mesure sur les references.
-const MESURER = true
+const MESURER = false
 const ISOLER = false
 const units: any[] = [kick, sub, growl, drone, bell, bones, ticks, tocs, drums]
 const STEMS: [string, any][] = [["Frappe", kick], ["Gouffre", sub], ["Gueule", growl], ["Bourdon", drone],
