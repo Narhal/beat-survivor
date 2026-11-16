@@ -31,6 +31,11 @@ const JEUX = {
   // 4 h 04 : Si 2 accordé 35 cents trop bas (121,0 Hz), comme tout le morceau
   h404: { fichier: "voix-404.json", cible: 121.0, temoin: "zero", mots: {
     four: "FOHR", zero: "ZIYROW", two: "TUW", five: "FAYV", one: "WAHN", not: "NAAT", found: "FAWND" } },
+  // Veilleuse : Si 2 accordé 28 cents trop haut (125,5 Hz), comme tout le morceau.
+  // Quelqu'un compte les moutons.
+  veille: { fichier: "voix-veille.json", cible: 125.5, temoin: "seven", mots: {
+    one: "WAHN", two: "TUW", three: "THRIY", four: "FOHR", five: "FAYV", six: "SIHKS",
+    seven: "SEHVEHN", eight: "EYT", sleep: "SLIYP" } },
 };
 const JEU = JEUX[process.argv[3] || "danger"];
 if (!JEU) throw new Error("jeu inconnu : " + process.argv[3]);
