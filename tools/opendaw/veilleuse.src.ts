@@ -338,7 +338,7 @@ build(pad.noteTracks[0], "Nappe", bar => {
     return out
 })
 auto("nappe", pad, "cutoff", enLog([
-    [0, 240], [16, 380], [32, 480], [47.9, 520], [48, 300], [64, 560], [80, 400], [96, 200]
+    [0, 240], [16, 400], [32, 600], [47.9, 680], [48, 320], [64, 740], [80, 440], [96, 200]
 ], 40, 12000))
 auto("nappe", pad, "wow", fievre(8, 42, 0, 60))
 auto("nappe", pad, "flutter", fievre(2, 8, 0, 20))
@@ -401,7 +401,7 @@ const CHUTE: {[accord: number]: number[]} = {
 }
 const box = apparat("Boite a musique", PEIGNE, 2, -0.12)
 reglages("boite", box, {
-    ...ruban(0.15, 8), flutter: 2, decay: 1600, bright: 0.75, metal: 0.35, strike: 0.35, soft: 4, beat: 1.2,
+    ...ruban(0.15, 8), flutter: 2, decay: 1600, bright: 0.95, metal: 0.35, strike: 0.4, soft: 4, beat: 1.2,
     drift: 4, width: 0.6, volume: 0.5
 })
 essai("echo boite", () => box.addAudioEffect("Delay", {delay: 11, feedback: 0.3, cross: 1, filter: 0.3, wet: -13}))
@@ -561,7 +561,7 @@ build(drums.noteTracks[0], "Poussiere", bar => {
         if (!pair) {hit(8, SNARE, 0.3)}
     }
     // La pendule
-    for (const s of [0, 2, 3, 5, 6, 8, 9, 11]) {hit(s, HAT, s % 3 === 0 ? 0.85 : 0.6)}
+    for (const s of [0, 2, 3, 5, 6, 8, 9, 11]) {hit(s, HAT, s % 3 === 0 ? 1 : 0.72)}
     // Fin de phrase : trois coups sur le dernier temps
     if (bar % 8 === 7 && b === 3) {hit(10, SNARE, 0.5); hit(11, SNARE, 0.7)}
     return out
