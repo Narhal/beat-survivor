@@ -244,7 +244,69 @@ if (apparats.length) {
     if (wavDir) wav("piste " + u.label, L, R);
   }
   report("SOMME", mixL, mixR);
+  dosage(mixL, mixR);
   if (wavDir) wav("somme des Apparat", mixL, mixR);
+}
+
+/**
+ * Le dosage : la présence du médium (300 à 3000 Hz), là où vivent les lignes et
+ * les mélodies. Par tranche de 8 mesures : son niveau par rapport au grave
+ * (< 150 Hz), en dB, et la part du temps où il est occupé (à moins de 12 dB de
+ * ses propres pointes), en %.
+ * Ajouté après « Aphasie » (N4 : « la quantité de notes est insupportable »).
+ * Deux morceaux de référence mesurés de la même façon (Harry Axt, Pick a Chick ;
+ * Ben Klock, Subzero) donnent la règle : au début, 20 % du temps au plus et
+ * 17 dB sous le grave ; une arrivée progressive ; jamais plus de 60 % tant que le
+ * pied joue, sauf un sommet de 16 mesures. Un morceau qui dépasse est signalé.
+ */
+function dosage(L, R) {
+  const bq = (type, fc) => {
+    const w = 2 * Math.PI * fc / RATE, alpha = Math.sin(w) / (2 * Math.SQRT1_2), c = Math.cos(w), a0 = 1 + alpha;
+    const b = type === "hp" ? [(1 + c) / 2, -(1 + c), (1 + c) / 2] : [(1 - c) / 2, 1 - c, (1 - c) / 2];
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    return (x) => { const y = (b[0] * x + b[1] * x1 + b[2] * x2 + 2 * c * y1 - (1 - alpha) * y2) / a0; x2 = x1; x1 = x; y2 = y1; y1 = y; return y; };
+  };
+  const hop = Math.round(RATE * 0.01);
+  const cells = [];
+  let trop = 0, debut = false;
+  slices.forEach(([a, z], k) => {
+    const from = toSamples(a * PPQN.Bar), to = Math.min(L.length, toSamples(z * PPQN.Bar));
+    const lo = [bq("lp", 150), bq("lp", 150)], mi = [bq("hp", 300), bq("hp", 300), bq("lp", 3000), bq("lp", 3000)];
+    const env = [];
+    let sLow = 0, sMid = 0, acc = 0;
+    for (let i = from; i < to; i++) {
+      const x = (L[i] + R[i]) / 2;
+      let g = x; for (const f of lo) g = f(g);
+      let m = x; for (const f of mi) m = f(m);
+      sLow += g * g; sMid += m * m; acc += m * m;
+      if ((i - from + 1) % hop === 0) { env.push(acc / hop); acc = 0; }
+    }
+    if (sMid === 0 || env.length === 0) { cells.push("   —   "); return; }
+    const tri = env.slice().sort((p, q) => p - q);
+    const ref = tri[Math.floor(tri.length * 0.95)];
+    const occ = Math.round(100 * env.filter((v) => v > ref / 15.85).length / env.length);
+    const rel = sLow > 0 ? Math.round(10 * Math.log10(sMid / sLow)) : 99;
+    if (occ > 60 && sLow > sMid) trop++;
+    if (k < Math.max(1, Math.round(slices.length / 8)) && occ > 25) debut = true;
+    cells.push(`${String(rel).padStart(3)}/${String(occ).padStart(3)}%`);
+  });
+  console.log(`  ${"MEDIUM".padEnd(10)} par rapport au grave (dB) / temps occupé  | ${cells.join(" ")}`);
+  const alertes = [];
+  if (debut) alertes.push("le médium est déjà occupé plus de 25 % du temps au début");
+  if (trop > 2) alertes.push(`${trop} tranches à plus de 60 % de temps occupé avec le pied (le sommet ne devrait pas dépasser 16 mesures)`);
+  console.log(alertes.length ? "  DOSAGE : " + alertes.join(" ; ") : "  dosage : dans la règle (25 % au plus au début, 60 % au plus hors sommet)");
+}
+
+// ESSAI_NOTES=fichier.json : écrit toutes les notes demandées, piste par piste
+// (pour étudier ce qu'on a écrit : intervalles, places dans la mesure, répétitions).
+if (process.env.ESSAI_NOTES) {
+  writeFileSync(process.env.ESSAI_NOTES, JSON.stringify({
+    bpm: project.bpm,
+    pistes: units.filter((u) => u.notes.length).map((u) => ({
+      label: u.label,
+      notes: u.notes.flatMap((r) => r.events.map((e) => ({ t: r.position + e.position, d: e.duration, p: e.pitch, v: e.velocity }))).sort((a, b) => a.t - b.t),
+    })),
+  }));
 }
 
 if (wavDir) {
