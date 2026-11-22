@@ -252,7 +252,7 @@ build(rivet.noteTracks[0], "Rivet", bar => {
 // Le voyage : le metal sonne plus longtemps, plus plein, plus sature, part de plus haut
 auto("rivet", rivet, "decay", suit(55, 190, v => loga(v, 8, 2000)))
 auto("rivet", rivet, "body", suit(0.2, 0.6, v => v))
-auto("rivet", rivet, "drive", suit(0.12, 0.5, v => v))
+auto("rivet", rivet, "drive", suit(0.12, 0.42, v => v))
 auto("rivet", rivet, "bend", suit(2.5, 8, v => droit(v, 0, 24)))
 
 // ---------- Tole : la plaque ----------
@@ -298,7 +298,7 @@ auto("tole", tole, "gate", [[0, 0], [107.99, 0], [108, 1], [111.99, 1], [112, 0]
 // ---------- Gresil : les tics ----------
 // Un tic a contretemps, qui ne bouge pas ; autour de lui, des tics plus
 // faibles dont le nombre change a chaque bloc. Aucun charley ouvert.
-const ticks = apparat("Tics", GRESIL, -1)
+const ticks = apparat("Tics", GRESIL, -3)
 reglages("tics", ticks, {
     decay: 28, index: 8, snap: 2, body: 0.5, r2: 2.41, r3: 5.63, noise: 0.5, chirp: 0,
     lowcut: 7500, drift: 0.5, width: 0.15, duck: 0
@@ -337,7 +337,7 @@ auto("tics", ticks, "decay", suit(22, 38, v => loga(v, 5, 600)))
 // ---------- Rim et clap : TR-909 ----------
 // Le rim sur les temps 2 et 4. Le clap ne le double que dans les deux blocs
 // les plus pleins, et relance les fins de bloc.
-const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -4})
+const drums = project.addInstrumentUnit("Playfield", {label: "TR-909", volume: -5.5})
 const RIM = 37, CLAP = 39
 const kit: [string, number, any][] = [
     ["Rimshot", RIM, {volume: -6}],
