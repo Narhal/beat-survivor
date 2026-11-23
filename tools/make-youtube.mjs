@@ -14,6 +14,7 @@
 //   images/NN - Titre.jpg     la miniature à donner à YouTube, 1280 × 720
 //   videos/NN - Titre.mp4     la vidéo à envoyer
 //   textes.txt                le titre et la description à coller, par vidéo
+//                             (ce qu'on entend vient de tools/youtube-descriptions.json)
 //
 // Demande ffmpeg et ffprobe dans le PATH. Les titres et les menaces viennent
 // de public/music/manifest.json, les mesures de tools/music-measures.json,
@@ -359,26 +360,38 @@ function video(n, png, mp4) {
 
 // ------------------------------------------------------------------ les textes
 
+// Ce qu'on entend, morceau par morceau : tools/youtube-descriptions.json.
+// Un morceau qui n'y est pas garde sa fiche seule.
+let ECOUTE = {};
+try { ECOUTE = JSON.parse(readFileSync(path.join(repoRoot, "tools", "youtube-descriptions.json"), "utf8")); } catch { /* pas de textes */ }
+
 function texteDe(n) {
   const note = n.hidden
     ? "   [réservé à la Campagne dans le jeu : à toi de voir si tu le montres déjà]\n"
     : n.horsJeu ? "   [pas encore dans le jeu]\n" : "";
+  const total = String(liste.length).padStart(2, "0");
+  const menace = THREAT_LABEL[n.threat].charAt(0) + THREAT_LABEL[n.threat].slice(1).toLowerCase();
+  const rangs = n.rows.map(([k, v]) => k + " : " + v);
   return [
-    `──────── ${n.base}.mp4`,
-    note + `TITRE`,
-    `Beat Survivor OST — ${n.title}`,
-    ``,
-    `DESCRIPTION`,
-    `« ${n.title} » — bande originale de Beat Survivor.`,
-    ``,
-    `FICHE PATHOGÈNE N° ${n.numero} / ${String(liste.length).padStart(2, "0")}`,
-    `${THREAT_LABEL[n.threat].charAt(0)}${THREAT_LABEL[n.threat].slice(1).toLowerCase()}`,
-    ...n.rows.map(([k, v]) => `${k} : ${v}`),
-    ``,
+    "──────── " + n.base + ".mp4",
+    note + "TITRE",
+    "Beat Survivor OST — " + n.title,
+    "",
+    "DESCRIPTION",
+    "« " + n.title + " » — bande originale de Beat Survivor.",
+    "",
+    ...(ECOUTE[n.file] ? [ECOUTE[n.file], ""] : []),
+    "— Fiche du laboratoire —",
+    "Pathogène n° " + n.numero + " / " + total + " · " + menace,
+    rangs.slice(0, 3).join(" · "),
+    rangs.slice(3).join(" · "),
     n.desc,
-    ``,
-    `Jouer : ${SITE}`,
-    ``,
+    "",
+    "Beat Survivor est un jeu de survie où la musique génère l’assaut : la basse fait naître les globules, les médiums les méduses, les aigus les dards.",
+    "Jouer dans le navigateur : " + SITE,
+    "",
+    "#BeatSurvivor #OST",
+    "",
   ].join("\n");
 }
 
