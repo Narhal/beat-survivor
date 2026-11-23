@@ -32,6 +32,8 @@ const RATE = 22050;
 const CONNUS = {
   "Danger.mp3": 132, "Phosphore.mp3": 124, "Derive.mp3": 126, "Stay Alive.mp3": 130,
   "Glas.mp3": 140, "4 h 04.mp3": 98,
+  // « Friche », exporté par N4 sous son nom de pathogène (même durée, 276 s)
+  "Dendrobat paralysis.mp3": 126,
 };
 
 let cache = {};

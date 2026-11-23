@@ -75,6 +75,8 @@ const FICHES: Record<string, string> = {
     "Luit dans le noir, ce qui facilite le dépistage et gâche les nuits. Jolie. Ne pas s’attacher.",
   "Stay Alive.mp3":
     "Seule souche connue qui encourage son hôte. Nous ignorons si c’est sincère. Les résultats suggèrent que non.",
+  "Dendrobat paralysis.mp3":
+    "Paralyse en commençant par les jambes, ce qui laisse le temps de regretter. Très jolie couleur. Ne pas lécher.",
   "Lumenhole.mp3":
     "Un trou par lequel passe de la lumière. Personne ne sait d’où. Le budget ne couvre pas la réponse.",
   "Never see the light again.mp3":
