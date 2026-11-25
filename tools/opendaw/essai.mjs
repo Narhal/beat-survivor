@@ -150,7 +150,7 @@ function render(u) {
   let id = 0;
   for (const r of u.notes) for (const e of r.events) {
     const nid = ++id;
-    events.push({ t: toSamples(r.position + e.position), on: 1, pitch: e.pitch, velocity: e.velocity, id: nid });
+    events.push({ t: toSamples(r.position + e.position), on: 1, pitch: e.pitch, velocity: e.velocity, cents: e.cents ?? 0, id: nid });
     events.push({ t: toSamples(r.position + e.position + e.duration), on: 0, id: nid });
   }
   events.sort((a, b) => a.t - b.t || a.on - b.on);
@@ -171,7 +171,7 @@ function render(u) {
     while (s0 < end) {
       while (next < events.length && events[next].t <= b + s0) {
         const e = events[next++];
-        if (e.on) proc.noteOn(e.pitch, e.velocity, 0, e.id); else proc.noteOff(e.id);
+        if (e.on) proc.noteOn(e.pitch, e.velocity, e.cents, e.id); else proc.noteOff(e.id);
       }
       const s1 = next < events.length ? Math.min(end, events[next].t - b) : end;
       proc.process([bufL, bufR], { s0, s1 });
@@ -304,7 +304,7 @@ if (process.env.ESSAI_NOTES) {
     bpm: project.bpm,
     pistes: units.filter((u) => u.notes.length).map((u) => ({
       label: u.label,
-      notes: u.notes.flatMap((r) => r.events.map((e) => ({ t: r.position + e.position, d: e.duration, p: e.pitch, v: e.velocity }))).sort((a, b) => a.t - b.t),
+      notes: u.notes.flatMap((r) => r.events.map((e) => ({ t: r.position + e.position, d: e.duration, p: e.pitch, v: e.velocity, c: e.cents ?? 0 }))).sort((a, b) => a.t - b.t),
     })),
   }));
 }
